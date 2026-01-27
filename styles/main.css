@@ -1,1 +1,397 @@
+/* ===== VARIABELEN EN RESET ===== */
+:root {
+    --primary-blue: #5169b3;
+    --primary-white: #ffffff;
+    --light-gray: #f5f5f5;
+    --dark-gray: #333333;
+    --text-dark: #2c2c2c;
+    --shadow: rgba(0, 0, 0, 0.1);
+    --overlay-dark: rgba(0, 0, 0, 0.4);
+    --transition: 0.3s ease;
+}
 
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--primary-white);
+    color: var(--text-dark);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* ===== HEADER ===== */
+.main-header {
+    background-color: var(--primary-white);
+    box-shadow: 0 2px 8px var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+}
+
+/* Logo placeholder - vervang later met echte logo */
+.logo-placeholder {
+    width: 120px;
+    height: 50px;
+    background-color: var(--primary-blue);
+    color: var(--primary-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border-radius: 4px;
+}
+
+/* Desktop navigatie */
+.desktop-nav {
+    display: flex;
+    gap: 30px;
+}
+
+.desktop-nav .nav-link {
+    color: var(--text-dark);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 4px;
+    transition: all var(--transition);
+}
+
+.desktop-nav .nav-link:hover {
+    background-color: var(--light-gray);
+    color: var(--primary-blue);
+}
+
+.desktop-nav .nav-link.active {
+    background-color: var(--primary-blue);
+    color: var(--primary-white);
+}
+
+/* Mobiel menu toggle */
+.mobile-menu-toggle {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+}
+
+.mobile-menu-toggle span {
+    width: 25px;
+    height: 3px;
+    background-color: var(--primary-blue);
+    transition: all var(--transition);
+}
+
+/* Mobiel menu */
+.mobile-menu {
+    position: fixed;
+    top: 80px;
+    right: -100%;
+    width: 250px;
+    height: calc(100vh - 80px);
+    background-color: var(--primary-white);
+    box-shadow: -2px 0 8px var(--shadow);
+    transition: right var(--transition);
+    z-index: 999;
+}
+
+.mobile-menu.active {
+    right: 0;
+}
+
+.mobile-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.mobile-nav .nav-link {
+    color: var(--text-dark);
+    text-decoration: none;
+    font-weight: 500;
+    padding: 15px;
+    border-radius: 4px;
+    transition: all var(--transition);
+    margin-bottom: 5px;
+}
+
+.mobile-nav .nav-link:hover,
+.mobile-nav .nav-link.active {
+    background-color: var(--primary-blue);
+    color: var(--primary-white);
+}
+
+/* ===== HERO SECTIE ===== */
+.hero-section {
+    position: relative;
+    height: 400px;
+    background-image: url('../images/hero-background.jpg'); /* Vervang met echte afbeelding */
+    background-size: cover;
+    background-position: center;
+    background-color: var(--light-gray); /* Fallback kleur voor demo */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero-overlay {
+    width: 100%;
+    height: 100%;
+    background-color: var(--overlay-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.match-card {
+    background-color: var(--primary-white);
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    max-width: 600px;
+    width: 90%;
+}
+
+.match-status {
+    text-align: center;
+    color: var(--primary-blue);
+    font-weight: 600;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+}
+
+.match-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 15px;
+}
+
+.team {
+    flex: 1;
+    text-align: center;
+}
+
+.team-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.match-details {
+    text-align: center;
+}
+
+.match-time {
+    font-size: 16px;
+    color: var(--dark-gray);
+    margin-bottom: 8px;
+}
+
+.match-score {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-blue);
+}
+
+.match-location {
+    text-align: center;
+    color: var(--dark-gray);
+    font-size: 14px;
+}
+
+/* ===== AANKONDIGINGEN ===== */
+.announcements-section {
+    background-color: #fff9e6;
+    padding: 20px 0;
+    border-bottom: 3px solid #ffd700;
+}
+
+.announcement-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    background-color: var(--primary-white);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.announcement-icon {
+    background-color: #ffd700;
+    color: var(--text-dark);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.announcement-content {
+    flex: 1;
+}
+
+.announcement-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+.announcement-text {
+    color: var(--dark-gray);
+    font-size: 14px;
+}
+
+/* ===== TEAMS SECTIE ===== */
+.teams-section {
+    padding: 60px 0;
+    background-color: var(--primary-white);
+}
+
+.section-title {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 40px;
+}
+
+.teams-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.team-card {
+    position: relative;
+    height: 250px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px var(--shadow);
+    text-decoration: none;
+    transition: transform var(--transition), box-shadow var(--transition);
+    background-size: cover;
+    background-position: center;
+    background-color: var(--light-gray); /* Fallback voor demo */
+}
+
+/* Demo achtergrondkleuren per team */
+.team-card[data-team="veteranen"] {
+    background-color: #e8f0ff;
+}
+
+.team-card[data-team="zaterdag"] {
+    background-color: #fff0e8;
+}
+
+.team-card[data-team="zondag"] {
+    background-color: #e8ffe8;
+}
+
+.team-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 8px 25px rgba(81, 105, 179, 0.3);
+}
+
+.team-card-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    padding: 30px 20px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.team-card .team-name {
+    color: var(--primary-white);
+    font-size: 28px;
+    font-weight: 700;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 768px) {
+    .desktop-nav {
+        display: none;
+    }
+    
+    .mobile-menu-toggle {
+        display: flex;
+    }
+    
+    .hero-section {
+        height: 350px;
+    }
+    
+    .match-card {
+        padding: 20px;
+    }
+    
+    .match-info {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .team-name {
+        font-size: 16px;
+    }
+    
+    .teams-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-title {
+        font-size: 26px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 0 15px;
+    }
+    
+    .hero-section {
+        height: 300px;
+    }
+    
+    .match-card {
+        padding: 15px;
+    }
+    
+    .team-card {
+        height: 200px;
+    }
+    
+    .team-card .team-name {
+        font-size: 24px;
+    }
+}
