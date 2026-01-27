@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ploegen - Home</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <!-- HEADER MET NAVIGATIE -->
+    <header class="main-header">
+        <div class="container">
+            <div class="header-content">
+                <!-- Logo placeholder -->
+                <div class="logo">
+                    <div class="logo-placeholder">LOGO</div>
+                </div>
+                
+                <!-- Desktop navigatie -->
+                <nav class="desktop-nav">
+                    <a href="index.html" class="nav-link active">Home</a>
+                    <a href="teams.html" class="nav-link">Teams</a>
+                    <a href="evenementen.html" class="nav-link">Evenementen</a>
+                    <a href="galerij.html" class="nav-link">Galerij</a>
+                </nav>
+                
+                <!-- Mobiel menu toggle -->
+                <button class="mobile-menu-toggle" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Mobiel menu overlay -->
+    <div class="mobile-menu">
+        <nav class="mobile-nav">
+            <a href="index.html" class="nav-link active">Home</a>
+            <a href="teams.html" class="nav-link">Teams</a>
+            <a href="evenementen.html" class="nav-link">Evenementen</a>
+            <a href="galerij.html" class="nav-link">Galerij</a>
+        </nav>
+    </div>
+    
+    <!-- HERO SECTIE MET EERSTVOLGENDE WEDSTRIJD -->
+    <section class="hero-section">
+        <!-- Achtergrondafbeelding komt hier via CSS background-image -->
+        <div class="hero-overlay">
+            <div class="container">
+                <div class="match-card">
+                    <div class="match-status">Eerstvolgende wedstrijd</div>
+                    <div class="match-info">
+                        <div class="team home-team">
+                            <span class="team-name">Team Naam</span>
+                        </div>
+                        <div class="match-details">
+                            <div class="match-time">Za 01/02 - 14:30</div>
+                            <div class="match-score">VS</div>
+                        </div>
+                        <div class="team away-team">
+                            <span class="team-name">Tegenstander</span>
+                        </div>
+                    </div>
+                    <div class="match-location">Sportcomplex - Veld 1</div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- AANKONDIGINGEN SECTIE (alleen zichtbaar wanneer er aankondigingen zijn) -->
+    <section class="announcements-section" style="display: none;">
+        <div class="container">
+            <div class="announcement-card">
+                <div class="announcement-icon">!</div>
+                <div class="announcement-content">
+                    <h3 class="announcement-title">Belangrijke aankondiging</h3>
+                    <p class="announcement-text">Hier komt de tekst van de aankondiging te staan.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- TEAMS OVERZICHT -->
+    <section class="teams-section">
+        <div class="container">
+            <h2 class="section-title">Onze Teams</h2>
+            
+            <div class="teams-grid">
+                <!-- Team 1: Veteranen -->
+                <a href="veteranen.html" class="team-card" data-team="veteranen">
+                    <!-- Achtergrondafbeelding komt via inline style of CSS -->
+                    <div class="team-card-overlay">
+                        <h3 class="team-name">Veteranen</h3>
+                    </div>
+                </a>
+                
+                <!-- Team 2: Zaterdag -->
+                <a href="zaterdag.html" class="team-card" data-team="zaterdag">
+                    <div class="team-card-overlay">
+                        <h3 class="team-name">Zaterdag</h3>
+                    </div>
+                </a>
+                
+                <!-- Team 3: Zondag -->
+                <a href="zondag.html" class="team-card" data-team="zondag">
+                    <div class="team-card-overlay">
+                        <h3 class="team-name">Zondag</h3>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+    
+    <script src="scripts/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evenementen - Ploegen</title>
+    <link rel="stylesheet" href="styles/evenementen.css">
+</head>
+<body>
+    <!-- HEADER MET NAVIGATIE -->
+    <header class="main-header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-placeholder">LOGO</div>
+                </div>
+                
+                <nav class="desktop-nav">
+                    <a href="index.html" class="nav-link">Home</a>
+                    <a href="teams.html" class="nav-link">Teams</a>
+                    <a href="evenementen.html" class="nav-link active">Evenementen</a>
+                    <a href="galerij.html" class="nav-link">Galerij</a>
+                </nav>
+                
+                <button class="mobile-menu-toggle" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Mobiel menu overlay -->
+    <div class="mobile-menu">
+        <nav class="mobile-nav">
+            <a href="index.html" class="nav-link">Home</a>
+            <a href="teams.html" class="nav-link">Teams</a>
+            <a href="evenementen.html" class="nav-link active">Evenementen</a>
+            <a href="galerij.html" class="nav-link">Galerij</a>
+        </nav>
+    </div>
+    
+    <!-- PAGE HEADER -->
+    <section class="page-header">
+        <div class="container">
+            <h1 class="page-title">Evenementen</h1>
+            <p class="page-subtitle">Aankomende clubactiviteiten en evenementen</p>
+        </div>
+    </section>
+    
+    <!-- EERSTVOLGENDE EVENEMENT -->
+    <section class="featured-event-section">
+        <div class="container">
+            <div class="featured-event-card">
+                <div class="event-badge">Eerstvolgende</div>
+                <div class="event-content">
+                    <div class="event-icon">
+                        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                    </div>
+                    <div class="event-details">
+                        <h2 class="event-title">Clubkampioenschap 2026</h2>
+                        <div class="event-info">
+                            <div class="event-date">
+                                <strong>Datum:</strong> Zaterdag 15 Februari 2026
+                            </div>
+                            <div class="event-time">
+                                <strong>Tijd:</strong> 10:00 - 18:00
+                            </div>
+                            <div class="event-location">
+                                <strong>Locatie:</strong> Hoofdveld Sportcomplex
+                            </div>
+                        </div>
+                        <p class="event-description">
+                            Ons jaarlijks clubkampioenschap waar alle teams strijden om de ere-titel. 
+                            Een dag vol sportiviteit, plezier en gezelligheid. Iedereen is welkom!
+                        </p>
+                        <button class="event-action-btn active">Meer informatie</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- VOLGENDE EVENEMENTEN -->
+    <section class="events-list-section">
+        <div class="container">
+            <h2 class="section-title">Volgende Evenementen</h2>
+            
+            <div class="events-list">
+                <!-- Event 2 - Nog niet beschikbaar -->
+                <div class="event-card disabled">
+                    <div class="event-card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                            <path d="M2 17l10 5 10-5"></path>
+                            <path d="M2 12l10 5 10-5"></path>
+                        </svg>
+                    </div>
+                    <div class="event-card-content">
+                        <h3 class="event-card-title">Clubfeest & BBQ</h3>
+                        <div class="event-card-date">Zaterdag 22 Maart 2026</div>
+                        <p class="event-card-description">
+                            Jaarlijkse clubbijeenkomst met gezellige barbecue en activiteiten voor het hele gezin.
+                        </p>
+                    </div>
+                    <button class="event-card-btn disabled">Nog niet beschikbaar</button>
+                </div>
+                
+                <!-- Event 3 - Nog niet beschikbaar -->
+                <div class="event-card disabled">
+                    <div class="event-card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                        </svg>
+                    </div>
+                    <div class="event-card-content">
+                        <h3 class="event-card-title">Jeugdkamp Zomervakantie</h3>
+                        <div class="event-card-date">1-5 Juli 2026</div>
+                        <p class="event-card-description">
+                            Vijfdaags sportkamp voor onze jeugdleden met trainingen, wedstrijden en teambuilding activiteiten.
+                        </p>
+                    </div>
+                    <button class="event-card-btn disabled">Nog niet beschikbaar</button>
+                </div>
+                
+                <!-- Event 4 - Nog niet beschikbaar -->
+                <div class="event-card disabled">
+                    <div class="event-card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                    <div class="event-card-content">
+                        <h3 class="event-card-title">Algemene Ledenvergadering</h3>
+                        <div class="event-card-date">Dinsdag 15 September 2026</div>
+                        <p class="event-card-description">
+                            Jaarlijkse algemene vergadering voor alle leden. Bespreking seizoen, plannen en verkiezingen bestuur.
+                        </p>
+                    </div>
+                    <button class="event-card-btn disabled">Nog niet beschikbaar</button>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <script src="scripts/evenementen.js"></script>
+</body>
+</html>
