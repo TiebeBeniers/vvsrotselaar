@@ -37,6 +37,16 @@ const errorMessage = document.getElementById('errorMessage');
 const logoutBtn = document.getElementById('logoutBtn');
 const adminBtn = document.getElementById('adminBtn');
 
+// Debug: Check if all elements are found
+console.log('Auth.js loaded');
+console.log('Elements found:', {
+    loginForm: !!loginForm,
+    loggedInView: !!loggedInView,
+    errorMessage: !!errorMessage,
+    logoutBtn: !!logoutBtn,
+    adminBtn: !!adminBtn
+});
+
 // ===============================================
 // LOGIN FUNCTIONALITY
 // ===============================================
@@ -99,9 +109,11 @@ logoutBtn.addEventListener('click', async () => {
 // ADMIN NAVIGATION
 // ===============================================
 
-adminBtn.addEventListener('click', () => {
-    window.location.href = 'admin.html';
-});
+if (adminBtn) {
+    adminBtn.addEventListener('click', () => {
+        window.location.href = 'admin.html';
+    });
+}
 
 // ===============================================
 // AUTH STATE LISTENER
@@ -110,6 +122,7 @@ adminBtn.addEventListener('click', () => {
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         // User is logged in
+        console.log('User logged in:', user.uid);
         try {
             // Get user data from Firestore
             const userQuery = query(
@@ -120,35 +133,66 @@ onAuthStateChanged(auth, async (user) => {
             
             if (!userSnapshot.empty) {
                 const userData = userSnapshot.docs[0].data();
+                console.log('User data found:', userData);
                 
-                // Show logged in view
-                loginForm.parentElement.style.display = 'none';
-                loggedInView.style.display = 'block';
+                // Hide login form, show logged in view
+                if (loginForm) {
+                    loginForm.style.display = 'none';
+                }
+                if (loggedInView) {
+                    loggedInView.style.display = 'block';
+                }
                 
                 // Update user info
-                document.getElementById('userName').textContent = userData.naam;
-                document.getElementById('userEmail').textContent = userData.email;
+                const userNameEl = document.getElementById('userName');
+                const userEmailEl = document.getElementById('userEmail');
+                const userRoleEl = document.getElementById('userRole');
+                
+                if (userNameEl) userNameEl.textContent = userData.naam || 'Gebruiker';
+                if (userEmailEl) userEmailEl.textContent = userData.email || user.email;
                 
                 const roleText = userData.rol === 'admin' ? 'Administrator' : 'Clublid';
-                document.getElementById('userRole').textContent = roleText;
+                if (userRoleEl) userRoleEl.textContent = roleText;
                 
                 // Show admin button if user is admin
-                if (userData.rol === 'admin') {
-                    adminBtn.style.display = 'block';
-                } else {
-                    adminBtn.style.display = 'none';
+                if (adminBtn) {
+                    if (userData.rol === 'admin') {
+                        adminBtn.style.display = 'block';
+                        console.log('Admin button shown');
+                    } else {
+                        adminBtn.style.display = 'none';
+                    }
                 }
+                
+                console.log('UI updated - loginForm hidden, loggedInView shown');
+            } else {
+                console.error('No user data found in Firestore for UID:', user.uid);
+                // Show error and logout
+                alert('Gebruikersgegevens niet gevonden. Neem contact op met de beheerder.');
+                await signOut(auth);
             }
         } catch (error) {
             console.error('Error fetching user data:', error);
+            alert('Fout bij ophalen gebruikersgegevens: ' + error.message);
         }
     } else {
         // User is logged out
-        loginForm.parentElement.style.display = 'block';
-        loggedInView.style.display = 'none';
+        console.log('User logged out');
+        
+        if (loginForm) {
+            loginForm.style.display = 'flex';
+            loginForm.style.flexDirection = 'column';
+        }
+        if (loggedInView) {
+            loggedInView.style.display = 'none';
+        }
         
         // Clear form
-        loginForm.reset();
-        errorMessage.style.display = 'none';
+        if (loginForm) {
+            loginForm.reset();
+        }
+        if (errorMessage) {
+            errorMessage.style.display = 'none';
+        }
     }
 });

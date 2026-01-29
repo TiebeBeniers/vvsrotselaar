@@ -4,7 +4,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ===============================================
 // HAMBURGER MENU
@@ -226,6 +226,16 @@ async function startMatch(matchData) {
             currentMinute: 0,
             scoreThuis: 0,
             scoreUit: 0
+        });
+
+        // Add kickoff event
+        await addDoc(collection(db, 'events'), {
+            matchId: matchData.id,
+            minuut: 0,
+            type: 'aftrap',
+            ploeg: 'center',
+            spelerIn: '',
+            timestamp: serverTimestamp()
         });
 
         // Start timer in background

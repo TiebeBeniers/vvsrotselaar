@@ -93,17 +93,14 @@ modalConfirm.addEventListener('click', async () => {
         playerOut = playerOutInput.value.trim();
         playerName = playerInInput.value.trim();
         
-        if (!playerOut || !playerName) {
-            alert('Vul beide spelers in.');
+        // For substitution, at least one name should be provided
+        if (!playerOut && !playerName) {
+            alert('Vul tenminste één speler in voor een wissel.');
             return;
         }
     } else {
         playerName = playerInput.value.trim();
-        
-        if (!playerName) {
-            alert('Vul een spelernaam in.');
-            return;
-        }
+        // Empty is allowed - will show only event type
     }
     
     await addEvent(currentAction, currentTeam, playerName, playerOut);
@@ -216,7 +213,7 @@ function checkIfDesignatedPerson() {
 // ===============================================
 
 function setupControlButtons() {
-    const controlButtons = document.querySelectorAll('.control-btn');
+    const controlButtons = document.querySelectorAll('.control-btn:not(.score-correction)');
     
     controlButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -227,22 +224,84 @@ function setupControlButtons() {
         });
     });
     
-    // Pause and Resume buttons
+    // Pause, Resume and End buttons
     const pauseBtn = document.getElementById('pauseBtn');
     const resumeBtn = document.getElementById('resumeBtn');
+    const endMatchBtn = document.getElementById('endMatchBtn');
+    const scoreCorrectBtn = document.getElementById('scoreCorrectBtn');
     
     pauseBtn.addEventListener('click', pauseMatch);
     resumeBtn.addEventListener('click', resumeMatch);
+    endMatchBtn.addEventListener('click', endMatch);
+    scoreCorrectBtn.addEventListener('click', openScoreModal);
     
     // Update button visibility based on status
     if (currentMatch.status === 'rust') {
         pauseBtn.style.display = 'none';
         resumeBtn.style.display = 'block';
+        endMatchBtn.style.display = 'block';
     } else {
         pauseBtn.style.display = 'block';
         resumeBtn.style.display = 'none';
+        endMatchBtn.style.display = 'block';
     }
 }
+
+// ===============================================
+// SCORE CORRECTION
+// ===============================================
+
+const scoreModal = document.getElementById('scoreModal');
+const homeScoreInput = document.getElementById('homeScoreInput');
+const awayScoreInput = document.getElementById('awayScoreInput');
+const scoreModalCancel = document.getElementById('scoreModalCancel');
+const scoreModalConfirm = document.getElementById('scoreModalConfirm');
+
+function openScoreModal() {
+    // Set current scores
+    homeScoreInput.value = currentMatch.scoreThuis || 0;
+    awayScoreInput.value = currentMatch.scoreUit || 0;
+    
+    // Set team labels
+    document.getElementById('homeTeamLabel').textContent = currentMatch.thuisploeg;
+    document.getElementById('awayTeamLabel').textContent = currentMatch.uitploeg;
+    
+    scoreModal.classList.add('active');
+}
+
+function closeScoreModal() {
+    scoreModal.classList.remove('active');
+}
+
+scoreModalCancel.addEventListener('click', closeScoreModal);
+
+scoreModalConfirm.addEventListener('click', async () => {
+    const newHomeScore = parseInt(homeScoreInput.value) || 0;
+    const newAwayScore = parseInt(awayScoreInput.value) || 0;
+    
+    try {
+        const matchRef = doc(db, 'matches', currentMatchId);
+        await updateDoc(matchRef, {
+            scoreThuis: newHomeScore,
+            scoreUit: newAwayScore
+        });
+        
+        // Add score correction event
+        await addDoc(collection(db, 'events'), {
+            matchId: currentMatchId,
+            minuut: currentMatch.currentMinute || 0,
+            type: 'score-correctie',
+            ploeg: 'center',
+            spelerIn: `${newHomeScore} - ${newAwayScore}`,
+            timestamp: serverTimestamp()
+        });
+        
+        closeScoreModal();
+    } catch (error) {
+        console.error('Error correcting score:', error);
+        alert('Fout bij aanpassen score.');
+    }
+});
 
 function handleControlAction(action, team) {
     const teamName = team === 'home' ? currentMatch.thuisploeg : currentMatch.uitploeg;
@@ -322,8 +381,19 @@ async function pauseMatch() {
             status: 'rust'
         });
         
+        // Add halftime event
+        await addDoc(collection(db, 'events'), {
+            matchId: currentMatchId,
+            minuut: currentMatch.currentMinute || 0,
+            type: 'rust',
+            ploeg: 'center',
+            spelerIn: '',
+            timestamp: serverTimestamp()
+        });
+        
         document.getElementById('pauseBtn').style.display = 'none';
         document.getElementById('resumeBtn').style.display = 'block';
+        document.getElementById('endMatchBtn').style.display = 'block';
     } catch (error) {
         console.error('Error pausing match:', error);
     }
@@ -341,10 +411,39 @@ async function resumeMatch() {
             currentMinute: resumeMinute
         });
         
-        document.getElementById('pauseBtn').style.display = 'block';
+        document.getElementById('pauseBtn').style.display = 'none';
         document.getElementById('resumeBtn').style.display = 'none';
+        document.getElementById('endMatchBtn').style.display = 'block';
     } catch (error) {
         console.error('Error resuming match:', error);
+    }
+}
+
+async function endMatch() {
+    if (!confirm('Weet je zeker dat je de wedstrijd wilt beëindigen?')) {
+        return;
+    }
+    
+    try {
+        const matchRef = doc(db, 'matches', currentMatchId);
+        await updateDoc(matchRef, {
+            status: 'finished'
+        });
+        
+        // Add end match event
+        await addDoc(collection(db, 'events'), {
+            matchId: currentMatchId,
+            minuut: currentMatch.currentMinute || 0,
+            type: 'einde',
+            ploeg: 'center',
+            spelerIn: '',
+            timestamp: serverTimestamp()
+        });
+        
+        alert('Wedstrijd beëindigd!');
+        window.location.href = 'index.html';
+    } catch (error) {
+        console.error('Error ending match:', error);
     }
 }
 
@@ -387,19 +486,42 @@ function listenToEvents() {
         eventsListener();
     }
 
+    console.log('Setting up events listener for matchId:', currentMatchId);
+
     const eventsQuery = query(
         collection(db, 'events'),
         where('matchId', '==', currentMatchId),
-        orderBy('timestamp', 'desc')
+        orderBy('minuut', 'desc')
     );
 
     eventsListener = onSnapshot(eventsQuery, (snapshot) => {
+        console.log('Events snapshot received:', snapshot.size, 'events');
         renderTimeline(snapshot.docs);
+    }, (error) => {
+        console.error('Events listener error:', error);
+        // Fallback: query without orderBy if index not created
+        if (error.code === 'failed-precondition') {
+            console.log('Index not found, using simple query');
+            const simpleQuery = query(
+                collection(db, 'events'),
+                where('matchId', '==', currentMatchId)
+            );
+            eventsListener = onSnapshot(simpleQuery, (snapshot) => {
+                console.log('Events (simple query):', snapshot.size);
+                // Sort manually
+                const sortedDocs = snapshot.docs.sort((a, b) => {
+                    return (b.data().minuut || 0) - (a.data().minuut || 0);
+                });
+                renderTimeline(sortedDocs);
+            });
+        }
     });
 }
 
 function renderTimeline(eventDocs) {
     const timeline = document.getElementById('timeline');
+    
+    console.log('Rendering timeline with', eventDocs.length, 'events');
     
     if (eventDocs.length === 0) {
         timeline.innerHTML = '<div class="timeline-empty">De wedstrijd is gestart. Events verschijnen hier...</div>';
@@ -410,6 +532,7 @@ function renderTimeline(eventDocs) {
     
     eventDocs.forEach(doc => {
         const event = doc.data();
+        console.log('Creating event element:', event);
         const eventElement = createEventElement(event);
         timeline.appendChild(eventElement);
     });
@@ -417,6 +540,33 @@ function renderTimeline(eventDocs) {
 
 function createEventElement(event) {
     const div = document.createElement('div');
+    
+    // Check if it's a center event (aftrap, rust, einde, score-correctie)
+    if (event.ploeg === 'center') {
+        div.className = `timeline-event center ${event.type}`;
+        
+        const details = document.createElement('div');
+        details.className = 'event-details center';
+        
+        const type = document.createElement('div');
+        type.className = 'event-type';
+        type.textContent = getEventTypeText(event.type);
+        
+        details.appendChild(type);
+        
+        // Add score for score-correctie
+        if (event.type === 'score-correctie' && event.spelerIn) {
+            const score = document.createElement('div');
+            score.className = 'event-player';
+            score.textContent = event.spelerIn;
+            details.appendChild(score);
+        }
+        
+        div.appendChild(details);
+        return div;
+    }
+    
+    // Regular team events
     div.className = `timeline-event ${event.ploeg} ${event.type}`;
     
     const minute = document.createElement('div');
@@ -430,17 +580,33 @@ function createEventElement(event) {
     type.className = 'event-type';
     type.textContent = getEventTypeText(event.type);
     
-    const player = document.createElement('div');
-    player.className = 'event-player';
-    
-    if (event.type === 'wissel') {
-        player.textContent = `${event.spelerUit} → ${event.spelerIn}`;
-    } else {
-        player.textContent = event.spelerIn;
-    }
-    
     details.appendChild(type);
-    details.appendChild(player);
+    
+    // Only add player info if names are provided
+    if (event.type === 'wissel') {
+        if (event.spelerUit || event.spelerIn) {
+            const player = document.createElement('div');
+            player.className = 'event-player';
+            
+            const parts = [];
+            if (event.spelerUit) {
+                parts.push(`🔻 ${event.spelerUit}`);
+            }
+            if (event.spelerIn) {
+                parts.push(`🔺 ${event.spelerIn}`);
+            }
+            player.textContent = parts.join(' ');
+            details.appendChild(player);
+        }
+    } else {
+        // For other events, only show player if name is provided
+        if (event.spelerIn) {
+            const player = document.createElement('div');
+            player.className = 'event-player';
+            player.textContent = event.spelerIn;
+            details.appendChild(player);
+        }
+    }
     
     if (event.ploeg === 'home') {
         div.appendChild(minute);
@@ -460,7 +626,11 @@ function getEventTypeText(type) {
         'own-goal': '⚽ Eigen Doelpunt',
         'geel': '🟨 Gele Kaart',
         'rood': '🟥 Rode Kaart',
-        'wissel': '🔄 Wissel'
+        'wissel': '🔄 Wissel',
+        'aftrap': '⚽ Aftrap',
+        'rust': '⏸️ Rust',
+        'einde': '🏁 Wedstrijd Geëindigd',
+        'score-correctie': '✏️ Score Correctie'
     };
     return types[type] || type;
 }

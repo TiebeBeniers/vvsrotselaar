@@ -57,7 +57,6 @@ onAuthStateChanged(auth, async (user) => {
     currentUserData = userSnapshot.docs[0].data();
     
     if (currentUserData.rol !== 'admin') {
-        alert('Je hebt geen toegang tot deze pagina.');
         window.location.href = 'index.html';
         return;
     }
