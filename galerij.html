@@ -34,13 +34,107 @@
         </div>
     </header>
 
-    <main class="placeholder-page">
-        <div class="placeholder-content">
-            <h2>Galerij</h2>
-            <p>Deze pagina is momenteel in ontwikkeling.</p>
-            <a href="index.html">Terug naar Home</a>
+    <main class="gallery-page">
+        <div class="gallery-header">
+            <h1>Galerij</h1>
+        </div>
+
+        <div class="gallery-grid">
+            <!-- Large photo -->
+            <div class="gallery-item large">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 1">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo2.jpg" alt="VVS Rotselaar foto 2">
+            </div>
+            
+            <!-- Tall photo -->
+            <div class="gallery-item tall">
+                <img src="assets/galerij/photo3.jpg" alt="VVS Rotselaar foto 3">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo4.jpg" alt="VVS Rotselaar foto 4">
+            </div>
+            
+            <!-- Wide photo -->
+            <div class="gallery-item wide">
+                <img src="assets/galerij/photo5.jpg" alt="VVS Rotselaar foto 5">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo6.jpg" alt="VVS Rotselaar foto 6">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 7">
+            </div>
+            
+            <!-- Tall photo -->
+            <div class="gallery-item tall">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 8">
+            </div>
+            
+            <!-- Large photo -->
+            <div class="gallery-item large">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 9">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 10">
+            </div>
+            
+            <!-- Wide photo -->
+            <div class="gallery-item wide">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 11">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 12">
+            </div>
+
+            <!-- Voeg meer foto's toe zoals je wil -->
+        </div>
+
+        <!-- Lightbox voor fullscreen viewing -->
+        <div class="lightbox" id="lightbox">
+            <span class="lightbox-close" id="lightboxClose">&times;</span>
+            <img src="" alt="Fullscreen foto" id="lightboxImg">
         </div>
     </main>
+
+    <script>
+        // Lightbox functionality
+        const galleryItems = document.querySelectorAll('.gallery-item');
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        const lightboxClose = document.getElementById('lightboxClose');
+
+        galleryItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const img = item.querySelector('img');
+                lightboxImg.src = img.src;
+                lightbox.classList.add('active');
+            });
+        });
+
+        lightboxClose.addEventListener('click', () => {
+            lightbox.classList.remove('active');
+        });
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.classList.remove('active');
+            }
+        });
+    </script>
 
     <!-- Footer -->
     <footer class="main-footer">
