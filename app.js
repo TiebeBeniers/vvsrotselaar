@@ -1,5 +1,5 @@
 // ===============================================
-// HOMEPAGE FUNCTIONALITY - COMPLETE VERSION
+// HOMEPAGE FUNCTIONALITY - WITH LIVE OVERLAY
 // V.V.S Rotselaar
 // ===============================================
 
@@ -7,7 +7,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-console.log('App.js loaded');
+console.log('App.js loaded (with live overlay)');
 
 // ===============================================
 // HAMBURGER MENU
@@ -117,28 +117,28 @@ onAuthStateChanged(auth, async (user) => {
         }
     }
     
-    checkUpcomingMatches();
+    // Check for live matches (for everyone)
+    checkForLiveMatches();
 });
 
 // ===============================================
-// MATCH MANAGEMENT
+// LIVE MATCH OVERLAY
 // ===============================================
 
 let liveMatchListener = null;
-let liveMatchDisplayInterval = null;
+let liveOverlayUpdateInterval = null;
+let currentLiveMatch = null;
 
-async function checkUpcomingMatches() {
-    const heroSection = document.getElementById('heroSection');
-    const carouselContainer = document.getElementById('carouselContainer');
-    const startMatchContainer = document.getElementById('startMatchContainer');
-    const liveMatchCard = document.getElementById('liveMatchCard');
+function checkForLiveMatches() {
+    console.log('Checking for live matches...');
     
-    if (!carouselContainer || !liveMatchCard) {
-        console.error('Required elements not found');
+    const liveOverlay = document.getElementById('liveMatchOverlay');
+    const startMatchContainer = document.getElementById('startMatchContainer');
+    
+    if (!liveOverlay) {
+        console.error('Live overlay element not found');
         return;
     }
-    
-    console.log('Checking for upcoming matches...');
 
     // Query for live matches
     const liveMatchesQuery = query(
@@ -151,68 +151,73 @@ async function checkUpcomingMatches() {
         liveMatchListener();
     }
 
+    // Real-time listener for live matches
     liveMatchListener = onSnapshot(liveMatchesQuery, (snapshot) => {
         if (!snapshot.empty) {
-            // There's a live match
+            // Live match found!
             const matchData = snapshot.docs[0].data();
             const matchId = snapshot.docs[0].id;
+            currentLiveMatch = { id: matchId, ...matchData };
             
-            console.log('Live match found:', matchData.thuisploeg, 'vs', matchData.uitploeg);
+            console.log('Live match found:', matchData.thuisploeg, 'vs', matchData.uitploeg, 'Status:', matchData.status);
             
-            // Show carousel with overlay
-            carouselContainer.style.display = 'block';
-            carouselContainer.classList.add('with-overlay');
+            // Show overlay
+            liveOverlay.style.display = 'flex';
             
-            if (startMatchContainer) startMatchContainer.style.display = 'none';
-            liveMatchCard.style.display = 'flex';
+            // Hide start match button if visible
+            if (startMatchContainer) {
+                startMatchContainer.style.display = 'none';
+            }
             
-            // Update and start display
-            updateLiveMatchCard(matchData);
-            startLiveMatchDisplay(matchData);
+            // Update overlay content
+            updateLiveOverlay(currentLiveMatch);
+            startLiveOverlayUpdate();
             
-            return;
+        } else {
+            // No live match
+            console.log('No live match found');
+            liveOverlay.style.display = 'none';
+            stopLiveOverlayUpdate();
+            currentLiveMatch = null;
+            
+            // Check if user can start a match (only if logged in)
+            if (currentUser && currentUserData) {
+                checkForStartMatch();
+            }
         }
-        
-        // No live match
-        console.log('No live match, checking for start match');
-        carouselContainer.classList.remove('with-overlay');
-        liveMatchCard.style.display = 'none';
-        stopLiveMatchDisplay();
-        
-        checkForStartMatch();
     });
 }
 
-function updateLiveMatchCard(matchData) {
-    const liveMatchCard = document.getElementById('liveMatchCard');
-    if (!liveMatchCard) return;
+function updateLiveOverlay(match) {
+    const liveBadge = document.getElementById('liveBadge');
+    const overlayHomeTeam = document.getElementById('overlayHomeTeam');
+    const overlayAwayTeam = document.getElementById('overlayAwayTeam');
+    const overlayHomeScore = document.getElementById('overlayHomeScore');
+    const overlayAwayScore = document.getElementById('overlayAwayScore');
+    const overlayTime = document.getElementById('overlayTime');
     
-    const timeDisplay = calculateDisplayTime(matchData);
+    if (!liveBadge || !overlayHomeTeam || !overlayAwayTeam) return;
     
-    const beschrijvingHtml = matchData.beschrijving 
-        ? `<div class="match-description-display">${matchData.beschrijving}</div>`
-        : '';
+    // Update badge
+    if (match.status === 'rust') {
+        liveBadge.textContent = 'RUST';
+        liveBadge.className = 'live-badge rust';
+    } else {
+        liveBadge.textContent = 'LIVE';
+        liveBadge.className = 'live-badge live';
+    }
     
-    liveMatchCard.innerHTML = `
-        <div class="match-info">
-            <div class="team home-team">
-                <h2>${matchData.thuisploeg}</h2>
-            </div>
-            <div class="match-score">
-                <div class="score-display">
-                    <span>${matchData.scoreThuis || 0}</span>
-                    <span class="separator">-</span>
-                    <span>${matchData.scoreUit || 0}</span>
-                </div>
-                <div class="match-minute" id="liveMatchTime">${timeDisplay}</div>
-            </div>
-            <div class="team away-team">
-                <h2>${matchData.uitploeg}</h2>
-            </div>
-        </div>
-        ${beschrijvingHtml}
-        <button class="view-live-btn" onclick="window.location.href='live.html'">VOLG LIVE</button>
-    `;
+    // Update teams
+    overlayHomeTeam.textContent = match.thuisploeg;
+    overlayAwayTeam.textContent = match.uitploeg;
+    
+    // Update scores
+    overlayHomeScore.textContent = match.scoreThuis || 0;
+    overlayAwayScore.textContent = match.scoreUit || 0;
+    
+    // Update time
+    const timeDisplay = calculateDisplayTime(match);
+    overlayTime.textContent = timeDisplay;
 }
 
 function calculateDisplayTime(match) {
@@ -242,34 +247,34 @@ function calculateDisplayTime(match) {
     }
 }
 
-function startLiveMatchDisplay(matchData) {
-    stopLiveMatchDisplay();
+function startLiveOverlayUpdate() {
+    stopLiveOverlayUpdate();
     
     // Update every second
-    liveMatchDisplayInterval = setInterval(() => {
-        const timeDisplay = calculateDisplayTime(matchData);
-        const timeElement = document.getElementById('liveMatchTime');
-        if (timeElement) {
-            timeElement.textContent = timeDisplay;
+    liveOverlayUpdateInterval = setInterval(() => {
+        if (currentLiveMatch) {
+            updateLiveOverlay(currentLiveMatch);
         }
     }, 1000);
 }
 
-function stopLiveMatchDisplay() {
-    if (liveMatchDisplayInterval) {
-        clearInterval(liveMatchDisplayInterval);
-        liveMatchDisplayInterval = null;
+function stopLiveOverlayUpdate() {
+    if (liveOverlayUpdateInterval) {
+        clearInterval(liveOverlayUpdateInterval);
+        liveOverlayUpdateInterval = null;
     }
 }
 
+// ===============================================
+// START MATCH (for designated persons)
+// ===============================================
+
 async function checkForStartMatch() {
     const startMatchContainer = document.getElementById('startMatchContainer');
-    const carouselContainer = document.getElementById('carouselContainer');
     
-    if (!startMatchContainer || !carouselContainer) return;
+    if (!startMatchContainer) return;
     
     if (!currentUser || !currentUserData) {
-        carouselContainer.style.display = 'block';
         startMatchContainer.style.display = 'none';
         return;
     }
@@ -294,7 +299,7 @@ async function checkForStartMatch() {
             const matchData = docSnap.data();
             const matchDateTime = new Date(`${matchData.datum}T${matchData.uur}`);
             
-            // Check if user has access (bestuurslid OR in aangeduidePersonen)
+            // Check if user has access
             const isBestuurslid = currentUserData.categorie === 'bestuurslid';
             const isDesignated = matchData.aangeduidePersonen && 
                                 matchData.aangeduidePersonen.includes(currentUser.uid);
@@ -309,7 +314,6 @@ async function checkForStartMatch() {
         });
 
         if (showStartButton && matchToStart) {
-            carouselContainer.style.display = 'none';
             startMatchContainer.style.display = 'flex';
             
             const startMatchBtn = document.getElementById('startMatchBtn');
@@ -317,7 +321,6 @@ async function checkForStartMatch() {
                 startMatchBtn.onclick = () => startMatch(matchToStart);
             }
         } else {
-            carouselContainer.style.display = 'block';
             startMatchContainer.style.display = 'none';
         }
     } catch (error) {
@@ -336,7 +339,8 @@ async function startMatch(matchData) {
             startedAt: serverTimestamp(),
             scoreThuis: 0,
             scoreUit: 0,
-            pausedDuration: 0
+            pausedDuration: 0,
+            halfTimeReached: false  // Track if half-time button was used
         });
 
         // Add kickoff event
@@ -358,19 +362,6 @@ async function startMatch(matchData) {
 }
 
 // ===============================================
-// TEAM BUTTONS
-// ===============================================
-
-const teamButtons = document.querySelectorAll('.team-button');
-if (teamButtons.length > 0) {
-    teamButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            console.log('Team button clicked - feature coming soon');
-        });
-    });
-}
-
-// ===============================================
 // CLEANUP
 // ===============================================
 
@@ -380,7 +371,7 @@ window.addEventListener('beforeunload', () => {
         liveMatchListener();
     }
     stopCarousel();
-    stopLiveMatchDisplay();
+    stopLiveOverlayUpdate();
 });
 
 console.log('App.js initialization complete');
