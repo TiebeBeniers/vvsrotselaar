@@ -578,6 +578,7 @@ img {
     color: var(--text-dark);
 }
 
+/* FIXED: Timer met vaste breedte */
 .match-time {
     text-align: center;
     padding: 1rem 1.5rem;
@@ -585,11 +586,13 @@ img {
     color: var(--white);
     border-radius: 8px;
     flex-shrink: 0;
+    min-width: 140px; /* Vaste breedte voor consistentie */
 }
 
 .current-minute {
     font-size: 2rem;
     font-weight: 800;
+    font-family: 'Courier New', monospace; /* Monospace font voor consistente cijferbreedte */
 }
 
 .match-status {
@@ -617,10 +620,11 @@ img {
     
     .match-time {
         padding: 0.8rem 1rem;
+        min-width: 120px; /* Aangepaste vaste breedte voor mobiel */
     }
 }
 
-/* Timeline */
+/* Timeline - Hamburger Layout */
 .timeline-section {
     background: var(--white);
     padding: 2rem;
@@ -651,6 +655,7 @@ img {
     font-style: italic;
 }
 
+/* Timeline Event Base */
 .timeline-event {
     padding: 1rem 1.5rem;
     background: var(--off-white);
@@ -666,19 +671,35 @@ img {
     transform: translateX(4px);
 }
 
+/* Home team - Links uitgelijnd */
 .timeline-event.home {
     justify-content: flex-start;
     border-left: 4px solid var(--primary-blue);
     background: linear-gradient(to right, rgba(0, 71, 171, 0.05), var(--off-white));
 }
 
+/* Away team - Rechts uitgelijnd */
 .timeline-event.away {
     justify-content: flex-end;
-    text-align: right;
+    flex-direction: row-reverse;
     border-right: 4px solid #2C5F2D;
     background: linear-gradient(to left, rgba(44, 95, 45, 0.05), var(--off-white));
 }
 
+.timeline-event.away .event-time {
+    order: 3;
+}
+
+.timeline-event.away .event-icon {
+    order: 2;
+}
+
+.timeline-event.away .event-text {
+    order: 1;
+    text-align: right;
+}
+
+/* Center - Centraal uitgelijnd (algemeen verloop zoals rust) */
 .timeline-event.center {
     justify-content: center;
     text-align: center;
@@ -689,78 +710,60 @@ img {
     padding: 1.2rem;
 }
 
-.timeline-event.center .event-details {
-    width: 100%;
-}
-
-.timeline-event.center .event-type {
-    font-size: 1.1rem;
+.timeline-event.center .event-time,
+.timeline-event.center .event-icon,
+.timeline-event.center .event-text {
     color: var(--white);
 }
 
-.timeline-event.center .event-player {
-    font-size: 1.3rem;
-    color: var(--white);
-    font-weight: 800;
-    margin-top: 0.3rem;
-}
-
-.event-minute {
+.event-time {
     font-weight: 800;
     color: var(--primary-blue);
     font-size: 1.2rem;
-    min-width: 40px;
+    min-width: 50px;
 }
 
-.timeline-event.away .event-minute {
+.timeline-event.away .event-time {
     color: #2C5F2D;
 }
 
+.timeline-event.center .event-time {
+    color: var(--white);
+}
+
 .event-icon {
-    width: 30px;
-    height: 30px;
+    font-size: 1.5rem;
+    min-width: 30px;
+    text-align: center;
 }
 
-.event-details {
+.event-text {
     flex: 1;
-}
-
-.event-type {
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    color: var(--text-gray);
-    margin-bottom: 0.2rem;
-}
-
-.event-player {
-    color: var(--text-dark);
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 600;
+    color: var(--text-dark);
+}
+
+.timeline-event.center .event-text {
+    color: var(--white);
 }
 
 /* Event Colors - Yellow and Red cards */
-.timeline-event.geel .event-type {
-    color: #F39C12;
-}
-
-.timeline-event.rood .event-type {
-    color: var(--danger);
-}
-
-.timeline-event.geel {
+.timeline-event.yellow {
     border-left-color: #F39C12;
 }
 
-.timeline-event.away.geel {
+.timeline-event.away.yellow {
+    border-left-color: transparent;
     border-right-color: #F39C12;
 }
 
-.timeline-event.rood {
+.timeline-event.red {
     border-left-color: var(--danger);
 }
 
-.timeline-event.away.rood {
+.timeline-event.away.red {
+    border-left-color: transparent;
     border-right-color: var(--danger);
 }
 
@@ -847,6 +850,7 @@ img {
 }
 
 .match-control-btn.pause {
+    background: var(--warning);
     background: var(--warning);
     color: var(--text-dark);
 }
@@ -1189,7 +1193,8 @@ img {
 }
 
 .member-card,
-.match-card {
+.match-card,
+.evenement-card {
     padding: 1.5rem;
     background: var(--off-white);
     border-radius: 8px;
@@ -1201,7 +1206,8 @@ img {
 }
 
 .member-card:hover,
-.match-card:hover {
+.match-card:hover,
+.evenement-card:hover {
     transform: translateX(4px);
 }
 
@@ -1211,14 +1217,16 @@ img {
 }
 
 .member-info h4,
-.match-info-admin h4 {
+.match-info-admin h4,
+.evenement-info h4 {
     color: var(--primary-blue);
     font-size: 1.2rem;
     margin-bottom: 0.3rem;
 }
 
 .member-info p,
-.match-info-admin p {
+.match-info-admin p,
+.evenement-info p {
     color: var(--text-gray);
     font-size: 0.95rem;
 }
@@ -2030,5 +2038,228 @@ img {
         grid-column: span 1 !important;
         grid-row: span 1 !important;
         height: 250px !important;
+    }
+}
+
+/* ===============================================
+   LIVE MATCH OVERLAY STYLES
+   Transparante overlay over carousel
+   =============================================== */
+
+/* Live Match Overlay Container */
+.live-match-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* Overlay Card */
+.live-overlay-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 700px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Live Badge */
+.live-badge {
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: 25px;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 25px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+
+.live-badge.live {
+    background: #DC3545;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.live-badge.rust {
+    background: #FFC107;
+    color: #1A1A1A;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Overlay Match Info */
+.overlay-match-info {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 30px;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.overlay-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.overlay-team h2 {
+    font-size: 1.5rem;
+    color: var(--text-dark);
+    font-weight: 700;
+    margin: 0;
+}
+
+.overlay-score {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    line-height: 1;
+}
+
+/* Center Section */
+.overlay-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.overlay-time {
+    font-family: 'Courier New', monospace;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    background: var(--off-white);
+    padding: 12px 24px;
+    border-radius: 10px;
+}
+
+.overlay-separator {
+    font-size: 2rem;
+    color: var(--text-gray);
+    font-weight: 300;
+}
+
+/* Watch Button */
+.overlay-watch-btn {
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 16px 45px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(0, 71, 171, 0.2);
+}
+
+.overlay-watch-btn:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 71, 171, 0.4);
+}
+
+.overlay-watch-btn:active {
+    transform: translateY(0);
+}
+
+/* Make sure carousel continues in background */
+.carousel-container {
+    position: relative;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .live-overlay-card {
+        padding: 30px 20px;
+    }
+    
+    .overlay-match-info {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .overlay-team h2 {
+        font-size: 1.3rem;
+    }
+    
+    .overlay-score {
+        font-size: 2.5rem;
+    }
+    
+    .overlay-time {
+        font-size: 1.5rem;
+        padding: 10px 20px;
+    }
+    
+    .overlay-separator {
+        display: none;
+    }
+    
+    .overlay-watch-btn {
+        padding: 14px 35px;
+        font-size: 1rem;
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .live-match-overlay {
+        padding: 15px;
+    }
+    
+    .live-overlay-card {
+        padding: 25px 15px;
+    }
+    
+    .overlay-team h2 {
+        font-size: 1.1rem;
+    }
+    
+    .overlay-score {
+        font-size: 2rem;
+    }
+    
+    .overlay-time {
+        font-size: 1.2rem;
+        padding: 8px 16px;
+    }
+    
+    .live-badge {
+        font-size: 0.9rem;
+        padding: 6px 16px;
     }
 }
