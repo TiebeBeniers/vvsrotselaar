@@ -592,7 +592,6 @@ img {
 .current-minute {
     font-size: 2rem;
     font-weight: 800;
-    font-family: 'Courier New', monospace; /* Monospace font voor consistente cijferbreedte */
 }
 
 .match-status {
