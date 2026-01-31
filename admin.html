@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Header -->
     <header class="main-header">
         <div class="header-container">
             <div class="logo-section">
@@ -18,9 +17,7 @@
             </div>
             <nav class="nav-section">
                 <button class="hamburger" id="hamburger" aria-label="Menu">
-                    <span></span>
-                    <span></span>
-                    <span></span>
+                    <span></span><span></span><span></span>
                 </button>
                 <ul class="nav-menu" id="navMenu">
                     <li><a href="index.html">HOME</a></li>
@@ -38,10 +35,10 @@
         <div class="admin-container">
             <h2>Administratie</h2>
             
-            <!-- Tabs -->
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="members">Leden Beheren</button>
                 <button class="tab-btn" data-tab="matches">Wedstrijden Beheren</button>
+                <button class="tab-btn" data-tab="evenementen">Evenementen Beheren</button>
             </div>
 
             <!-- Members Tab -->
@@ -50,7 +47,6 @@
                     <h3>Clubleden</h3>
                     <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
                 </div>
-
                 <div class="members-list" id="membersList">
                     <div class="loading">Laden...</div>
                 </div>
@@ -62,15 +58,24 @@
                     <h3>Wedstrijden</h3>
                     <button class="add-btn" id="addMatchBtn">+ Nieuwe Wedstrijd</button>
                 </div>
-
                 <div class="matches-list" id="matchesList">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Evenementen Tab -->
+            <div class="tab-content" id="evenementenTab">
+                <div class="section-header">
+                    <h3>Evenementen</h3>
+                    <button class="add-btn" id="addEvenementBtn">+ Nieuw Evenement</button>
+                </div>
+                <div class="evenementen-list" id="evenementenList">
                     <div class="loading">Laden...</div>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Footer -->
     <footer class="main-footer">
         <p>&copy; TiebeBeniers</p>
     </footer>
@@ -94,11 +99,12 @@
                     <small>Minimaal 6 karakters</small>
                 </div>
                 <div class="form-group">
-                    <label for="memberTeam">Team</label>
-                    <select id="memberTeam">
+                    <label for="memberCategorie">Categorie</label>
+                    <select id="memberCategorie">
                         <option value="veteranen">Veteranen</option>
                         <option value="zaterdag">Zaterdag</option>
                         <option value="zondag">Zondag</option>
+                        <option value="bestuurslid">Bestuurslid</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -147,23 +153,72 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="matchTeamType">Team Type *</label>
-                    <select id="matchTeamType">
-                        <option value="veteranen">Veteranen</option>
-                        <option value="other">Zaterdag/Zondag</option>
+                    <label for="matchTeam">Team *</label>
+                    <select id="matchTeam">
+                        <option value="veteranen">Veteranen (2x35 min)</option>
+                        <option value="zaterdag">Zaterdag (2x45 min)</option>
+                        <option value="zondag">Zondag (2x45 min)</option>
                     </select>
-                    <small>Bepaalt wanneer de wedstrijd hervat wordt na rust</small>
                 </div>
                 <div class="form-group">
-                    <label for="matchDesignatedPerson">Aangeduide Persoon *</label>
-                    <select id="matchDesignatedPerson" required>
-                        <option value="">Selecteer een clublid...</option>
-                    </select>
-                    <small>Deze persoon kan de wedstrijd starten en events invoeren</small>
+                    <label for="matchDescription">Beschrijving (optioneel)</label>
+                    <textarea id="matchDescription" rows="3" placeholder="Extra informatie over de wedstrijd"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Toegang voor *</label>
+                    <small>Selecteer personen die de wedstrijd kunnen starten en beheren</small>
+                    <div class="designated-persons-container" id="designatedPersonsContainer">
+                        <!-- Populated by JS -->
+                    </div>
                 </div>
                 <input type="hidden" id="matchId">
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="matchModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Evenement Modal -->
+    <div class="modal" id="evenementModal">
+        <div class="modal-content large">
+            <h3 id="evenementModalTitle">Nieuw Evenement Aanmaken</h3>
+            <form id="evenementForm" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="evenementDatum">Datum *</label>
+                        <input type="date" id="evenementDatum" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="evenementTijd">Tijd *</label>
+                        <input type="time" id="evenementTijd" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="evenementTitel">Titel *</label>
+                    <input type="text" id="evenementTitel" required>
+                </div>
+                <div class="form-group">
+                    <label for="evenementLocatie">Locatie *</label>
+                    <input type="text" id="evenementLocatie" required>
+                </div>
+                <div class="form-group">
+                    <label for="evenementBeschrijving">Beschrijving *</label>
+                    <textarea id="evenementBeschrijving" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="evenementAfbeelding">Afbeelding Naam</label>
+                    <input type="text" id="evenementAfbeelding" placeholder="bv. event1.jpg">
+                    <small>Plaats de afbeelding in de /assets map</small>
+                </div>
+                <div class="form-group">
+                    <label for="evenementLink">Link (optioneel)</label>
+                    <input type="url" id="evenementLink" placeholder="https://...">
+                </div>
+                <input type="hidden" id="evenementId">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="evenementModalCancel">Annuleren</button>
                     <button type="submit" class="modal-btn confirm">Opslaan</button>
                 </div>
             </form>
