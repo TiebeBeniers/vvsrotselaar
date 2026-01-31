@@ -52,30 +52,33 @@
                 <div class="carousel-overlay" id="carouselOverlay"></div>
             </div>
 
+            <!-- LIVE MATCH OVERLAY (over carousel) -->
+            <div class="live-match-overlay" id="liveMatchOverlay" style="display: none;">
+                <div class="live-overlay-card">
+                    <div class="live-badge" id="liveBadge">LIVE</div>
+                    <div class="overlay-match-info">
+                        <div class="overlay-team">
+                            <h2 id="overlayHomeTeam">Thuisploeg</h2>
+                            <div class="overlay-score" id="overlayHomeScore">0</div>
+                        </div>
+                        <div class="overlay-center">
+                            <div class="overlay-time" id="overlayTime">0'</div>
+                            <div class="overlay-separator">-</div>
+                        </div>
+                        <div class="overlay-team">
+                            <h2 id="overlayAwayTeam">Uitploeg</h2>
+                            <div class="overlay-score" id="overlayAwayScore">0</div>
+                        </div>
+                    </div>
+                    <button class="overlay-watch-btn" onclick="window.location.href='live.html'">
+                        VOLG LIVE →
+                    </button>
+                </div>
+            </div>
+
             <!-- Start Match Button (only for designated person) -->
             <div class="start-match-container" id="startMatchContainer" style="display: none;">
                 <button class="start-match-btn" id="startMatchBtn">START WEDSTRIJD</button>
-            </div>
-
-            <!-- Live Match Card (for all visitors) -->
-            <div class="live-match-card" id="liveMatchCard" style="display: none;">
-                <div class="match-info">
-                    <div class="team home-team">
-                        <h2 id="liveHomeTeam">Thuisploeg</h2>
-                    </div>
-                    <div class="match-score">
-                        <div class="score-display">
-                            <span id="liveHomeScore">0</span>
-                            <span class="separator">-</span>
-                            <span id="liveAwayScore">0</span>
-                        </div>
-                        <div class="match-minute" id="liveMinute">0'</div>
-                    </div>
-                    <div class="team away-team">
-                        <h2 id="liveAwayTeam">Uitploeg</h2>
-                    </div>
-                </div>
-                <button class="view-live-btn" id="viewLiveBtn">VOLG LIVE</button>
             </div>
         </section>
 
