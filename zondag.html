@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Zondag</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="team-page">
+        <!-- Team Header -->
+        <section class="team-hero">
+            <div class="team-hero-overlay">
+                <h1 class="team-title">ZONDAG</h1>
+                <p class="team-subtitle">2x45 minuten</p>
+            </div>
+        </section>
+
+        <!-- Next Match / Live Match -->
+        <section class="next-match-section" id="nextMatchSection">
+            <h2>Eerstvolgende Wedstrijd</h2>
+            <div class="match-card-container" id="nextMatchContainer">
+                <div class="loading">Laden...</div>
+            </div>
+        </section>
+
+        <!-- Ranking -->
+        <section class="ranking-section">
+            <h2>Klassement</h2>
+            <div class="ranking-table-container">
+                <table class="ranking-table" id="rankingTable">
+                    <thead>
+                        <tr>
+                            <th class="pos-col">#</th>
+                            <th class="team-col">Ploeg</th>
+                            <th class="stat-col">M</th>
+                            <th class="stat-col">W</th>
+                            <th class="stat-col">G</th>
+                            <th class="stat-col">V</th>
+                            <th class="goals-col">+</th>
+                            <th class="goals-col">-</th>
+                            <th class="saldo-col">+/-</th>
+                            <th class="pnt-col">Ptn</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rankingBody">
+                        <tr><td colspan="10" class="loading">Laden...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Recent Matches -->
+        <section class="recent-matches-section">
+            <h2>Laatste Wedstrijden</h2>
+            <div class="recent-matches-list" id="recentMatchesList">
+                <div class="loading">Laden...</div>
+            </div>
+        </section>
+
+        <!-- Match Timeline Modal -->
+        <div class="modal timeline-modal" id="timelineModal">
+            <div class="modal-content large">
+                <button class="modal-close" id="modalClose">&times;</button>
+                <h3 id="timelineModalTitle">Wedstrijd Samenvatting</h3>
+                
+                <div class="modal-match-header">
+                    <div class="modal-teams">
+                        <div class="modal-team">
+                            <h4 id="modalHomeTeam">Thuisploeg</h4>
+                            <div class="modal-score" id="modalHomeScore">0</div>
+                        </div>
+                        <div class="modal-separator">-</div>
+                        <div class="modal-team">
+                            <h4 id="modalAwayTeam">Uitploeg</h4>
+                            <div class="modal-score" id="modalAwayScore">0</div>
+                        </div>
+                    </div>
+                    <div class="modal-match-info">
+                        <p id="modalMatchDate">Datum</p>
+                        <p id="modalMatchLocation">Locatie</p>
+                    </div>
+                </div>
+                
+                <div class="timeline-container" id="modalTimeline">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="team.js"></script>
+</body>
+</html>
