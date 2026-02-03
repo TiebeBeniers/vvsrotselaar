@@ -2,8 +2,8 @@
     "veteranen": [
         {
             "pos": 1,
-            "team": "KORBEEK SPORTKORBEEK SPORT",
-            "pnt": 46,
+            "team": "KORBEEK SPORT",
+            "pnt": 49,
             "played": 17,
             "won": 15,
             "draw": 1,
@@ -14,7 +14,7 @@
         },
         {
             "pos": 2,
-            "team": "K.V.C. KESSEL LO 2000K.V.C. KESSEL LO 2000",
+            "team": "K.V.C. KESSEL LO 2000",
             "pnt": 38,
             "played": 15,
             "won": 12,
@@ -26,7 +26,7 @@
         },
         {
             "pos": 2,
-            "team": "STORMVOGELS HAASRODESTORMVOGELS HAASRODE",
+            "team": "STORMVOGELS HAASRODE",
             "pnt": 38,
             "played": 16,
             "won": 12,
@@ -38,7 +38,7 @@
         },
         {
             "pos": 4,
-            "team": "ALPIA TILDONKALPIA TILDONK",
+            "team": "ALPIA TILDONK",
             "pnt": 35,
             "played": 17,
             "won": 11,
@@ -50,7 +50,7 @@
         },
         {
             "pos": 5,
-            "team": "K.F.C. RAPIDE WEZEMAALK.F.C. RAPIDE WEZEMAAL",
+            "team": "K.F.C. RAPIDE WEZEMAAL",
             "pnt": 33,
             "played": 17,
             "won": 10,
@@ -62,7 +62,7 @@
         },
         {
             "pos": 6,
-            "team": "VK WAKKERZEELVK WAKKERZEEL",
+            "team": "VK WAKKERZEEL",
             "pnt": 29,
             "played": 18,
             "won": 9,
@@ -74,7 +74,7 @@
         },
         {
             "pos": 7,
-            "team": "SPORTIEF ROTSELAARSPORTIEF ROTSELAAR",
+            "team": "SPORTIEF ROTSELAAR",
             "pnt": 27,
             "played": 17,
             "won": 8,

@@ -445,6 +445,18 @@ if (addMatchBtn) {
         document.getElementById('matchModalTitle').textContent = 'Nieuwe Wedstrijd Aanmaken';
         document.getElementById('matchId').value = '';
         matchForm.reset();
+        
+        // Reset match type to upcoming (default)
+        document.getElementById('matchType').value = 'upcoming';
+        document.getElementById('btnUpcoming').classList.add('active');
+        document.getElementById('btnFinished').classList.remove('active');
+        document.getElementById('scoreFields').style.display = 'none';
+        document.getElementById('designatedPersonsGroup').style.display = 'block';
+        
+        // Remove required from score fields
+        document.getElementById('matchHomeScore').removeAttribute('required');
+        document.getElementById('matchAwayScore').removeAttribute('required');
+        
         populateDesignatedPersonsSelect();
         matchModal.classList.add('active');
     });
@@ -453,6 +465,45 @@ if (addMatchBtn) {
 if (matchModalCancel) {
     matchModalCancel.addEventListener('click', () => {
         matchModal.classList.remove('active');
+    });
+}
+
+// Match type selector functionality
+const btnUpcoming = document.getElementById('btnUpcoming');
+const btnFinished = document.getElementById('btnFinished');
+const scoreFields = document.getElementById('scoreFields');
+const designatedPersonsGroup = document.getElementById('designatedPersonsGroup');
+const matchTypeInput = document.getElementById('matchType');
+const matchHomeScore = document.getElementById('matchHomeScore');
+const matchAwayScore = document.getElementById('matchAwayScore');
+
+if (btnUpcoming) {
+    btnUpcoming.addEventListener('click', () => {
+        console.log('Switched to upcoming match type');
+        btnUpcoming.classList.add('active');
+        btnFinished.classList.remove('active');
+        scoreFields.style.display = 'none';
+        designatedPersonsGroup.style.display = 'block';
+        matchTypeInput.value = 'upcoming';
+        
+        // Remove required from score fields
+        matchHomeScore.removeAttribute('required');
+        matchAwayScore.removeAttribute('required');
+    });
+}
+
+if (btnFinished) {
+    btnFinished.addEventListener('click', () => {
+        console.log('Switched to finished match type');
+        btnFinished.classList.add('active');
+        btnUpcoming.classList.remove('active');
+        scoreFields.style.display = 'flex';
+        designatedPersonsGroup.style.display = 'none';
+        matchTypeInput.value = 'finished';
+        
+        // Add required to score fields
+        matchHomeScore.setAttribute('required', 'required');
+        matchAwayScore.setAttribute('required', 'required');
     });
 }
 
@@ -498,10 +549,7 @@ if (matchForm) {
         const team = document.getElementById('matchTeam').value;
         const descriptionField = document.getElementById('matchDescription');
         const description = descriptionField ? descriptionField.value.trim() : '';
-        
-        // Get selected designated persons
-        const checkboxes = document.querySelectorAll('input[name="designatedPerson"]:checked');
-        const aangeduidePersonen = Array.from(checkboxes).map(cb => cb.value);
+        const matchType = document.getElementById('matchType').value;
         
         console.log('Submitting match form:', {
             matchId,
@@ -512,28 +560,62 @@ if (matchForm) {
             awayTeam,
             team,
             description,
-            aangeduidePersonen
+            matchType
         });
         
-        if (aangeduidePersonen.length === 0) {
-            console.warn('No designated persons selected');
-            alert('Selecteer minimaal één persoon die toegang heeft tot deze wedstrijd.');
-            return;
-        }
+        let matchData;
         
-        const matchData = {
-            datum: date,
-            uur: time,
-            locatie: location,
-            thuisploeg: homeTeam,
-            uitploeg: awayTeam,
-            team: team,
-            beschrijving: description,
-            aangeduidePersonen: aangeduidePersonen,
-            status: 'planned',
-            scoreThuis: 0,
-            scoreUit: 0
-        };
+        if (matchType === 'upcoming') {
+            // Planned match
+            const checkboxes = document.querySelectorAll('input[name="designatedPerson"]:checked');
+            const aangeduidePersonen = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (aangeduidePersonen.length === 0) {
+                console.warn('No designated persons selected');
+                alert('Selecteer minimaal één persoon die toegang heeft tot deze wedstrijd.');
+                return;
+            }
+            
+            matchData = {
+                datum: date,
+                uur: time,
+                locatie: location,
+                thuisploeg: homeTeam,
+                uitploeg: awayTeam,
+                team: team,
+                beschrijving: description,
+                aangeduidePersonen: aangeduidePersonen,
+                status: 'planned',
+                scoreThuis: 0,
+                scoreUit: 0
+            };
+        } else {
+            // Finished match
+            const homeScore = parseInt(document.getElementById('matchHomeScore').value) || 0;
+            const awayScore = parseInt(document.getElementById('matchAwayScore').value) || 0;
+            
+            // Create timestamp from date and time
+            const matchDateTime = new Date(`${date}T${time}`);
+            
+            matchData = {
+                datum: date,
+                uur: time,
+                locatie: location,
+                thuisploeg: homeTeam,
+                uitploeg: awayTeam,
+                team: team,
+                beschrijving: description,
+                aangeduidePersonen: [],
+                status: 'finished',
+                scoreThuis: homeScore,
+                scoreUit: awayScore,
+                halfTimeReached: true,
+                pausedAt: null,
+                pausedDuration: 0,
+                startedAt: matchDateTime,
+                resumeStartedAt: matchDateTime
+            };
+        }
         
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
@@ -1179,6 +1261,195 @@ async function deleteMessage(berichtId) {
         console.error('Error deleting message:', error);
         alert('Fout bij verwijderen: ' + error.message);
     }
+}
+
+// ===============================================
+// RANKING MANAGEMENT
+// ===============================================
+
+let processedRankingData = null;
+let currentRankingData = null;
+
+// Load current ranking data
+async function loadCurrentRanking() {
+    try {
+        const response = await fetch('ranking.json');
+        if (!response.ok) {
+            throw new Error('Could not load ranking.json');
+        }
+        currentRankingData = await response.json();
+        console.log('Current ranking data loaded:', currentRankingData);
+        return currentRankingData;
+    } catch (error) {
+        console.error('Error loading ranking.json:', error);
+        showRankingStatus('error', 'Kon ranking.json niet laden. Zorg dat het bestand in de root directory staat.');
+        return null;
+    }
+}
+
+// Parse ranking input
+function parseRankingInput(input, team) {
+    const lines = input.trim().split('\n');
+    const rankingArray = [];
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+        
+        // Split by whitespace
+        const parts = trimmedLine.split(/\s+/);
+        
+        if (parts.length < 10) {
+            console.warn('Skipping invalid line:', trimmedLine);
+            continue;
+        }
+        
+        // Extract data
+        const pos = parseInt(parts[0]);
+        
+        // Find where "Logo" appears and skip it, then find team name
+        let teamNameStart = 1;
+        let teamNameEnd = parts.length - 9; // Last 9 parts are stats
+        
+        // Skip "Logo" if present
+        if (parts[1].toLowerCase() === 'logo') {
+            teamNameStart = 2;
+        }
+        
+        const teamName = parts.slice(teamNameStart, teamNameEnd).join(' ');
+        
+        // Last 9 parts are the stats
+        const stats = parts.slice(-9);
+        const played = parseInt(stats[0]);
+        const won = parseInt(stats[1]);
+        const draw = parseInt(stats[2]);
+        const lost = parseInt(stats[3]);
+        const goalsFor = parseInt(stats[4]);
+        const goalsAgainst = parseInt(stats[5]);
+        const saldo = parseInt(stats[6]);
+        const pnt = parseInt(stats[7]);
+        
+        rankingArray.push({
+            pos,
+            team: teamName,
+            pnt,
+            played,
+            won,
+            draw,
+            lost,
+            goals_for: goalsFor,
+            goals_against: goalsAgainst,
+            saldo
+        });
+    }
+    
+    return rankingArray;
+}
+
+// Show ranking status message
+function showRankingStatus(type, message) {
+    const statusEl = document.getElementById('rankingStatus');
+    statusEl.className = `ranking-status ${type}`;
+    statusEl.textContent = message;
+    statusEl.style.display = 'block';
+    
+    if (type === 'success') {
+        setTimeout(() => {
+            statusEl.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Process ranking button
+const processRankingBtn = document.getElementById('processRankingBtn');
+if (processRankingBtn) {
+    processRankingBtn.addEventListener('click', async () => {
+        const team = document.getElementById('rankingTeam').value;
+        const input = document.getElementById('rankingInput').value;
+        
+        if (!team) {
+            showRankingStatus('error', 'Selecteer eerst een team!');
+            return;
+        }
+        
+        if (!input.trim()) {
+            showRankingStatus('error', 'Voer rangschikking data in!');
+            return;
+        }
+        
+        processRankingBtn.disabled = true;
+        processRankingBtn.textContent = 'Bezig met verwerken...';
+        
+        try {
+            // Load current ranking if not already loaded
+            if (!currentRankingData) {
+                await loadCurrentRanking();
+                if (!currentRankingData) {
+                    processRankingBtn.disabled = false;
+                    processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+                    return;
+                }
+            }
+            
+            // Parse the input
+            const parsedData = parseRankingInput(input, team);
+            
+            if (parsedData.length === 0) {
+                showRankingStatus('error', 'Geen geldige data gevonden. Controleer het formaat!');
+                processRankingBtn.disabled = false;
+                processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+                return;
+            }
+            
+            // Update the ranking data
+            processedRankingData = { ...currentRankingData };
+            processedRankingData[team] = parsedData;
+            
+            // Show preview
+            const previewEl = document.getElementById('rankingPreview');
+            const previewContent = document.getElementById('rankingPreviewContent');
+            previewContent.textContent = JSON.stringify(processedRankingData[team], null, 2);
+            previewEl.style.display = 'block';
+            
+            // Show download button
+            document.getElementById('downloadRankingBtn').style.display = 'inline-block';
+            
+            showRankingStatus('success', `✅ Rangschikking voor ${team} succesvol verwerkt! ${parsedData.length} teams gevonden.`);
+            
+        } catch (error) {
+            console.error('Error processing ranking:', error);
+            showRankingStatus('error', 'Fout bij verwerken: ' + error.message);
+        } finally {
+            processRankingBtn.disabled = false;
+            processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+        }
+    });
+}
+
+// Download ranking button
+const downloadRankingBtn = document.getElementById('downloadRankingBtn');
+if (downloadRankingBtn) {
+    downloadRankingBtn.addEventListener('click', () => {
+        if (!processedRankingData) {
+            showRankingStatus('error', 'Verwerk eerst de rangschikking data!');
+            return;
+        }
+        
+        // Create download link
+        const dataStr = JSON.stringify(processedRankingData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ranking.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showRankingStatus('success', '💾 ranking.json gedownload! Upload dit bestand naar je website.');
+    });
 }
 
 console.log('Admin.js (FINAL FIX) initialization complete');

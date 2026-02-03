@@ -407,6 +407,7 @@ async function loadRanking() {
             row.innerHTML = `
                 <td class="pos-col">${team.pos}</td>
                 <td class="team-col">${teamName}</td>
+                <td class="pnt-col"><strong>${team.pnt}</strong></td>
                 <td class="stat-col">${played}</td>
                 <td class="stat-col">${team.won}</td>
                 <td class="stat-col">${team.draw}</td>
@@ -414,7 +415,6 @@ async function loadRanking() {
                 <td class="goals-col">${team.goals_for}</td>
                 <td class="goals-col">${team.goals_against}</td>
                 <td class="saldo-col ${team.saldo >= 0 ? 'positive' : 'negative'}">${team.saldo >= 0 ? '+' : ''}${team.saldo}</td>
-                <td class="pnt-col"><strong>${team.pnt}</strong></td>
             `;
             
             tbody.appendChild(row);
@@ -683,6 +683,69 @@ if (timelineModal) {
 }
 
 // ===============================================
+// LOAD STATISTICS
+// ===============================================
+
+function loadStatistics() {
+    console.log('Loading statistics for', TEAM_TYPE);
+    
+    // Placeholder data - in de toekomst kan dit uit Firestore komen
+    const statisticsData = {
+        zondag: {
+            topScorers: [
+                { name: 'Roel Wouters', goals: 10 },
+                { name: 'Dries Moermans', goals: 6 },
+                { name: 'Ruben Staal', goals: 4 }
+            ],
+            topAssists: [
+                { name: 'Dries Moermans', assists: 9 },
+                { name: 'Jesse Janssens', assists: 5 },
+                { name: 'Nand Wallays', assists: 4 }
+            ]
+        }
+    };
+    
+    const teamStats = statisticsData[TEAM_TYPE];
+    
+    if (!teamStats) {
+        console.log('No statistics available for', TEAM_TYPE);
+        return;
+    }
+    
+    // Update top scorers
+    const topScorersContainer = document.getElementById('topScorers');
+    if (topScorersContainer && teamStats.topScorers) {
+        topScorersContainer.innerHTML = '';
+        teamStats.topScorers.forEach((scorer, index) => {
+            const item = document.createElement('div');
+            item.className = 'stat-item';
+            item.innerHTML = `
+                <span class="stat-rank">${index + 1}</span>
+                <span class="stat-player">${scorer.name}</span>
+                <span class="stat-value">${scorer.goals}</span>
+            `;
+            topScorersContainer.appendChild(item);
+        });
+    }
+    
+    // Update top assists
+    const topAssistsContainer = document.getElementById('topAssists');
+    if (topAssistsContainer && teamStats.topAssists) {
+        topAssistsContainer.innerHTML = '';
+        teamStats.topAssists.forEach((assister, index) => {
+            const item = document.createElement('div');
+            item.className = 'stat-item';
+            item.innerHTML = `
+                <span class="stat-rank">${index + 1}</span>
+                <span class="stat-player">${assister.name}</span>
+                <span class="stat-value">${assister.assists}</span>
+            `;
+            topAssistsContainer.appendChild(item);
+        });
+    }
+}
+
+// ===============================================
 // INITIALIZE PAGE
 // ===============================================
 
@@ -691,6 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadNextMatch();
     loadRanking();
     loadRecentMatches();
+    loadStatistics();
 });
 
 // Cleanup on page unload

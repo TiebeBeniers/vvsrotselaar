@@ -40,7 +40,6 @@
         <section class="team-hero">
             <div class="team-hero-overlay">
                 <h1 class="team-title">ZONDAG</h1>
-                <p class="team-subtitle">2x45 minuten</p>
             </div>
         </section>
 
@@ -61,6 +60,7 @@
                         <tr>
                             <th class="pos-col">#</th>
                             <th class="team-col">Ploeg</th>
+                            <th class="pnt-col">Ptn</th>
                             <th class="stat-col">M</th>
                             <th class="stat-col">W</th>
                             <th class="stat-col">G</th>
@@ -68,7 +68,6 @@
                             <th class="goals-col">+</th>
                             <th class="goals-col">-</th>
                             <th class="saldo-col">+/-</th>
-                            <th class="pnt-col">Ptn</th>
                         </tr>
                     </thead>
                     <tbody id="rankingBody">
@@ -78,9 +77,36 @@
             </div>
         </section>
 
+        <!-- Statistieken -->
+        <section class="stat-section">
+            <h2>Statistieken</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Top Doelpuntenmakers</h3>
+                    <div class="stat-list" id="topScorers">
+                        <div class="stat-item">
+                            <span class="stat-rank">1</span>
+                            <span class="stat-player">Laden...</span>
+                            <span class="stat-value">-</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <h3>Top Assists</h3>
+                    <div class="stat-list" id="topAssists">
+                        <div class="stat-item">
+                            <span class="stat-rank">1</span>
+                            <span class="stat-player">Laden...</span>
+                            <span class="stat-value">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Recent Matches -->
         <section class="recent-matches-section">
-            <h2>Laatste Wedstrijden</h2>
+            <h2>Afgelopen Wedstrijden</h2>
             <div class="recent-matches-list" id="recentMatchesList">
                 <div class="loading">Laden...</div>
             </div>

@@ -6,6 +6,178 @@
     <title>V.V.S Rotselaar - Admin</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .match-type-selector {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .match-type-btn {
+            flex: 1;
+            padding: 0.875rem;
+            border: 2px solid #E0E0E0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            color: #4A4A4A;
+        }
+
+        .match-type-btn.active {
+            background: var(--primary-blue, #0047AB);
+            color: white;
+            border-color: var(--primary-blue, #0047AB);
+        }
+
+        .match-type-btn:hover:not(.active) {
+            border-color: var(--primary-blue, #0047AB);
+            background: rgba(0, 71, 171, 0.05);
+        }
+
+        @media (max-width: 768px) {
+            .match-type-selector {
+                flex-direction: column;
+            }
+        }
+
+        /* Ranking Manager Styles */
+        .ranking-manager {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .ranking-instructions {
+            background: #f8f9fa;
+            border-left: 4px solid var(--primary-blue, #0047AB);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+
+        .ranking-instructions h4 {
+            color: var(--primary-blue, #0047AB);
+            margin-bottom: 1rem;
+        }
+
+        .ranking-instructions code {
+            background: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            color: #e83e8c;
+        }
+
+        .ranking-form .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .ranking-form label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .ranking-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .ranking-select:focus {
+            outline: none;
+            border-color: var(--primary-blue, #0047AB);
+        }
+
+        .ranking-textarea {
+            width: 100%;
+            padding: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        .ranking-textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue, #0047AB);
+        }
+
+        .ranking-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            padding: 0.875rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .ranking-preview {
+            margin-top: 2rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .ranking-preview h4 {
+            color: #28a745;
+            margin-bottom: 1rem;
+        }
+
+        .ranking-preview pre {
+            background: white;
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .ranking-status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .ranking-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .ranking-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+    </style>
 </head>
 <body>
     <header class="main-header">
@@ -39,6 +211,7 @@
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="members">Leden Beheren</button>
                 <button class="tab-btn" data-tab="matches">Wedstrijden Beheren</button>
+                <button class="tab-btn" data-tab="ranking">Rangschikking Beheren</button>
                 <button class="tab-btn" data-tab="evenementen">Evenementen Beheren</button>
                 <button class="tab-btn" data-tab="contactberichten">Contactberichten</button>
             </div>
@@ -62,6 +235,58 @@
                 </div>
                 <div class="matches-list" id="matchesList">
                     <div class="loading">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Ranking Tab -->
+            <div class="tab-content" id="rankingTab">
+                <div class="section-header">
+                    <h3>Rangschikking Beheren</h3>
+                </div>
+                <div class="ranking-manager">
+                    <div class="ranking-instructions">
+                        <h4>📋 Instructies</h4>
+                        <p>Plak de rangschikking data vanuit de website in het tekstveld hieronder. Het formaat moet zijn:</p>
+                        <code>Positie | Logo + Naam | Gespeeld | Gewonnen | Gelijk | Verloren | Doelpunten Voor | Doelpunten Tegen | Saldo | Punten</code>
+                        <p style="margin-top: 0.5rem;"><small>Voorbeeld: <code>1 Logo VK WAKKERZEEL 14 11 2 1 44 23 21 34</code></small></p>
+                    </div>
+
+                    <div class="ranking-form">
+                        <div class="form-group">
+                            <label for="rankingTeam">Selecteer Team *</label>
+                            <select id="rankingTeam" class="ranking-select">
+                                <option value="">Kies een team...</option>
+                                <option value="veteranen">Veteranen</option>
+                                <option value="zaterdag">Zaterdag</option>
+                                <option value="zondag">Zondag</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rankingInput">Rangschikking Data *</label>
+                            <textarea 
+                                id="rankingInput" 
+                                class="ranking-textarea" 
+                                rows="15" 
+                                placeholder="Plak hier de rangschikking data...&#10;&#10;Bijvoorbeeld:&#10;1 Logo VK WAKKERZEEL 14 11 2 1 44 23 21 34&#10;2 Logo K.F.C. WERCHTER 15 10 2 3 47 17 30 33&#10;3 Logo V.V.S ROTSELAAR 14 8 3 3 41 17 24 27"></textarea>
+                        </div>
+
+                        <div class="ranking-actions">
+                            <button class="btn-primary" id="processRankingBtn">
+                                🔄 Rangschikking Verwerken
+                            </button>
+                            <button class="btn-secondary" id="downloadRankingBtn" style="display: none;">
+                                💾 Download ranking.json
+                            </button>
+                        </div>
+
+                        <div class="ranking-preview" id="rankingPreview" style="display: none;">
+                            <h4>✅ Preview van Verwerkte Data</h4>
+                            <pre id="rankingPreviewContent"></pre>
+                        </div>
+
+                        <div class="ranking-status" id="rankingStatus"></div>
+                    </div>
                 </div>
             </div>
 
@@ -149,6 +374,19 @@
         <div class="modal-content large">
             <h3 id="matchModalTitle">Nieuwe Wedstrijd Aanmaken</h3>
             <form id="matchForm" class="admin-form">
+                <!-- Match Type Selector -->
+                <div class="form-group">
+                    <label>Type Wedstrijd *</label>
+                    <div class="match-type-selector">
+                        <button type="button" class="match-type-btn active" data-type="upcoming" id="btnUpcoming">
+                            📆 Geplande Wedstrijd
+                        </button>
+                        <button type="button" class="match-type-btn" data-type="finished" id="btnFinished">
+                            ✅ Afgelopen Wedstrijd
+                        </button>
+                    </div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="matchDate">Datum *</label>
@@ -173,6 +411,19 @@
                         <input type="text" id="matchAwayTeam" required>
                     </div>
                 </div>
+
+                <!-- Conditional Score Fields (only for finished matches) -->
+                <div class="form-row" id="scoreFields" style="display: none;">
+                    <div class="form-group">
+                        <label for="matchHomeScore">Score Thuisploeg *</label>
+                        <input type="number" id="matchHomeScore" min="0" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="matchAwayScore">Score Uitploeg *</label>
+                        <input type="number" id="matchAwayScore" min="0" value="0">
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="matchTeam">Team *</label>
                     <select id="matchTeam">
@@ -185,7 +436,7 @@
                     <label for="matchDescription">Beschrijving (optioneel)</label>
                     <textarea id="matchDescription" rows="3" placeholder="Extra informatie over de wedstrijd"></textarea>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="designatedPersonsGroup">
                     <label>Toegang voor *</label>
                     <small>Selecteer personen die de wedstrijd kunnen starten en beheren</small>
                     <div class="designated-persons-container" id="designatedPersonsContainer">
@@ -193,6 +444,7 @@
                     </div>
                 </div>
                 <input type="hidden" id="matchId">
+                <input type="hidden" id="matchType" value="upcoming">
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="matchModalCancel">Annuleren</button>
                     <button type="submit" class="modal-btn confirm">Opslaan</button>
