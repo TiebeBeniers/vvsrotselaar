@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Live Wedstrijd</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="live-page">
+        <!-- Match Header -->
+        <section class="match-header">
+            <!-- Match Description -->
+            <div class="match-description-display" id="matchDescription" style="display: none;"></div>
+            
+            <div class="match-teams">
+                <div class="team-display home">
+                    <h2 id="homeTeamName">Thuisploeg</h2>
+                    <div class="team-score" id="homeScore">0</div>
+                </div>
+                <div class="match-time">
+                    <div class="current-minute" id="currentMinute">00:00</div>
+                    <div class="match-status" id="matchStatus">Live</div>
+                </div>
+                <div class="team-display away">
+                    <h2 id="awayTeamName">Uitploeg</h2>
+                    <div class="team-score" id="awayScore">0</div>
+                </div>
+            </div>
+            
+        </section>
+
+        <!-- Timeline -->
+        <section class="timeline-section">
+            <h3>Tijdslijn</h3>
+            <div class="timeline" id="timeline">
+                <div class="timeline-empty">De wedstrijd is gestart. Events verschijnen hier...</div>
+            </div>
+        </section>
+
+        <!-- Control Panel (only for designated person) -->
+        <section class="control-panel" id="controlPanel" style="display: none;">
+            <h3>Wedstrijd Beheer</h3>
+            
+            <div class="control-grid">
+                <!-- Home Team Controls -->
+                <div class="team-controls">
+                    <h4 id="homeTeamControlTitle">Thuisploeg</h4>
+                    <button class="control-btn goal" data-team="home" data-action="goal">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        GOAL
+                    </button>
+                    <button class="control-btn penalty" data-team="home" data-action="penalty">PENALTY</button>
+                    <button class="control-btn own-goal" data-team="home" data-action="own-goal">EIGEN DOELPUNT</button>
+                    <button class="control-btn yellow" data-team="home" data-action="yellow">GELE KAART</button>
+                    <button class="control-btn red" data-team="home" data-action="red">RODE KAART</button>
+                    <button class="control-btn sub" data-team="home" data-action="substitution">WISSEL</button>
+                </div>
+
+                <!-- Away Team Controls -->
+                <div class="team-controls">
+                    <h4 id="awayTeamControlTitle">Uitploeg</h4>
+                    <button class="control-btn goal" data-team="away" data-action="goal">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        GOAL
+                    </button>
+                    <button class="control-btn penalty" data-team="away" data-action="penalty">PENALTY</button>
+                    <button class="control-btn own-goal" data-team="away" data-action="own-goal">EIGEN DOELPUNT</button>
+                    <button class="control-btn yellow" data-team="away" data-action="yellow">GELE KAART</button>
+                    <button class="control-btn red" data-team="away" data-action="red">RODE KAART</button>
+                    <button class="control-btn sub" data-team="away" data-action="substitution">WISSEL</button>
+                </div>
+            </div>
+
+            <!-- Match Control Buttons -->
+            <div class="match-controls">
+                <button class="match-control-btn pause" id="pauseBtn">RUST</button>
+                <button class="match-control-btn resume" id="resumeBtn" style="display: none;">HERVAT</button>
+                <button class="match-control-btn end" id="endMatchBtn">BEËINDIG WEDSTRIJD</button>
+            </div>
+            
+            <!-- Score Correction Button -->
+            <div class="score-correction-container">
+                <button class="control-btn score-correction" id="scoreCorrectBtn">SCORE AANPASSEN</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <!-- Modal for player input -->
+    <div class="modal" id="playerModal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Speler Invoeren</h3>
+            <div class="modal-body">
+                <input type="text" id="playerInput" placeholder="Naam speler (optioneel)">
+                <div id="substitutionInputs" style="display: none;">
+                    <input type="text" id="playerOutInput" placeholder="Speler uit (optioneel)">
+                    <input type="text" id="playerInInput" placeholder="Speler in (optioneel)">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="modalCancel">Annuleren</button>
+                <button class="modal-btn confirm" id="modalConfirm">Bevestigen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for score correction -->
+    <div class="modal" id="scoreModal">
+        <div class="modal-content">
+            <h3>Score Aanpassen</h3>
+            <div class="modal-body">
+                <div class="score-inputs">
+                    <div class="score-input-group">
+                        <label id="homeTeamLabel">Thuisploeg</label>
+                        <input type="number" id="homeScoreInput" min="0" value="0">
+                    </div>
+                    <div class="score-separator">-</div>
+                    <div class="score-input-group">
+                        <label id="awayTeamLabel">Uitploeg</label>
+                        <input type="number" id="awayScoreInput" min="0" value="0">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="scoreModalCancel">Annuleren</button>
+                <button class="modal-btn confirm" id="scoreModalConfirm">Bevestigen</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="live.js"></script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Admin</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span><span></span><span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html">PROFIEL</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-page">
+        <div class="admin-container">
+            <h2>Administratie</h2>
+            
+            <div class="admin-tabs">
+                <button class="tab-btn active" data-tab="members">Leden Beheren</button>
+                <button class="tab-btn" data-tab="matches">Wedstrijden Beheren</button>
+                <button class="tab-btn" data-tab="evenementen">Evenementen Beheren</button>
+                <button class="tab-btn" data-tab="contactberichten">Contactberichten</button>
+            </div>
+
+            <!-- Members Tab -->
+            <div class="tab-content active" id="membersTab">
+                <div class="section-header">
+                    <h3>Clubleden</h3>
+                    <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
+                </div>
+                <div class="members-list" id="membersList">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Matches Tab -->
+            <div class="tab-content" id="matchesTab">
+                <div class="section-header">
+                    <h3>Wedstrijden</h3>
+                    <button class="add-btn" id="addMatchBtn">+ Nieuwe Wedstrijd</button>
+                </div>
+                <div class="matches-list" id="matchesList">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Evenementen Tab -->
+            <div class="tab-content" id="evenementenTab">
+                <div class="section-header">
+                    <h3>Evenementen</h3>
+                    <button class="add-btn" id="addEvenementBtn">+ Nieuw Evenement</button>
+                </div>
+                <div class="evenementen-list" id="evenementenList">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+
+            <!-- Contactberichten Tab -->
+            <div class="tab-content" id="contactberichtenTab">
+                <div class="section-header">
+                    <h3>Contactberichten</h3>
+                    <div class="message-stats" id="messageStats">
+                        <span class="stat-badge">Totaal: <strong id="totalMessages">0</strong></span>
+                        <span class="stat-badge unread">Ongelezen: <strong id="unreadMessages">0</strong></span>
+                    </div>
+                </div>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">Alle</button>
+                    <button class="filter-btn" data-filter="unread">Ongelezen</button>
+                    <button class="filter-btn" data-filter="read">Gelezen</button>
+                </div>
+                <div class="contactberichten-list" id="contactberichtenList">
+                    <div class="loading">Laden...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <!-- Member Modal -->
+    <div class="modal" id="memberModal">
+        <div class="modal-content large">
+            <h3 id="memberModalTitle">Nieuw Lid Toevoegen</h3>
+            <form id="memberForm" class="admin-form">
+                <div class="form-group">
+                    <label for="memberName">Naam *</label>
+                    <input type="text" id="memberName" required>
+                </div>
+                <div class="form-group">
+                    <label for="memberEmail">E-mail *</label>
+                    <input type="email" id="memberEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="memberPassword">Wachtwoord *</label>
+                    <input type="password" id="memberPassword" required minlength="6">
+                    <small>Minimaal 6 karakters</small>
+                </div>
+                <div class="form-group">
+                    <label for="memberCategorie">Categorie</label>
+                    <select id="memberCategorie">
+                        <option value="veteranen">Veteranen</option>
+                        <option value="zaterdag">Zaterdag</option>
+                        <option value="zondag">Zondag</option>
+                        <option value="bestuurslid">Bestuurslid</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="memberRole">Rol</label>
+                    <select id="memberRole">
+                        <option value="speler">Speler</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <input type="hidden" id="memberUid">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="memberModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Match Modal -->
+    <div class="modal" id="matchModal">
+        <div class="modal-content large">
+            <h3 id="matchModalTitle">Nieuwe Wedstrijd Aanmaken</h3>
+            <form id="matchForm" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="matchDate">Datum *</label>
+                        <input type="date" id="matchDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="matchTime">Tijd *</label>
+                        <input type="time" id="matchTime" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="matchLocation">Locatie *</label>
+                    <input type="text" id="matchLocation" required placeholder="bv. Sportpark Rotselaar">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="matchHomeTeam">Thuisploeg *</label>
+                        <input type="text" id="matchHomeTeam" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="matchAwayTeam">Uitploeg *</label>
+                        <input type="text" id="matchAwayTeam" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="matchTeam">Team *</label>
+                    <select id="matchTeam">
+                        <option value="veteranen">Veteranen (2x35 min)</option>
+                        <option value="zaterdag">Zaterdag (2x45 min)</option>
+                        <option value="zondag">Zondag (2x45 min)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="matchDescription">Beschrijving (optioneel)</label>
+                    <textarea id="matchDescription" rows="3" placeholder="Extra informatie over de wedstrijd"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Toegang voor *</label>
+                    <small>Selecteer personen die de wedstrijd kunnen starten en beheren</small>
+                    <div class="designated-persons-container" id="designatedPersonsContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                <input type="hidden" id="matchId">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="matchModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Evenement Modal -->
+    <div class="modal" id="evenementModal">
+        <div class="modal-content large">
+            <h3 id="evenementModalTitle">Nieuw Evenement Aanmaken</h3>
+            <form id="evenementForm" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="evenementDatum">Datum *</label>
+                        <input type="date" id="evenementDatum" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="evenementTijd">Tijd *</label>
+                        <input type="time" id="evenementTijd" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="evenementTitel">Titel *</label>
+                    <input type="text" id="evenementTitel" required>
+                </div>
+                <div class="form-group">
+                    <label for="evenementLocatie">Locatie *</label>
+                    <input type="text" id="evenementLocatie" required>
+                </div>
+                <div class="form-group">
+                    <label for="evenementBeschrijving">Beschrijving *</label>
+                    <textarea id="evenementBeschrijving" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="evenementAfbeelding">Afbeelding Naam</label>
+                    <input type="text" id="evenementAfbeelding" placeholder="bv. event1.jpg">
+                    <small>Plaats de afbeelding in de /assets map</small>
+                </div>
+                <div class="form-group">
+                    <label for="evenementLink">Link (optioneel)</label>
+                    <input type="url" id="evenementLink" placeholder="https://...">
+                </div>
+                <input type="hidden" id="evenementId">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="evenementModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <h3>Bevestigen</h3>
+            <p id="confirmMessage">Weet je zeker dat je dit wilt verwijderen?</p>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="confirmCancel">Annuleren</button>
+                <button class="modal-btn confirm danger" id="confirmDelete">Verwijderen</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Galerij</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html" class="active">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="gallery-page">
+        <div class="gallery-header">
+            <h1>Galerij</h1>
+        </div>
+
+        <div class="gallery-grid">
+            <!-- Large photo -->
+            <div class="gallery-item large">
+                <img src="assets/galerij/photo1.jpg" alt="VVS Rotselaar foto 1">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo2.jpg" alt="VVS Rotselaar foto 2">
+            </div>
+            
+            <!-- Tall photo -->
+            <div class="gallery-item tall">
+                <img src="assets/galerij/photo3.jpg" alt="VVS Rotselaar foto 3">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo4.jpg" alt="VVS Rotselaar foto 4">
+            </div>
+            
+            <!-- Wide photo -->
+            <div class="gallery-item wide">
+                <img src="assets/galerij/photo5.jpg" alt="VVS Rotselaar foto 5">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo6.jpg" alt="VVS Rotselaar foto 6">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo7.jpg" alt="VVS Rotselaar foto 7">
+            </div>
+            
+            <!-- Tall photo -->
+            <div class="gallery-item tall">
+                <img src="assets/galerij/photo8.jpg" alt="VVS Rotselaar foto 8">
+            </div>
+            
+            <!-- Large photo -->
+            <div class="gallery-item large">
+                <img src="assets/galerij/photo9.jpg" alt="VVS Rotselaar foto 9">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo10.jpg" alt="VVS Rotselaar foto 10">
+            </div>
+            
+            <!-- Wide photo -->
+            <div class="gallery-item wide">
+                <img src="assets/galerij/photo11.jpg" alt="VVS Rotselaar foto 11">
+            </div>
+            
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo12.jpg" alt="VVS Rotselaar foto 12">
+            </div>
+
+            <!-- Wide photo -->
+            <div class="gallery-item wide">
+                <img src="assets/galerij/photo13.jpg" alt="VVS Rotselaar foto 13">
+            </div>
+
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo14.jpg" alt="VVS Rotselaar foto 14">
+            </div>
+
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo15.jpg" alt="VVS Rotselaar foto 15">
+            </div>
+
+            <!-- Large photo -->
+            <div class="gallery-item large">
+                <img src="assets/galerij/photo16.jpg" alt="VVS Rotselaar foto 16">
+            </div>
+
+            <!-- Tall photo -->
+            <div class="gallery-item tall">
+                <img src="assets/galerij/photo17.jpg" alt="VVS Rotselaar foto 17">
+            </div>
+
+            <!-- Regular photo -->
+            <div class="gallery-item">
+                <img src="assets/galerij/photo18.jpg" alt="VVS Rotselaar foto 18">
+            </div>
+
+            <!-- Voeg meer foto's toe zoals je wil -->
+        </div>
+
+        <!-- Lightbox voor fullscreen viewing -->
+        <div class="lightbox" id="lightbox">
+            <span class="lightbox-close" id="lightboxClose">&times;</span>
+            <img src="" alt="Fullscreen foto" id="lightboxImg">
+        </div>
+    </main>
+
+    <script>
+        // Lightbox functionality
+        const galleryItems = document.querySelectorAll('.gallery-item');
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightboxImg');
+        const lightboxClose = document.getElementById('lightboxClose');
+
+        galleryItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const img = item.querySelector('img');
+                lightboxImg.src = img.src;
+                lightbox.classList.add('active');
+            });
+        });
+
+        lightboxClose.addEventListener('click', () => {
+            lightbox.classList.remove('active');
+        });
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.classList.remove('active');
+            }
+        });
+    </script>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

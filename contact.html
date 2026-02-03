@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Contact</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html" class="active">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main class="contact-page">
+        <div class="contact-header">
+            <h1>Contact</h1>
+        </div>
+
+        <!-- FAQ Section -->
+        <section class="faq-section">
+            <div class="faq-item">
+                <h3 class="faq-question">Wanneer trainen we?</h3>
+                <p class="faq-answer">Elke dinsdag om 20:00 uur op ons hoofdterrein aan de Hellichtstraat.</p>
+            </div>
+            <div class="faq-item">
+                <h3 class="faq-question">Welke teams zijn er allemaal?</h3>
+                <p class="faq-answer">We hebben veteranen die spelen op vrijdagavond, zaterdagploegen voor verschillende leeftijdscategorieën, en zondag voor de jeugdteams.</p>
+            </div>
+            <div class="faq-item">
+                <h3 class="faq-question">Hoe kan ik lid worden?</h3>
+                <p class="faq-answer">Neem contact met ons op via het onderstaande formulier of kom langs tijdens een training. Nieuwe leden zijn altijd welkom!</p>
+            </div>
+            <div class="faq-item">
+                <h3 class="faq-question">Wat zijn de lidgelden?</h3>
+                <p class="faq-answer">Wanneer je niet komt helpen op evenementen bedraagt het lidgeld € 150, kom je 1x helpen is dat nog € 100, sta je klaar op 2 evenementen betaal je nog € 50.</p>
+            </div>
+        </section>
+
+        <!-- Contact Form Section -->
+        <section class="contact-form-section">
+            <h2>HEEFT U NOG ANDERE VRAGEN?</h2>
+            <p class="subtitle">U kan via onderstaand formulier vrijblijvend een mailtje sturen<br>en wij doen ons best om u zo snel mogelijk te antwoorden.</p>
+            
+            <form class="contact-form" id="contactForm">
+                <div class="form-group">
+                    <label for="email">E-mail *</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="message">Bericht *</label>
+                    <textarea id="message" name="message" required></textarea>
+                </div>
+                <button type="submit" class="submit-btn">VERZENDEN</button>
+            </form>
+        </section>
+
+        <!-- Club Info Section -->
+        <section class="contact-info-section">
+            <div class="club-info">
+                <h3>Voetbalclub VVS Rotselaar vzw</h3>
+                <p><strong>Terrein:</strong> Hellichtstraat (naast nr. 83), 3110 Rotselaar</p>
+                <p><strong>Maatschappelijke zetel:</strong> Hanewijk 36, 3118 Werchter</p>
+                <p><strong>KBO:</strong> 0424.117.454</p>
+                <p><strong>RPR:</strong> Leuven</p>
+            </div>
+
+            <div class="bestuur-grid">
+                <div class="bestuur-item">
+                    <div class="bestuur-title">Voorzitter</div>
+                    <div class="bestuur-name">Patrick Andries</div>
+                </div>
+                <div class="bestuur-item">
+                    <div class="bestuur-title">Secretaris</div>
+                    <div class="bestuur-name">Kris Beniers</div>
+                </div>
+                <div class="bestuur-item">
+                    <div class="bestuur-title">Penningmeester</div>
+                    <div class="bestuur-name">Thijs Nuyttens</div>
+                </div>
+                <div class="bestuur-item">
+                    <div class="bestuur-title">Feestcomité</div>
+                    <div class="bestuur-name">Hans Sterckx</div>
+                </div>
+                <div class="bestuur-item">
+                    <div class="bestuur-title">Materiaalmeester</div>
+                    <div class="bestuur-name">Valere Rubbens</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="app.js"></script>
+    <script type="module">
+        import { db } from './firebase-config.js';
+        import { collection, addDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        // Contact form submission
+        const contactForm = document.getElementById('contactForm');
+        
+        if (contactForm) {
+            contactForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const submitBtn = contactForm.querySelector('.submit-btn');
+                const originalText = submitBtn.textContent;
+                
+                try {
+                    submitBtn.textContent = 'VERZENDEN...';
+                    submitBtn.disabled = true;
+                    
+                    const email = document.getElementById('email').value.trim();
+                    const message = document.getElementById('message').value.trim();
+                    
+                    if (!email || !message) {
+                        alert('Vul alle velden in.');
+                        return;
+                    }
+                    
+                    console.log('Submitting contact form...', { email, messageLength: message.length });
+                    
+                    // Save to Firestore with explicit timestamp
+                    const docRef = await addDoc(collection(db, 'contactberichten'), {
+                        email: email,
+                        bericht: message,
+                        datum: Timestamp.now(),
+                        gelezen: false,
+                        createdAt: new Date().toISOString()
+                    });
+                    
+                    console.log('Contact bericht saved with ID:', docRef.id);
+                    
+                    // Success
+                    alert('Bedankt voor uw bericht! We nemen zo snel mogelijk contact met u op.');
+                    contactForm.reset();
+                    
+                } catch (error) {
+                    console.error('Error submitting form:', error);
+                    console.error('Error code:', error.code);
+                    console.error('Error message:', error.message);
+                    
+                    let errorMessage = 'Er is een fout opgetreden. ';
+                    if (error.code === 'permission-denied') {
+                        errorMessage += 'Geen toegang tot de database. Neem contact op met de beheerder.';
+                    } else if (error.code === 'unavailable') {
+                        errorMessage += 'Database niet bereikbaar. Probeer het later opnieuw.';
+                    } else {
+                        errorMessage += 'Probeer het later opnieuw.';
+                    }
+                    
+                    alert(errorMessage);
+                } finally {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
