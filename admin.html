@@ -72,6 +72,14 @@
             color: #e83e8c;
         }
 
+        .ranking-instructions ol {
+            margin-top: 1rem;
+        }
+
+        .ranking-instructions ol li {
+            margin-bottom: 0.5rem;
+        }
+
         .ranking-form .form-group {
             margin-bottom: 1.5rem;
         }
@@ -95,6 +103,22 @@
         .ranking-select:focus {
             outline: none;
             border-color: var(--primary-blue, #0047AB);
+        }
+
+        .ranking-file-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px dashed #e0e0e0;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+
+        .ranking-file-input:hover {
+            border-color: var(--primary-blue, #0047AB);
+            background: white;
         }
 
         .ranking-textarea {
@@ -246,14 +270,47 @@
                 <div class="ranking-manager">
                     <div class="ranking-instructions">
                         <h4>📋 Instructies</h4>
-                        <p>Plak de rangschikking data vanuit de website in het tekstveld hieronder. Het formaat moet zijn:</p>
-                        <code>Positie | Logo + Naam | Gespeeld | Gewonnen | Gelijk | Verloren | Doelpunten Voor | Doelpunten Tegen | Saldo | Punten</code>
-                        <p style="margin-top: 0.5rem;"><small>Voorbeeld: <code>1 Logo VK WAKKERZEEL 14 11 2 1 44 23 21 34</code></small></p>
+                        <ol style="margin-left: 1.5rem;">
+                            <li>Upload je huidige <code>ranking.json</code> bestand (of begin met een leeg bestand)</li>
+                            <li>Selecteer voor welk team de data is (veteranen/zaterdag/zondag)</li>
+                            <li>Plak de rangschikking data vanuit <strong><a href="https://www.rbfa.be/nl/club/7532/ploegen" target="_blank">RBFA</a></strong></li>
+                            <li>Klik op "Verwerken" voor een preview</li>
+                            <li>Download het bijgewerkte <code>ranking.json</code> bestand</li>
+                        </ol>
+                        <p style="margin-top: 1rem;"><strong>Data moet exact 10 kolommen hebben (TAB-separated):</strong></p>
+                        <table style="font-size: 0.85rem; margin-top: 0.5rem; border-collapse: collapse; width: 100%;">
+                            <tr style="background: white;">
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>1.</strong> Positie</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>2.</strong> Logo+Naam</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>3.</strong> Gespeeld</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>4.</strong> Gewonnen</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>5.</strong> Verloren</td>
+                            </tr>
+                            <tr style="background: white;">
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>6.</strong> Gelijk</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>7.</strong> Voor</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>8.</strong> Tegen</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>9.</strong> Saldo</td>
+                                <td style="padding: 0.25rem 0.5rem; border: 1px solid #ddd;"><strong>10.</strong> Punten</td>
+                            </tr>
+                        </table>
+                        <p style="margin-top: 0.75rem;"><small><strong>Voorbeeld:</strong><br><code>1&nbsp;&nbsp;&nbsp;&nbsp;Logo KORBEEK SPORTKORBEEK SPORT&nbsp;&nbsp;&nbsp;&nbsp;18&nbsp;&nbsp;&nbsp;&nbsp;16&nbsp;&nbsp;&nbsp;&nbsp;1&nbsp;&nbsp;&nbsp;&nbsp;1&nbsp;&nbsp;&nbsp;&nbsp;62&nbsp;&nbsp;&nbsp;&nbsp;15&nbsp;&nbsp;&nbsp;&nbsp;47&nbsp;&nbsp;&nbsp;&nbsp;49</code><br>
+                        (pos=1, naam=KORBEEK SPORT, gespeeld=18, gewonnen=16, <strong>verloren=1, gelijk=1</strong>, voor=62, tegen=15, saldo=47, punten=49)</small></p>
+                        <p style="margin-top: 0.5rem;"><small><strong>Let op:</strong> Volgorde is Gewonnen-Verloren-Gelijk (niet W-D-L). Naam staat dubbel en wordt automatisch gecorrigeerd.</small></p>
                     </div>
 
                     <div class="ranking-form">
                         <div class="form-group">
-                            <label for="rankingTeam">Selecteer Team *</label>
+                            <label for="rankingFileUpload">1. Upload Huidig ranking.json Bestand (optioneel)</label>
+                            <input type="file" id="rankingFileUpload" accept=".json" class="ranking-file-input">
+                            <small>Als je geen bestand upload, wordt een nieuw leeg bestand aangemaakt</small>
+                            <div id="currentFileInfo" style="display: none; margin-top: 0.5rem; padding: 0.5rem; background: #e8f4f8; border-radius: 4px;">
+                                <strong>Geladen bestand:</strong> <span id="currentFileName"></span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="rankingTeam">2. Selecteer Team *</label>
                             <select id="rankingTeam" class="ranking-select">
                                 <option value="">Kies een team...</option>
                                 <option value="veteranen">Veteranen</option>
@@ -263,25 +320,28 @@
                         </div>
 
                         <div class="form-group">
-                            <label for="rankingInput">Rangschikking Data *</label>
+                            <label for="rankingInput">3. Rangschikking Data *</label>
                             <textarea 
                                 id="rankingInput" 
                                 class="ranking-textarea" 
                                 rows="15" 
-                                placeholder="Plak hier de rangschikking data...&#10;&#10;Bijvoorbeeld:&#10;1 Logo VK WAKKERZEEL 14 11 2 1 44 23 21 34&#10;2 Logo K.F.C. WERCHTER 15 10 2 3 47 17 30 33&#10;3 Logo V.V.S ROTSELAAR 14 8 3 3 41 17 24 27"></textarea>
+                                placeholder="Plak hier de rangschikking data...&#10;&#10;Bijvoorbeeld:&#10;1	Logo VK WAKKERZEELVK WAKKERZEEL	14	11	2	1	44	23	21	34&#10;2	Logo K.F.C. WERCHTERK.F.C. WERCHTER	15	10	2	3	47	17	30	33&#10;3	Logo V.V.S ROTSELAARV.V.S ROTSELAAR	14	8	3	3	41	17	24	27"></textarea>
                         </div>
 
                         <div class="ranking-actions">
-                            <button class="btn-primary" id="processRankingBtn">
-                                🔄 Rangschikking Verwerken
+                            <button class="add-btn" id="processRankingBtn">
+                                🔄 Verwerken
                             </button>
                             <button class="btn-secondary" id="downloadRankingBtn" style="display: none;">
                                 💾 Download ranking.json
                             </button>
+                            <button class="btn-secondary" id="clearRankingBtn">
+                                🗑️ Wissen
+                            </button>
                         </div>
 
                         <div class="ranking-preview" id="rankingPreview" style="display: none;">
-                            <h4>✅ Preview van Verwerkte Data</h4>
+                            <h4>✅ Preview van Verwerkte Data voor "<span id="previewTeamName"></span>"</h4>
                             <pre id="rankingPreviewContent"></pre>
                         </div>
 

@@ -80,6 +80,53 @@ if (dots.length > 0) {
 
 if (slides.length > 0) {
     startCarousel();
+    
+    // Add touch/swipe support for mobile carousel navigation
+    const carouselContainer = document.querySelector('.carousel-container');
+    if (carouselContainer) {
+        let touchStartX = 0;
+        let touchEndX = 0;
+        let touchStartY = 0;
+        let touchEndY = 0;
+        
+        carouselContainer.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+        
+        carouselContainer.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+        
+        function handleSwipe() {
+            const swipeThreshold = 50; // Minimum swipe distance in pixels
+            const swipeDistanceX = touchEndX - touchStartX;
+            const swipeDistanceY = Math.abs(touchEndY - touchStartY);
+            
+            // Only register horizontal swipes (ignore mostly vertical swipes for scrolling)
+            if (swipeDistanceY < 100) {
+                if (swipeDistanceX > swipeThreshold) {
+                    // Swipe right - go to previous slide
+                    currentSlide--;
+                    if (currentSlide < 0) currentSlide = slides.length - 1;
+                    showSlide(currentSlide);
+                    stopCarousel();
+                    startCarousel();
+                } else if (swipeDistanceX < -swipeThreshold) {
+                    // Swipe left - go to next slide
+                    currentSlide++;
+                    if (currentSlide >= slides.length) currentSlide = 0;
+                    showSlide(currentSlide);
+                    stopCarousel();
+                    startCarousel();
+                }
+            }
+        }
+        
+        console.log('Touch swipe navigation enabled for carousel');
+    }
 }
 
 // ===============================================

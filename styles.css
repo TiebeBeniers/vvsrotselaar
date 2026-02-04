@@ -121,7 +121,7 @@ img {
 }
 
 .hamburger.active span:nth-child(1) {
-    transform: rotate(45deg) translate(8px, 8px);
+    transform: rotate(45deg) translate(6px, 6px);
 }
 
 .hamburger.active span:nth-child(2) {
@@ -129,7 +129,7 @@ img {
 }
 
 .hamburger.active span:nth-child(3) {
-    transform: rotate(-45deg) translate(7px, -7px);
+    transform: rotate(-45deg) translate(6px, -6px);
 }
 
 .nav-menu {
@@ -414,26 +414,29 @@ img {
    =============================================== */
 
 .teams-section {
-    padding: 3rem 2rem;
-    max-width: 1400px;
+    padding: 4rem 2rem; /* Increased from 3rem for more spacing */
+    max-width: 1600px; /* Increased from 1400px - buttons will be ~25% larger */
     margin: 0 auto;
 }
 
 .team-buttons {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 2rem;
+    gap: 2.5rem; /* Increased from 2rem for better spacing */
 }
 
 .team-button {
     position: relative;
-    height: 300px;
+    aspect-ratio: 2 / 1; /* Perfect 2:1 ratio for landscape photos */
+    width: 100%;
     background-size: cover;
     background-position: center;
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: block;
+    text-decoration: none;
 }
 
 .team-button:hover {
@@ -463,10 +466,6 @@ img {
     .team-buttons {
         grid-template-columns: 1fr;
         gap: 1.5rem;
-    }
-
-    .team-button {
-        height: 220px;
     }
 
     .team-overlay h2 {
@@ -513,6 +512,17 @@ img {
 .contact-text p {
     color: var(--text-gray);
     font-size: 1rem;
+}
+
+.contact-text a {
+    color: var(--primary-blue);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.contact-text a:hover {
+    color: var(--dark-blue);
+    text-decoration: underline;
 }
 
 @media (max-width: 768px) {
@@ -2044,7 +2054,6 @@ img {
     align-items: center;
     justify-content: center;
     z-index: 3000;
-    padding: 2rem;
 }
 
 .lightbox.active {
@@ -2074,6 +2083,7 @@ img {
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
+    padding-bottom: 8px;
 }
 
 .lightbox-close:hover {

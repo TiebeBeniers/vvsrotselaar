@@ -1270,78 +1270,183 @@ async function deleteMessage(berichtId) {
 let processedRankingData = null;
 let currentRankingData = null;
 
-// Load current ranking data
-async function loadCurrentRanking() {
-    try {
-        const response = await fetch('ranking.json');
-        if (!response.ok) {
-            throw new Error('Could not load ranking.json');
-        }
-        currentRankingData = await response.json();
-        console.log('Current ranking data loaded:', currentRankingData);
-        return currentRankingData;
-    } catch (error) {
-        console.error('Error loading ranking.json:', error);
-        showRankingStatus('error', 'Kon ranking.json niet laden. Zorg dat het bestand in de root directory staat.');
-        return null;
-    }
+// File upload handler
+const rankingFileUpload = document.getElementById('rankingFileUpload');
+if (rankingFileUpload) {
+    rankingFileUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                currentRankingData = JSON.parse(event.target.result);
+                console.log('Ranking file loaded:', currentRankingData);
+                
+                // Show file info
+                document.getElementById('currentFileName').textContent = file.name;
+                document.getElementById('currentFileInfo').style.display = 'block';
+                
+                showRankingStatus('success', `✅ Bestand "${file.name}" succesvol geladen!`);
+            } catch (error) {
+                console.error('Error parsing JSON:', error);
+                showRankingStatus('error', 'Fout bij laden bestand. Controleer of het een geldig JSON bestand is.');
+                currentRankingData = null;
+            }
+        };
+        reader.readAsText(file);
+    });
 }
 
-// Parse ranking input
+// Clear button
+const clearRankingBtn = document.getElementById('clearRankingBtn');
+if (clearRankingBtn) {
+    clearRankingBtn.addEventListener('click', () => {
+        // Clear all fields
+        document.getElementById('rankingTeam').value = '';
+        document.getElementById('rankingInput').value = '';
+        document.getElementById('rankingFileUpload').value = '';
+        document.getElementById('currentFileInfo').style.display = 'none';
+        document.getElementById('rankingPreview').style.display = 'none';
+        document.getElementById('downloadRankingBtn').style.display = 'none';
+        
+        // Reset data
+        currentRankingData = null;
+        processedRankingData = null;
+        
+        showRankingStatus('success', 'Formulier gewist');
+    });
+}
+
+// Load current ranking data (fallback als er geen file geupload is)
+async function loadCurrentRanking() {
+    // If file already uploaded, use that
+    if (currentRankingData) {
+        console.log('Using uploaded ranking data');
+        return currentRankingData;
+    }
+    
+    // Otherwise create empty structure
+    console.log('No file uploaded, creating empty structure');
+    currentRankingData = {
+        "veteranen": [],
+        "zaterdag": [],
+        "zondag": []
+    };
+    return currentRankingData;
+}
+
+// Parse ranking input - handles tab-separated format from RBFA
 function parseRankingInput(input, team) {
     const lines = input.trim().split('\n');
     const rankingArray = [];
+    
+    console.log('Parsing ranking input for team:', team);
+    console.log('Number of lines:', lines.length);
     
     for (const line of lines) {
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
         
-        // Split by whitespace
-        const parts = trimmedLine.split(/\s+/);
+        // Split by tabs first (RBFA standard format)
+        let parts = trimmedLine.split('\t').filter(p => p.trim());
         
-        if (parts.length < 10) {
-            console.warn('Skipping invalid line:', trimmedLine);
+        console.log('Line parts (tab-split):', parts);
+        
+        // If tab split gives us exactly 10 parts, use it
+        // Otherwise try space split as fallback
+        if (parts.length !== 10) {
+            parts = trimmedLine.split(/\s+/);
+            console.log('Line parts (space-split):', parts);
+        }
+        
+        // We need exactly 10 parts:
+        // 0: Positie
+        // 1: Logo + Naam (dubbel)
+        // 2: Gespeeld
+        // 3: Gewonnen
+        // 4: Verloren (LET OP: komt VOOR gelijk!)
+        // 5: Gelijk (LET OP: komt NA verloren!)
+        // 6: Goals Voor
+        // 7: Goals Tegen
+        // 8: Saldo
+        // 9: Punten
+        if (parts.length !== 10) {
+            console.warn('Skipping line - expected 10 parts, got', parts.length, ':', trimmedLine);
             continue;
         }
         
-        // Extract data
-        const pos = parseInt(parts[0]);
-        
-        // Find where "Logo" appears and skip it, then find team name
-        let teamNameStart = 1;
-        let teamNameEnd = parts.length - 9; // Last 9 parts are stats
-        
-        // Skip "Logo" if present
-        if (parts[1].toLowerCase() === 'logo') {
-            teamNameStart = 2;
+        try {
+            // Parse position
+            const pos = parseInt(parts[0]);
+            if (isNaN(pos)) {
+                console.warn('Invalid position:', parts[0]);
+                continue;
+            }
+            
+            // Parse team name (parts[1])
+            // Example: "Logo KORBEEK SPORTKORBEEK SPORT" -> "KORBEEK SPORT"
+            let teamName = parts[1];
+            
+            // Remove "Logo" prefix (case insensitive)
+            teamName = teamName.replace(/^Logo\s*/i, '');
+            
+            // Fix doubled names
+            // Split into words and check if first half equals second half
+            const words = teamName.split(/\s+/).filter(w => w.trim());
+            const halfLength = Math.floor(words.length / 2);
+            
+            if (words.length > 0 && words.length % 2 === 0 && halfLength > 0) {
+                const firstHalf = words.slice(0, halfLength).join(' ');
+                const secondHalf = words.slice(halfLength).join(' ');
+                
+                if (firstHalf === secondHalf) {
+                    teamName = firstHalf;
+                    console.log('Fixed doubled name:', parts[1], '->', teamName);
+                }
+            }
+            
+            // Parse statistics (parts[2] through parts[9])
+            // Volgorde volgens RBFA: Gespeeld, Gewonnen, VERLOREN, GELIJK, Voor, Tegen, Saldo, Punten
+            const played = parseInt(parts[2]);     // Matchen gespeeld
+            const won = parseInt(parts[3]);        // Matchen gewonnen  
+            const lost = parseInt(parts[4]);       // Matchen verloren (LET OP: komt VOOR gelijk!)
+            const draw = parseInt(parts[5]);       // Matchen gelijk (LET OP: komt NA verloren!)
+            const goalsFor = parseInt(parts[6]);   // Goals voor
+            const goalsAgainst = parseInt(parts[7]); // Goals tegen
+            const saldo = parseInt(parts[8]);      // Saldo
+            const pnt = parseInt(parts[9]);        // Punten
+            
+            // Validate all numbers
+            if ([played, won, draw, lost, goalsFor, goalsAgainst, saldo, pnt].some(isNaN)) {
+                console.warn('Invalid numbers in line:', parts);
+                continue;
+            }
+            
+            const teamData = {
+                pos,
+                team: teamName.trim(),
+                pnt,
+                played,
+                won,
+                draw,
+                lost,
+                goals_for: goalsFor,
+                goals_against: goalsAgainst,
+                saldo
+            };
+            
+            console.log('Parsed team:', teamData);
+            rankingArray.push(teamData);
+            
+        } catch (error) {
+            console.error('Error parsing line:', trimmedLine, error);
+            continue;
         }
-        
-        const teamName = parts.slice(teamNameStart, teamNameEnd).join(' ');
-        
-        // Last 9 parts are the stats
-        const stats = parts.slice(-9);
-        const played = parseInt(stats[0]);
-        const won = parseInt(stats[1]);
-        const draw = parseInt(stats[2]);
-        const lost = parseInt(stats[3]);
-        const goalsFor = parseInt(stats[4]);
-        const goalsAgainst = parseInt(stats[5]);
-        const saldo = parseInt(stats[6]);
-        const pnt = parseInt(stats[7]);
-        
-        rankingArray.push({
-            pos,
-            team: teamName,
-            pnt,
-            played,
-            won,
-            draw,
-            lost,
-            goals_for: goalsFor,
-            goals_against: goalsAgainst,
-            saldo
-        });
     }
+    
+    console.log('Total teams parsed:', rankingArray.length);
+    console.log('Final ranking array:', rankingArray);
     
     return rankingArray;
 }
@@ -1386,7 +1491,7 @@ if (processRankingBtn) {
                 await loadCurrentRanking();
                 if (!currentRankingData) {
                     processRankingBtn.disabled = false;
-                    processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+                    processRankingBtn.textContent = '🔄 Verwerken';
                     return;
                 }
             }
@@ -1397,7 +1502,7 @@ if (processRankingBtn) {
             if (parsedData.length === 0) {
                 showRankingStatus('error', 'Geen geldige data gevonden. Controleer het formaat!');
                 processRankingBtn.disabled = false;
-                processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+                processRankingBtn.textContent = '🔄 Verwerken';
                 return;
             }
             
@@ -1405,9 +1510,12 @@ if (processRankingBtn) {
             processedRankingData = { ...currentRankingData };
             processedRankingData[team] = parsedData;
             
-            // Show preview
+            // Show preview with team name
             const previewEl = document.getElementById('rankingPreview');
             const previewContent = document.getElementById('rankingPreviewContent');
+            const previewTeamName = document.getElementById('previewTeamName');
+            
+            previewTeamName.textContent = team.charAt(0).toUpperCase() + team.slice(1);
             previewContent.textContent = JSON.stringify(processedRankingData[team], null, 2);
             previewEl.style.display = 'block';
             
@@ -1421,7 +1529,7 @@ if (processRankingBtn) {
             showRankingStatus('error', 'Fout bij verwerken: ' + error.message);
         } finally {
             processRankingBtn.disabled = false;
-            processRankingBtn.textContent = '🔄 Rangschikking Verwerken';
+            processRankingBtn.textContent = '🔄 Verwerken';
         }
     });
 }
