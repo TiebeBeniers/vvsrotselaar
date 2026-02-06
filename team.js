@@ -5,7 +5,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, orderBy, limit, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Team.js loaded');
 
@@ -192,6 +192,37 @@ function displayPlannedMatch(match, container) {
         });
         const formattedTime = match.uur || 'Tijd niet beschikbaar';
         
+        // Availability section HTML - alleen voor ingelogde users
+        const availabilityHTML = currentUser ? `
+                <!-- Availability Section -->
+                <div class="availability-section" id="availabilitySection">
+                    <div class="availability-header">
+                        <div class="availability-title">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                            Beschikbaarheid
+                        </div>
+                        <div class="availability-summary" id="availabilitySummary">
+                            <div class="availability-count available">
+                                <span>✓</span>
+                                <span id="availableCount">0</span>
+                            </div>
+                            <div class="availability-count unavailable">
+                                <span>✗</span>
+                                <span id="unavailableCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="availabilityContent">
+                        <div class="loading">Laden...</div>
+                    </div>
+                </div>
+        ` : '';
+        
         container.innerHTML = `
             <div class="next-match-card planned">
                 <div class="match-date">
@@ -216,10 +247,17 @@ function displayPlannedMatch(match, container) {
                     <span>${match.locatie || 'Locatie niet beschikbaar'}</span>
                 </div>
                 ${match.beschrijving ? `<div class="match-description">${match.beschrijving}</div>` : ''}
+                ${availabilityHTML}
             </div>
         `;
         
         console.log('Planned match displayed successfully');
+        
+        // Load availability data (alleen als user ingelogd is)
+        if (currentUser) {
+            loadAvailability(match.id);
+        }
+        
     } catch (error) {
         console.error('Error displaying planned match:', error);
         container.innerHTML = `<p class="error">Fout bij weergeven van wedstrijd: ${error.message}</p>`;
@@ -756,6 +794,241 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecentMatches();
     loadStatistics();
 });
+
+// ===============================================
+// AVAILABILITY SYSTEM
+// ===============================================
+
+let availabilityListener = null;
+
+async function loadAvailability(matchId) {
+    console.log('Loading availability for match:', matchId);
+    const contentDiv = document.getElementById('availabilityContent');
+    
+    if (!contentDiv) return;
+    
+    // Als gebruiker NIET ingelogd is: toon helemaal niks
+    if (!currentUser) {
+        contentDiv.innerHTML = ''; // Volledig leeg
+        return;
+    }
+    
+    // Gebruiker is ingelogd - check of het zijn eigen ploeg is
+    try {
+        // Haal gebruikersdata op
+        const userQuery = query(collection(db, 'users'), where('uid', '==', currentUser.uid));
+        const userSnapshot = await getDocs(userQuery);
+        
+        if (userSnapshot.empty) {
+            console.log('User data not found');
+            contentDiv.innerHTML = '';
+            return;
+        }
+        
+        const userData = userSnapshot.docs[0].data();
+        const userCategorie = userData.categorie; // veteranen/zaterdag/zondag/bestuurslid
+        
+        console.log('User categorie:', userCategorie, 'Team type:', TEAM_TYPE);
+        
+        // Check of gebruiker bij deze ploeg hoort
+        const isOwnTeam = userCategorie === TEAM_TYPE;
+        const isBestuurslid = userCategorie === 'bestuurslid';
+        
+        if (isOwnTeam) {
+            // Eigen ploeg: toon knoppen EN lijst
+            contentDiv.innerHTML = `
+                <div class="availability-actions">
+                    <button class="availability-btn available" id="availableBtn">
+                        <span>✓</span>
+                        <span>Ik kan komen</span>
+                    </button>
+                    <button class="availability-btn unavailable" id="unavailableBtn">
+                        <span>✗</span>
+                        <span>Ik kan niet komen</span>
+                    </button>
+                </div>
+                <div class="availability-list" id="availabilityList">
+                    <div class="loading">Laden...</div>
+                </div>
+            `;
+            
+            // Setup button handlers
+            const availableBtn = document.getElementById('availableBtn');
+            const unavailableBtn = document.getElementById('unavailableBtn');
+            
+            availableBtn.addEventListener('click', () => setAvailability(matchId, true, userData.naam));
+            unavailableBtn.addEventListener('click', () => setAvailability(matchId, false, userData.naam));
+            
+            // Setup real-time listener met lijst
+            setupAvailabilityListener(matchId, true);
+            
+        } else if (isBestuurslid) {
+            // Bestuurslid: alleen lijst zien, geen knoppen
+            contentDiv.innerHTML = `
+                <div class="availability-info">
+                    <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 1rem; font-style: italic;">
+                        Als bestuurslid kun je de beschikbaarheid bekijken
+                    </p>
+                </div>
+                <div class="availability-list" id="availabilityList">
+                    <div class="loading">Laden...</div>
+                </div>
+            `;
+            
+            // Setup real-time listener met lijst
+            setupAvailabilityListener(matchId, true);
+            
+        } else {
+            // Andere ploeg: alleen telling zien, geen lijst
+            contentDiv.innerHTML = `
+                <div class="availability-summary-only"></div>
+            `;
+            
+            // Setup real-time listener zonder lijst (alleen telling)
+            setupAvailabilityListener(matchId, false);
+        }
+        
+    } catch (error) {
+        console.error('Error loading availability:', error);
+        contentDiv.innerHTML = '';
+    }
+}
+
+function setupAvailabilityListener(matchId, showList = true) {
+    // Clean up previous listener
+    if (availabilityListener) {
+        availabilityListener();
+    }
+    
+    const availabilityRef = collection(db, 'matches', matchId, 'availability');
+    
+    availabilityListener = onSnapshot(availabilityRef, (snapshot) => {
+        console.log('Availability updated, count:', snapshot.size);
+        
+        const availabilityList = document.getElementById('availabilityList');
+        const availableCountEl = document.getElementById('availableCount');
+        const unavailableCountEl = document.getElementById('unavailableCount');
+        const availableBtn = document.getElementById('availableBtn');
+        const unavailableBtn = document.getElementById('unavailableBtn');
+        
+        // Count and organize data
+        let availableCount = 0;
+        let unavailableCount = 0;
+        const availabilities = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            availabilities.push({
+                userId: doc.id,
+                ...data
+            });
+            
+            if (data.available) {
+                availableCount++;
+            } else {
+                unavailableCount++;
+            }
+        });
+        
+        // Update counts in header (altijd zichtbaar)
+        if (availableCountEl) availableCountEl.textContent = availableCount;
+        if (unavailableCountEl) unavailableCountEl.textContent = unavailableCount;
+        
+        // Update button states if user is logged in
+        if (currentUser && availableBtn && unavailableBtn) {
+            availableBtn.classList.remove('selected');
+            unavailableBtn.classList.remove('selected');
+            
+            const userAvailability = availabilities.find(a => a.userId === currentUser.uid);
+            if (userAvailability) {
+                if (userAvailability.available) {
+                    availableBtn.classList.add('selected');
+                } else {
+                    unavailableBtn.classList.add('selected');
+                }
+            }
+        }
+        
+        // Display list ONLY if showList is true (eigen ploeg of bestuurslid)
+        if (showList && availabilityList) {
+            if (availabilities.length === 0) {
+                availabilityList.innerHTML = `
+                    <div class="availability-list-empty">
+                        Nog niemand heeft beschikbaarheid aangegeven
+                    </div>
+                `;
+            } else {
+                // Sort: available first, then alphabetically
+                availabilities.sort((a, b) => {
+                    if (a.available !== b.available) {
+                        return b.available - a.available; // true (1) before false (0)
+                    }
+                    return a.displayName.localeCompare(b.displayName);
+                });
+                
+                availabilityList.innerHTML = availabilities.map(av => `
+                    <div class="availability-player">
+                        <span class="player-name">${av.displayName}</span>
+                        <span class="availability-status ${av.available ? 'available' : 'unavailable'}">
+                            <span>${av.available ? '✓' : '✗'}</span>
+                            <span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>
+                        </span>
+                    </div>
+                `).join('');
+            }
+        }
+    }, (error) => {
+        console.error('Error loading availability:', error);
+        if (availabilityList && showList) {
+            availabilityList.innerHTML = `<p class="error">Fout bij laden van beschikbaarheid</p>`;
+        }
+    });
+}
+
+async function setAvailability(matchId, available, userName) {
+    if (!currentUser) {
+        alert('Je moet ingelogd zijn om je beschikbaarheid aan te geven');
+        return;
+    }
+    
+    const availableBtn = document.getElementById('availableBtn');
+    const unavailableBtn = document.getElementById('unavailableBtn');
+    
+    // Disable buttons during update
+    if (availableBtn) availableBtn.disabled = true;
+    if (unavailableBtn) unavailableBtn.disabled = true;
+    
+    try {
+        const availabilityRef = doc(db, 'matches', matchId, 'availability', currentUser.uid);
+        
+        await setDoc(availabilityRef, {
+            available: available,
+            displayName: userName || currentUser.displayName || currentUser.email,
+            timestamp: new Date().toISOString()
+        });
+        
+        console.log('Availability set:', available);
+        
+    } catch (error) {
+        console.error('Error setting availability:', error);
+        alert('Fout bij opslaan van beschikbaarheid. Probeer opnieuw.');
+    } finally {
+        // Re-enable buttons
+        if (availableBtn) availableBtn.disabled = false;
+        if (unavailableBtn) unavailableBtn.disabled = false;
+    }
+}
+
+// Cleanup availability listener on page unload
+window.addEventListener('beforeunload', () => {
+    if (availabilityListener) {
+        availabilityListener();
+    }
+});
+
+// ===============================================
+// END AVAILABILITY SYSTEM
+// ===============================================
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {

@@ -70,6 +70,71 @@ img {
     z-index: 1000;
 }
 
+/* ===============================================
+   ANNOUNCEMENT BANNER
+   =============================================== */
+
+.announcement-banner {
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+    color: var(--white);
+    overflow: hidden;
+    position: relative;
+    height: 45px;
+    display: flex;
+    align-items: center;
+}
+
+.announcement-content {
+    display: flex;
+    white-space: nowrap;
+    animation: scroll-announcement 40s linear infinite;
+}
+
+.announcement-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4rem;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.announcement-item::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 0.8rem;
+    background-image: url('../assets/bier.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    vertical-align: middle;
+}
+
+@keyframes scroll-announcement {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.announcement-banner:hover .announcement-content {
+    animation-play-state: paused;
+}
+
+@media (max-width: 768px) {
+    .announcement-banner {
+        height: 40px;
+    }
+    
+    .announcement-item {
+        font-size: 0.9rem;
+        padding: 0 2rem;
+    }
+}
+
 .header-container {
     max-width: 1400px;
     margin: 0 auto;
@@ -2086,6 +2151,26 @@ img {
     padding-bottom: 8px;
 }
 
+@media (max-width: 768px) {
+    .lightbox-close {
+        position: absolute;
+        top: 2rem;
+        right: 2rem;
+        background: var(--white);
+        color: var(--text-dark);
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+}
+
 .lightbox-close:hover {
     background: var(--primary-blue);
     color: var(--white);
@@ -3251,6 +3336,198 @@ img {
     text-align: center;
     padding: 3rem;
     color: var(--text-gray);
+}
+
+/* ===============================================
+   AVAILABILITY SYSTEM
+   =============================================== */
+
+.availability-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.availability-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.availability-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.availability-summary {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-gray);
+}
+
+.availability-count {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.availability-count.available {
+    color: var(--success);
+}
+
+.availability-count.unavailable {
+    color: var(--danger);
+}
+
+.availability-actions {
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.availability-btn {
+    flex: 1;
+    padding: 0.8rem 1.5rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.availability-btn.available {
+    background: var(--white);
+    color: var(--success);
+    border: 2px solid var(--success);
+}
+
+.availability-btn.available:hover {
+    background: var(--success);
+    color: var(--white);
+}
+
+.availability-btn.available.selected {
+    background: var(--success);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.availability-btn.unavailable {
+    background: var(--white);
+    color: var(--danger);
+    border: 2px solid var(--danger);
+}
+
+.availability-btn.unavailable:hover {
+    background: var(--danger);
+    color: var(--white);
+}
+
+.availability-btn.unavailable.selected {
+    background: var(--danger);
+    color: var(--white);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.availability-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.availability-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--off-white);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.availability-list-empty {
+    text-align: center;
+    color: var(--text-gray);
+    padding: 2rem;
+    font-style: italic;
+}
+
+.availability-player {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.8rem;
+    background: var(--white);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+}
+
+.availability-player:last-child {
+    margin-bottom: 0;
+}
+
+.player-name {
+    font-weight: 600;
+    color: var(--text-dark);
+    flex: 1;
+}
+
+.availability-status {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.availability-status.available {
+    color: var(--success);
+}
+
+.availability-status.unavailable {
+    color: var(--danger);
+}
+
+.availability-login-prompt {
+    text-align: center;
+    padding: 1.5rem;
+    background: var(--off-white);
+    border-radius: 8px;
+    color: var(--text-gray);
+}
+
+.availability-login-prompt a {
+    color: var(--primary-blue);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.availability-login-prompt a:hover {
+    color: var(--dark-blue);
+}
+
+@media (max-width: 768px) {
+    .availability-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.8rem;
+    }
+    
+    .availability-actions {
+        flex-direction: row;
+        width: 100%;
+    }
+    
+    .availability-btn {
+        padding: 0.7rem 1rem;
+        font-size: 0.9rem;
+    }
 }
 
 /* Empty States */

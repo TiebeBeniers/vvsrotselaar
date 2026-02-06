@@ -7,7 +7,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Admin.js loaded (FINAL FIX VERSION)');
 
@@ -632,6 +632,20 @@ if (matchForm) {
                 console.log('Creating new match...');
                 const docRef = await addDoc(collection(db, 'matches'), matchData);
                 console.log('Match created with ID:', docRef.id);
+                
+                // Maak automatisch een lege availability subcollection aan
+                // Dit zorgt ervoor dat de availability sectie meteen werkt
+                try {
+                    // Voeg een placeholder document toe (wordt later verwijderd als eerste echte beschikbaarheid wordt toegevoegd)
+                    const availabilityRef = doc(db, 'matches', docRef.id, 'availability', '_placeholder');
+                    await setDoc(availabilityRef, {
+                        placeholder: true,
+                        createdAt: new Date().toISOString()
+                    });
+                    console.log('Availability subcollection initialized');
+                } catch (availError) {
+                    console.log('Could not create availability placeholder (not critical):', availError);
+                }
             }
             
             alert('Wedstrijd opgeslagen!');
