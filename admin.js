@@ -2,14 +2,16 @@
 // ADMIN PAGE - FINAL FIX
 // V.V.S Rotselaar
 // Fix: CreateUser zonder admin logout + form validation
+// Updated: Password decryption for account requests
 // ===============================================
 
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { decryptPassword } from './crypto-utils.js';
 
-console.log('Admin.js loaded (FINAL FIX VERSION)');
+console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
 
 // ===============================================
 // SECONDARY FIREBASE APP FOR USER CREATION
@@ -148,6 +150,7 @@ async function initializeAdminPage() {
         await loadMatches();
         await loadEvenementen();
         await loadContactberichten();
+        await updateRequestsBadge(); // Update badge on page load
         console.log('Admin page initialized successfully');
     } catch (error) {
         console.error('Error initializing admin page:', error);
@@ -162,6 +165,9 @@ const addMemberBtn = document.getElementById('addMemberBtn');
 const memberModal = document.getElementById('memberModal');
 const memberForm = document.getElementById('memberForm');
 const memberModalCancel = document.getElementById('memberModalCancel');
+const manageRequestsBtn = document.getElementById('manageRequestsBtn');
+const requestsModal = document.getElementById('requestsModal');
+const requestsModalClose = document.getElementById('requestsModalClose');
 
 if (addMemberBtn) {
     addMemberBtn.addEventListener('click', () => {
@@ -186,6 +192,21 @@ if (addMemberBtn) {
 if (memberModalCancel) {
     memberModalCancel.addEventListener('click', () => {
         memberModal.classList.remove('active');
+    });
+}
+
+// Account Requests Modal
+if (manageRequestsBtn) {
+    manageRequestsBtn.addEventListener('click', async () => {
+        console.log('Opening account requests modal');
+        await loadAccountRequests();
+        requestsModal.classList.add('active');
+    });
+}
+
+if (requestsModalClose) {
+    requestsModalClose.addEventListener('click', () => {
+        requestsModal.classList.remove('active');
     });
 }
 
@@ -431,6 +452,240 @@ async function deleteMember(member) {
 }
 
 // ===============================================
+// ACCOUNT REQUESTS MANAGEMENT
+// ===============================================
+
+async function updateRequestsBadge() {
+    const badge = document.getElementById('requestsBadge');
+    if (!badge) return;
+    
+    try {
+        const requestsQuery = query(
+            collection(db, 'account_requests'),
+            where('status', '==', 'pending')
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        
+        const count = requestsSnapshot.size;
+        
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error updating requests badge:', error);
+        badge.style.display = 'none';
+    }
+}
+
+async function loadAccountRequests() {
+    const requestsList = document.getElementById('requestsList');
+    
+    try {
+        console.log('Loading account requests...');
+        requestsList.innerHTML = '<div class="loading">Laden...</div>';
+        
+        // Get all pending requests
+        // Note: We removed orderBy to avoid needing a composite index
+        // We'll sort in memory instead
+        const requestsQuery = query(
+            collection(db, 'account_requests'),
+            where('status', '==', 'pending')
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        
+        requestsList.innerHTML = '';
+        
+        if (requestsSnapshot.empty) {
+            console.log('No pending requests found');
+            requestsList.innerHTML = '<p class="text-center" style="padding: 2rem; color: #666;">Geen openstaande aanvragen.</p>';
+            return;
+        }
+        
+        console.log('Found', requestsSnapshot.size, 'pending requests');
+        
+        // Collect all requests and sort by creation date
+        const requests = [];
+        requestsSnapshot.forEach(docSnap => {
+            const request = { id: docSnap.id, ...docSnap.data() };
+            requests.push(request);
+        });
+        
+        // Sort by createdAt (newest first)
+        requests.sort((a, b) => {
+            if (!a.createdAt) return 1;
+            if (!b.createdAt) return -1;
+            return b.createdAt.toMillis() - a.createdAt.toMillis();
+        });
+        
+        // Create cards for sorted requests
+        requests.forEach(request => {
+            const requestCard = createRequestCard(request);
+            requestsList.appendChild(requestCard);
+        });
+        
+        console.log('Account requests loaded successfully');
+        
+    } catch (error) {
+        console.error('Error loading account requests:', error);
+        requestsList.innerHTML = '<p class="text-center error-text">Fout bij laden: ' + error.message + '</p>';
+    }
+}
+
+function createRequestCard(request) {
+    const card = document.createElement('div');
+    card.className = 'request-card';
+    
+    // Format date
+    let dateText = 'Onbekend';
+    if (request.createdAt) {
+        const date = request.createdAt.toDate();
+        dateText = date.toLocaleDateString('nl-BE', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    const teamText = request.categorie ? request.categorie.charAt(0).toUpperCase() + request.categorie.slice(1) : 'Onbekend';
+    
+    // Use encryptedPassword instead of plain password
+    const encryptedPwd = request.encryptedPassword || '';
+    
+    card.innerHTML = `
+        <div class="request-info">
+            <h4>${request.naam}</h4>
+            <p><strong>Email:</strong> ${request.email}</p>
+            <p><strong>Ploeg:</strong> ${teamText}</p>
+            <p class="request-date"><strong>Aangevraagd op:</strong> ${dateText}</p>
+        </div>
+        <div class="request-actions">
+            <button class="btn-accept" onclick="acceptRequest('${request.id}', '${request.naam}', '${request.email}', '${encryptedPwd}', '${request.categorie}')">
+                ✓ Goedkeuren
+            </button>
+            <button class="btn-reject" onclick="rejectRequest('${request.id}')">
+                ✗ Afwijzen
+            </button>
+        </div>
+    `;
+    
+    return card;
+}
+
+// Make functions globally accessible
+window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorie) {
+    console.log('Accepting request:', requestId);
+    
+    try {
+        // Confirm action
+        if (!confirm(`Account goedkeuren voor ${naam}?`)) {
+            return;
+        }
+        
+        // Check if secondary auth is available
+        if (!secondaryAuth) {
+            alert('Fout: Secundaire authenticatie niet geïnitialiseerd');
+            return;
+        }
+        
+        // Decrypt password
+        console.log('Decrypting password...');
+        let password;
+        try {
+            password = await decryptPassword(encryptedPassword);
+            console.log('Password decrypted successfully');
+        } catch (decryptError) {
+            console.error('Password decryption failed:', decryptError);
+            alert('Fout bij het decrypteren van het wachtwoord. Mogelijk is de aanvraag beschadigd.');
+            return;
+        }
+        
+        // Create user in Firebase Auth using secondary app
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+        const newUser = userCredential.user;
+        
+        console.log('User created in Auth:', newUser.uid);
+        
+        // Sign out from secondary app immediately to avoid affecting admin session
+        await secondaryAuth.signOut();
+        
+        // Add user to Firestore users collection
+        await addDoc(collection(db, 'users'), {
+            uid: newUser.uid,
+            naam: naam,
+            email: email,
+            categorie: categorie,
+            rol: 'speler'
+        });
+        
+        console.log('User added to Firestore');
+        
+        // DELETE the request document completely (don't keep password data)
+        await deleteDoc(doc(db, 'account_requests', requestId));
+        
+        console.log('Request document deleted from Firestore');
+        
+        // Reload requests list
+        await loadAccountRequests();
+        
+        // Reload members list if on that tab
+        await loadMembers();
+        
+        // Update badge count
+        updateRequestsBadge();
+        
+        alert(`Account succesvol aangemaakt voor ${naam}!`);
+        
+    } catch (error) {
+        console.error('Error accepting request:', error);
+        
+        let errorText = 'Er is een fout opgetreden bij het goedkeuren van de aanvraag.';
+        
+        if (error.code === 'auth/email-already-in-use') {
+            errorText = 'Dit e-mailadres is al in gebruik.';
+        } else if (error.code === 'auth/invalid-email') {
+            errorText = 'Ongeldig e-mailadres.';
+        } else if (error.code === 'auth/weak-password') {
+            errorText = 'Wachtwoord is te zwak.';
+        }
+        
+        alert(errorText + '\n\nDetails: ' + error.message);
+    }
+};
+
+window.rejectRequest = async function(requestId) {
+    console.log('Rejecting request:', requestId);
+    
+    try {
+        // Confirm action
+        if (!confirm('Weet je zeker dat je deze aanvraag wilt afwijzen?')) {
+            return;
+        }
+        
+        // DELETE the request document completely (don't keep password data)
+        await deleteDoc(doc(db, 'account_requests', requestId));
+        
+        console.log('Request document deleted from Firestore');
+        
+        // Reload requests list
+        await loadAccountRequests();
+        
+        // Update badge count
+        updateRequestsBadge();
+        
+        alert('Aanvraag afgewezen en verwijderd.');
+        
+    } catch (error) {
+        console.error('Error rejecting request:', error);
+        alert('Er is een fout opgetreden bij het afwijzen van de aanvraag: ' + error.message);
+    }
+};
+
+// ===============================================
 // MATCHES MANAGEMENT
 // ===============================================
 
@@ -639,7 +894,6 @@ if (matchForm) {
                     // Voeg een placeholder document toe (wordt later verwijderd als eerste echte beschikbaarheid wordt toegevoegd)
                     const availabilityRef = doc(db, 'matches', docRef.id, 'availability', '_placeholder');
                     await setDoc(availabilityRef, {
-                        placeholder: true,
                         createdAt: new Date().toISOString()
                     });
                     console.log('Availability subcollection initialized');

@@ -1147,6 +1147,46 @@ img {
     border-color: var(--primary-blue);
 }
 
+/* Password Input Wrapper */
+.password-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-input-wrapper input {
+    width: 100%;
+    padding-right: 3rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0;
+    background: transparent;
+    border: none;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s ease;
+}
+
+.password-toggle:hover {
+    opacity: 0.7;
+}
+
+.password-toggle .eye-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--text-gray);
+    transition: color 0.2s ease;
+}
+
+.password-toggle:hover .eye-icon {
+    color: var(--primary-blue);
+}
+
 .form-group small {
     font-size: 0.85rem;
     color: var(--text-gray);
@@ -1238,6 +1278,83 @@ img {
     box-shadow: 0 6px 16px var(--shadow);
 }
 
+/* Account Request Styles */
+.account-request-link {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
+}
+
+.account-request-link a {
+    color: var(--primary-blue);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.account-request-link a:hover {
+    color: var(--dark-blue);
+    text-decoration: underline;
+}
+
+.back-to-login {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
+}
+
+.back-to-login a {
+    color: var(--primary-blue);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.back-to-login a:hover {
+    color: var(--dark-blue);
+    text-decoration: underline;
+}
+
+.request-subtitle {
+    text-align: center;
+    color: var(--text-gray);
+    margin-bottom: 2rem;
+    font-size: 0.95rem;
+}
+
+#requestAccountView h3 {
+    color: var(--primary-blue);
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-size: 1.8rem;
+}
+
+.success-message {
+    padding: 1rem;
+    background: #D4EDDA;
+    color: #155724;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    border: 1px solid #C3E6CB;
+}
+
+.form-group select {
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: var(--white);
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
 /* ===============================================
    ADMIN PAGE
    =============================================== */
@@ -1308,6 +1425,12 @@ img {
     font-size: 1.5rem;
 }
 
+.header-buttons {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
 .add-btn {
     padding: 0.8rem 1.5rem;
     background: var(--primary-blue);
@@ -1315,12 +1438,45 @@ img {
     font-weight: 600;
     border-radius: 8px;
     transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.add-btn.secondary {
+    background: var(--accent-blue);
 }
 
 .add-btn:hover {
     background: var(--dark-blue);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px var(--shadow);
+}
+
+.add-btn.secondary:hover {
+    background: #0086b8;
+}
+
+/* Badge for notifications */
+.badge {
+    display: inline-block;
+    background: var(--danger);
+    color: var(--white);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    margin-left: 0.5rem;
+    min-width: 20px;
+    text-align: center;
+    animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
 }
 
 .loading {
@@ -1596,6 +1752,101 @@ img {
     .modal-actions {
         flex-direction: column;
     }
+    
+    .header-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .add-btn {
+        width: 100%;
+    }
+}
+
+/* Account Requests Modal Styles */
+.requests-list {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+}
+
+.request-card {
+    padding: 1.5rem;
+    background: var(--off-white);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 2px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.request-info {
+    margin-bottom: 1rem;
+}
+
+.request-info h4 {
+    color: var(--primary-blue);
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.request-info p {
+    color: var(--text-dark);
+    margin-bottom: 0.3rem;
+    font-size: 0.95rem;
+}
+
+.request-date {
+    color: var(--text-gray);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.request-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-accept,
+.btn-reject {
+    flex: 1;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.btn-accept {
+    background: var(--success);
+    color: var(--white);
+}
+
+.btn-accept:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.btn-reject {
+    background: var(--danger);
+    color: var(--white);
+}
+
+.btn-reject:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+}
+
+.text-center {
+    text-align: center;
+}
+
+.error-text {
+    color: var(--danger);
 }
 
 /* ===============================================
@@ -2855,8 +3106,7 @@ img {
 }
 
 .match-description {
-    margin-top: 1.5rem;
-    padding: 1rem;
+    padding: 0.5rem;
     background: var(--off-white);
     border-radius: 8px;
     color: var(--text-gray);

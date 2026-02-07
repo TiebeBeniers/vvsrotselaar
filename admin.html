@@ -244,7 +244,13 @@
             <div class="tab-content active" id="membersTab">
                 <div class="section-header">
                     <h3>Clubleden</h3>
-                    <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
+                    <div class="header-buttons">
+                        <button class="add-btn secondary" id="manageRequestsBtn">
+                            📋 Aanvragen Behandelen
+                            <span class="badge" id="requestsBadge" style="display: none;">0</span>
+                        </button>
+                        <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
+                    </div>
                 </div>
                 <div class="members-list" id="membersList">
                     <div class="loading">Laden...</div>
@@ -566,6 +572,19 @@
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="confirmCancel">Annuleren</button>
                 <button class="modal-btn confirm danger" id="confirmDelete">Verwijderen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Requests Modal -->
+    <div class="modal" id="requestsModal">
+        <div class="modal-content large">
+            <h3>Accountaanvragen Behandelen</h3>
+            <div id="requestsList" class="requests-list">
+                <div class="loading">Laden...</div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="requestsModalClose">Sluiten</button>
             </div>
         </div>
     </div>

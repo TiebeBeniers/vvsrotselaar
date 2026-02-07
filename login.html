@@ -39,7 +39,7 @@
         <div class="login-container">
             <div class="login-box">
                 <h2>Inloggen</h2>
-                <p class="login-subtitle">Toegang voor clubleden</p>
+                <p class="login-subtitle" id="loginSubtitle">Toegang voor clubleden</p>
                 
                 <form id="loginForm" class="login-form">
                     <div class="form-group">
@@ -49,13 +49,81 @@
                     
                     <div class="form-group">
                         <label for="password">Wachtwoord</label>
-                        <input type="password" id="password" required placeholder="••••••••">
+                        <div class="password-input-wrapper">
+                            <input type="password" id="password" required placeholder="wachtwoord123!">
+                            <button type="button" class="password-toggle" id="toggleLoginPassword" aria-label="Toon wachtwoord">
+                                <svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <svg class="eye-icon eye-closed" style="display: none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                    <line x1="1" y1="1" x2="23" y2="23"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="error-message" id="errorMessage" style="display: none;"></div>
                     
                     <button type="submit" class="login-btn">INLOGGEN</button>
+                    
+                    <p class="account-request-link">
+                        Nog geen account? <a href="#" id="showRequestForm">Account aanvragen</a>
+                    </p>
                 </form>
+
+                <!-- Account Request Form -->
+                <div id="requestAccountView" style="display: none;">
+                    <form id="requestAccountForm" class="login-form">
+                        <div class="form-group">
+                            <label for="requestName">Volledige Naam *</label>
+                            <input type="text" id="requestName" required placeholder="Voornaam Achternaam">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="requestEmail">E-mailadres *</label>
+                            <input type="email" id="requestEmail" required placeholder="naam@voorbeeld.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="requestPassword">Wachtwoord *</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" id="requestPassword" required minlength="6" placeholder="wachtwoord123!">
+                                <button type="button" class="password-toggle" id="toggleRequestPassword" aria-label="Toon wachtwoord">
+                                    <svg class="eye-icon eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                    <svg class="eye-icon eye-closed" style="display: none;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                                        <line x1="1" y1="1" x2="23" y2="23"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <small>Minimaal 6 karakters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="requestTeam">Ploeg *</label>
+                            <select id="requestTeam" required>
+                                <option value="">Selecteer een ploeg</option>
+                                <option value="veteranen">Veteranen</option>
+                                <option value="zaterdag">Zaterdag</option>
+                                <option value="zondag">Zondag</option>
+                            </select>
+                        </div>
+                        
+                        <div class="success-message" id="requestSuccessMessage" style="display: none;"></div>
+                        <div class="error-message" id="requestErrorMessage" style="display: none;"></div>
+                        
+                        <button type="submit" class="login-btn">AANVRAAG INDIENEN</button>
+                        
+                        <p class="back-to-login">
+                            <a href="#" id="backToLogin">Terug naar inloggen</a>
+                        </p>
+                    </form>
+                </div>
 
                 <!-- Logged in view -->
                 <div id="loggedInView" style="display: none;">

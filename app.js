@@ -352,18 +352,16 @@ function stopLiveOverlayUpdate() {
 
 async function checkForStartMatch() {
     const startMatchContainer = document.getElementById('startMatchContainer');
-    
     if (!startMatchContainer) return;
-    
+
     if (!currentUser || !currentUserData) {
         startMatchContainer.style.display = 'none';
         return;
     }
 
     console.log('Checking if user can start a match...');
-    
+
     const now = new Date();
-    const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60000);
 
     const upcomingMatchesQuery = query(
         collection(db, 'matches'),
@@ -372,23 +370,33 @@ async function checkForStartMatch() {
 
     try {
         const upcomingSnapshot = await getDocs(upcomingMatchesQuery);
-        
+
         let showStartButton = false;
         let matchToStart = null;
 
         upcomingSnapshot.forEach((docSnap) => {
             const matchData = docSnap.data();
             const matchDateTime = new Date(`${matchData.datum}T${matchData.uur}`);
-            
-            // Check if user has access
+
+            // Tijdvenster: 30 min voor tot 30 min na start
+            const thirtyMinutesBefore = new Date(matchDateTime.getTime() - 30 * 60 * 1000);
+            const thirtyMinutesAfter  = new Date(matchDateTime.getTime() + 30 * 60 * 1000);
+
+            // Toegang check
             const isBestuurslid = currentUserData.categorie === 'bestuurslid';
-            const isDesignated = matchData.aangeduidePersonen && 
-                                matchData.aangeduidePersonen.includes(currentUser.uid);
-            
+            const isDesignated =
+                matchData.aangeduidePersonen &&
+                matchData.aangeduidePersonen.includes(currentUser.uid);
+
             const hasAccess = isBestuurslid || isDesignated;
-            
-            if (hasAccess && matchDateTime <= thirtyMinutesFromNow && matchDateTime >= now) {
-                console.log('User can start match:', matchData.thuisploeg, 'vs', matchData.uitploeg);
+
+            if (hasAccess && now >= thirtyMinutesBefore && now <= thirtyMinutesAfter) {
+                console.log(
+                    'User can start match:',
+                    matchData.thuisploeg,
+                    'vs',
+                    matchData.uitploeg
+                );
                 showStartButton = true;
                 matchToStart = { id: docSnap.id, ...matchData };
             }
@@ -396,7 +404,7 @@ async function checkForStartMatch() {
 
         if (showStartButton && matchToStart) {
             startMatchContainer.style.display = 'flex';
-            
+
             const startMatchBtn = document.getElementById('startMatchBtn');
             if (startMatchBtn) {
                 startMatchBtn.onclick = () => startMatch(matchToStart);
