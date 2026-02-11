@@ -579,8 +579,8 @@ async function showMatchTimeline(match) {
     modalTitle.textContent = 'Wedstrijd Samenvatting';
     modalHomeTeam.textContent = match.thuisploeg;
     modalAwayTeam.textContent = match.uitploeg;
-    modalHomeScore.textContent = match.scoreThuis;
-    modalAwayScore.textContent = match.scoreUit;
+    modalHomeScore.textContent = match.scoreThuis || 0;
+    modalAwayScore.textContent = match.scoreUit || 0;
     
     const matchDate = new Date(`${match.datum}T${match.uur}`);
     modalMatchDate.textContent = matchDate.toLocaleDateString('nl-BE', {
@@ -600,16 +600,16 @@ async function showMatchTimeline(match) {
     modalTimeline.innerHTML = '<div class="loading">Laden...</div>';
     
     try {
+        // Query WITHOUT orderBy to avoid needing composite index
         const eventsQuery = query(
             collection(db, 'events'),
-            where('matchId', '==', match.id),
-            orderBy('timestamp', 'asc')
+            where('matchId', '==', match.id)
         );
         
         const eventsSnapshot = await getDocs(eventsQuery);
         
         if (eventsSnapshot.empty) {
-            modalTimeline.innerHTML = '<p class="no-events">Geen events beschikbaar voor deze wedstrijd.</p>';
+            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar, deze match werd niet Live gevolgd.</p>';
             return;
         }
         
@@ -618,11 +618,61 @@ async function showMatchTimeline(match) {
             events.push({ id: doc.id, ...doc.data() });
         });
         
-        displayTimeline(events, modalTimeline, match);
+        // Sort events manually (same logic as live.js)
+        const firstHalfEvents = [];
+        const secondHalfEvents = [];
+        let rustEvent = null;
+        let hervatEvent = null;
+        
+        events.forEach(event => {
+            if (event.type === 'rust') {
+                rustEvent = event;
+            } else if (event.type === 'hervat') {
+                hervatEvent = event;
+            } else {
+                // Use half field if available
+                const eventHalf = event.half || 1;
+                
+                if (eventHalf === 2) {
+                    secondHalfEvents.push(event);
+                } else {
+                    firstHalfEvents.push(event);
+                }
+            }
+        });
+        
+        // Sort first half descending (most recent first)
+        firstHalfEvents.sort((a, b) => {
+            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
+            if (minuteDiff !== 0) return minuteDiff;
+            if (a.timestamp && b.timestamp) {
+                return b.timestamp.toMillis() - a.timestamp.toMillis();
+            }
+            return 0;
+        });
+        
+        // Sort second half descending
+        secondHalfEvents.sort((a, b) => {
+            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
+            if (minuteDiff !== 0) return minuteDiff;
+            if (a.timestamp && b.timestamp) {
+                return b.timestamp.toMillis() - a.timestamp.toMillis();
+            }
+            return 0;
+        });
+        
+        // Combine: second half → hervat → rust → first half
+        const sortedEvents = [];
+        sortedEvents.push(...secondHalfEvents);
+        if (hervatEvent) sortedEvents.push(hervatEvent);
+        if (rustEvent) sortedEvents.push(rustEvent);
+        sortedEvents.push(...firstHalfEvents);
+        
+        displayTimeline(sortedEvents, modalTimeline, match);
         
     } catch (error) {
         console.error('Error loading match timeline:', error);
-        modalTimeline.innerHTML = '<p class="error">Fout bij laden van timeline.</p>';
+        modalTimeline.innerHTML = '<p class="error">Fout bij laden van timeline. Probeer het opnieuw.</p>';
     }
 }
 
@@ -637,18 +687,18 @@ function displayTimeline(events, container, match) {
 
 function createTimelineItem(event, match) {
     const item = document.createElement('div');
-    item.className = `timeline-item ${event.ploeg}`;
+    item.className = `timeline-item ${event.ploeg || 'center'}`;
     
     const iconMap = {
         'aftrap': '⚽',
         'goal': '⚽',
         'penalty': '⚽',
-        'eigen-doelpunt': '⚽',
-        'gele-kaart': '🟨',
-        'rode-kaart': '🟥',
-        'wissel': '🔄',
+        'own-goal': '⚽',
+        'yellow': '🟨',
+        'red': '🟥',
+        'substitution': '🔄',
         'rust': '⏸',
-        'hervatting': '▶️',
+        'hervat': '▶️',
         'einde': '🏁'
     };
     
@@ -660,28 +710,28 @@ function createTimelineItem(event, match) {
             description = 'Aftrap';
             break;
         case 'goal':
-            description = `GOAL! ${event.spelerIn || 'Onbekende speler'}`;
+            description = `GOAL${event.speler ? ' - ' + event.speler : ''}`;
             break;
         case 'penalty':
-            description = `PENALTY! ${event.spelerIn || 'Onbekende speler'}`;
+            description = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
             break;
-        case 'eigen-doelpunt':
-            description = `Eigen doelpunt ${event.spelerIn || ''}`;
+        case 'own-goal':
+            description = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`;
             break;
-        case 'gele-kaart':
-            description = `Gele kaart voor ${event.spelerIn || 'onbekende speler'}`;
+        case 'yellow':
+            description = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`;
             break;
-        case 'rode-kaart':
-            description = `Rode kaart voor ${event.spelerIn || 'onbekende speler'}`;
+        case 'red':
+            description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`;
             break;
-        case 'wissel':
-            description = `Wissel: ${event.spelerUit || '?'} → ${event.spelerIn || '?'}`;
+        case 'substitution':
+            description = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`;
             break;
         case 'rust':
             description = 'Rust';
             break;
-        case 'hervatting':
-            description = 'Hervatting 2e helft';
+        case 'hervat':
+            description = 'Hervat 2e helft';
             break;
         case 'einde':
             description = 'Einde wedstrijd';
@@ -693,7 +743,7 @@ function createTimelineItem(event, match) {
     item.innerHTML = `
         <div class="timeline-icon">${icon}</div>
         <div class="timeline-content">
-            <div class="timeline-minute">${event.minuut}'</div>
+            <div class="timeline-minute">${event.minuut || 0}'</div>
             <div class="timeline-description">${description}</div>
         </div>
     `;
