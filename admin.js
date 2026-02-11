@@ -151,6 +151,7 @@ async function initializeAdminPage() {
         await loadEvenementen();
         await loadContactberichten();
         await updateRequestsBadge(); // Update badge on page load
+        await updateContactberichtenBadge(); // Update contactberichten badge
         console.log('Admin page initialized successfully');
     } catch (error) {
         console.error('Error initializing admin page:', error);
@@ -476,6 +477,31 @@ async function updateRequestsBadge() {
         }
     } catch (error) {
         console.error('Error updating requests badge:', error);
+        badge.style.display = 'none';
+    }
+}
+
+async function updateContactberichtenBadge() {
+    const badge = document.getElementById('contactberichtenBadge');
+    if (!badge) return;
+    
+    try {
+        const berichtenQuery = query(
+            collection(db, 'contactberichten'),
+            where('gelezen', '==', false)
+        );
+        const berichtenSnapshot = await getDocs(berichtenQuery);
+        
+        const count = berichtenSnapshot.size;
+        
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error updating contactberichten badge:', error);
         badge.style.display = 'none';
     }
 }
@@ -887,19 +913,6 @@ if (matchForm) {
                 console.log('Creating new match...');
                 const docRef = await addDoc(collection(db, 'matches'), matchData);
                 console.log('Match created with ID:', docRef.id);
-                
-                // Maak automatisch een lege availability subcollection aan
-                // Dit zorgt ervoor dat de availability sectie meteen werkt
-                try {
-                    // Voeg een placeholder document toe (wordt later verwijderd als eerste echte beschikbaarheid wordt toegevoegd)
-                    const availabilityRef = doc(db, 'matches', docRef.id, 'availability', '_placeholder');
-                    await setDoc(availabilityRef, {
-                        createdAt: new Date().toISOString()
-                    });
-                    console.log('Availability subcollection initialized');
-                } catch (availError) {
-                    console.log('Could not create availability placeholder (not critical):', availError);
-                }
             }
             
             alert('Wedstrijd opgeslagen!');
@@ -1464,6 +1477,9 @@ function createMessageCard(bericht) {
         })
         : 'Onbekende datum';
     
+    // Check if message is long (more than 200 characters)
+    const isLongMessage = bericht.bericht.length > 200;
+    
     card.innerHTML = `
         <div class="message-header">
             <div class="message-info">
@@ -1474,7 +1490,8 @@ function createMessageCard(bericht) {
                 ${bericht.gelezen ? 'Gelezen' : 'Nieuw'}
             </span>
         </div>
-        <div class="message-content">${bericht.bericht}</div>
+        <div class="message-content ${isLongMessage ? 'collapsed' : ''}" data-full-text="${bericht.bericht.replace(/"/g, '&quot;')}">${bericht.bericht}</div>
+        ${isLongMessage ? '<div class="message-expand-hint">Klik om volledig bericht te tonen</div>' : ''}
         <div class="message-actions">
             ${!bericht.gelezen ? `
                 <button class="message-action-btn mark-read" data-id="${bericht.id}">
@@ -1486,6 +1503,24 @@ function createMessageCard(bericht) {
             </button>
         </div>
     `;
+    
+    // Add click-to-expand functionality for long messages
+    if (isLongMessage) {
+        const messageContent = card.querySelector('.message-content');
+        const expandHint = card.querySelector('.message-expand-hint');
+        
+        messageContent.addEventListener('click', () => {
+            if (messageContent.classList.contains('collapsed')) {
+                messageContent.classList.remove('collapsed');
+                messageContent.classList.add('expanded');
+                if (expandHint) expandHint.style.display = 'none';
+            } else {
+                messageContent.classList.add('collapsed');
+                messageContent.classList.remove('expanded');
+                if (expandHint) expandHint.style.display = 'block';
+            }
+        });
+    }
     
     // Add event listeners
     const markReadBtn = card.querySelector('.mark-read');
@@ -1508,6 +1543,7 @@ async function markAsRead(berichtId) {
         
         console.log('Message marked as read');
         await loadContactberichten();
+        await updateContactberichtenBadge(); // Update badge after marking as read
     } catch (error) {
         console.error('Error marking message as read:', error);
         alert('Fout bij markeren als gelezen: ' + error.message);
@@ -1525,6 +1561,7 @@ async function deleteMessage(berichtId) {
         
         console.log('Message deleted');
         await loadContactberichten();
+        await updateContactberichtenBadge(); // Update badge after deleting
     } catch (error) {
         console.error('Error deleting message:', error);
         alert('Fout bij verwijderen: ' + error.message);
