@@ -3569,38 +3569,74 @@ img {
 .timeline-container {
     max-height: 500px;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 0.8rem;
     background: var(--off-white);
     border-radius: 8px;
 }
 
 .timeline-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1rem;
-    margin-bottom: 0.8rem;
-    background: var(--white);
+    padding: 0.8rem;
+    background: var(--off-white);
     border-radius: 8px;
-    border-left: 3px solid var(--border-color);
-    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: transform 0.2s ease;
+    margin-bottom: 0.8rem;
 }
 
 .timeline-item:hover {
     transform: translateX(4px);
-    box-shadow: 0 2px 8px var(--shadow);
 }
 
+/* Home team - Links uitgelijnd */
 .timeline-item.home {
-    border-left-color: var(--primary-blue);
+    justify-content: flex-start;
+    border-left: 4px solid var(--primary-blue);
+    background: linear-gradient(to right, rgba(0, 71, 171, 0.05), var(--off-white));
 }
 
+/* Away team - Rechts uitgelijnd */
 .timeline-item.away {
-    border-left-color: var(--accent-blue);
+    justify-content: flex-end;
+    border-right: 4px solid #2C5F2D;
+    background: linear-gradient(to left, rgba(44, 95, 45, 0.05), var(--off-white));
 }
 
+.timeline-item.away .timeline-minute {
+    order: 3;
+}
+
+.timeline-item.away .timeline-icon {
+    order: 2;
+}
+
+.timeline-item.away .timeline-content {
+    order: 1;
+    text-align: right;
+}
+
+/* Center - Centraal uitgelijnd */
 .timeline-item.center {
-    border-left-color: var(--text-gray);
+    justify-content: center;
+    text-align: center;
+    border: none;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-weight: 700;
+    padding: 0.8rem;
+}
+
+.timeline-item.center .timeline-minute {
+    display: none; /* Hide minute for center events */
+}
+
+.timeline-item.center .timeline-icon {
+    display: none; /* Hide icon for center events */
+}
+
+.timeline-item.center .timeline-description {
+    color: var(--white);
 }
 
 .timeline-icon {
@@ -3609,14 +3645,15 @@ img {
 }
 
 .timeline-content {
-    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
 }
 
 .timeline-minute {
     font-weight: 700;
     color: var(--primary-blue);
     font-size: 0.9rem;
-    margin-bottom: 0.3rem;
 }
 
 .timeline-description {
@@ -3626,7 +3663,7 @@ img {
 
 .no-events {
     text-align: center;
-    padding: 3rem;
+    padding: 2rem;
     color: var(--text-gray);
 }
 

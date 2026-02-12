@@ -740,11 +740,12 @@ function createTimelineItem(event, match) {
             description = event.type;
     }
     
+    // Structuur zoals live.js: minuut, icoon, en description los van elkaar
     item.innerHTML = `
-        <div class="timeline-icon">${icon}</div>
+        <span class="timeline-minute">${event.minuut || 0}'</span>
+        <span class="timeline-icon">${icon}</span>
         <div class="timeline-content">
-            <div class="timeline-minute">${event.minuut || 0}'</div>
-            <div class="timeline-description">${description}</div>
+            <span class="timeline-description">${description}</span>
         </div>
     `;
     
