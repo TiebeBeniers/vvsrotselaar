@@ -49,10 +49,18 @@
                 <div id="drankContainer" class="drank-grid"></div>
             </section>
 
+            <!-- Totaal + knoppen -->
             <section class="order-summary" id="orderSummary">
                 <div class="totaal-header">
                     <div class="totaal-prijs" id="totaalPrijs">Totaal: &euro;0,00</div>
-                    <button id="resetBtn" class="reset-icon-btn" title="Reset bestelling">&#8635;</button>
+                    <div class="totaal-acties">
+                        <button id="bestellingenBtn" class="icon-action-btn bestellingen-btn" title="Bestellingen bekijken">
+                            &#128203;
+                        </button>
+                        <button id="resetBtn" class="icon-action-btn reset-icon-btn" title="Reset bestelling">
+                            &#8635;
+                        </button>
+                    </div>
                 </div>
                 <div class="overzicht-container" id="overzichtContainer">
                     <p class="empty-message">Nog niets geselecteerd.</p>
@@ -73,7 +81,9 @@
         </div>
     </main>
 
-    <!-- KAART MODAL -->
+    <!-- ════════════════════════════════════════
+         KAART: stap 1 – terminal kiezen
+         ════════════════════════════════════════ -->
     <div class="rw-modal-backdrop" id="kaartModal">
         <div class="rw-modal">
             <div class="rw-modal-header">
@@ -82,23 +92,45 @@
             </div>
             <div class="rw-modal-body">
                 <p class="modal-subtitle">Selecteer een terminal</p>
-                <div class="terminal-grid" id="terminalGrid">
+                <div class="terminal-grid">
                     <button class="terminal-btn" data-terminal="1">Terminal 1</button>
                     <button class="terminal-btn" data-terminal="2">Terminal 2</button>
                     <button class="terminal-btn" data-terminal="3">Terminal 3</button>
                     <button class="terminal-btn" data-terminal="4">Terminal 4</button>
                 </div>
                 <div class="modal-totaal" id="kaartTotaal"></div>
-                <div class="modal-status" id="kaartStatus" style="display:none;"></div>
             </div>
             <div class="rw-modal-footer">
                 <button class="rw-modal-btn cancel" id="kaartModalCancel">Annuleren</button>
-                <button class="rw-modal-btn confirm" id="kaartBevestig" disabled>Verzenden naar terminal</button>
+                <button class="rw-modal-btn confirm" id="kaartVerzend" disabled>Verzenden &#10132;</button>
             </div>
         </div>
     </div>
 
-    <!-- PAYCONIQ MODAL -->
+    <!-- ════════════════════════════════════════
+         KAART: stap 2 – betaling gelukt/mislukt?
+         ════════════════════════════════════════ -->
+    <div class="rw-modal-backdrop" id="kaartBevestigModal">
+        <div class="rw-modal">
+            <div class="rw-modal-header">
+                <h3>&#128179; Betaling op terminal</h3>
+            </div>
+            <div class="rw-modal-body">
+                <div class="terminal-wacht-info" id="terminalWachtInfo"></div>
+                <div class="modal-totaal" id="kaartBevestigTotaal"></div>
+                <p class="bevestig-vraag">Is de betaling geslaagd op de terminal?</p>
+                <div class="modal-status" id="kaartBevestigStatus" style="display:none;"></div>
+            </div>
+            <div class="rw-modal-footer kaart-stap2-footer">
+                <button class="rw-modal-btn danger-btn" id="kaartMislukt">&#10005; Geannuleerd</button>
+                <button class="rw-modal-btn confirm" id="kaartGelukt">&#10003; Betaling gelukt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         PAYCONIQ MODAL
+         ════════════════════════════════════════ -->
     <div class="rw-modal-backdrop" id="qrModal">
         <div class="rw-modal">
             <div class="rw-modal-header">
@@ -111,17 +143,20 @@
                 <div class="qr-container">
                     <canvas id="qrCanvas"></canvas>
                 </div>
-                <p class="qr-hint">Het bedrag is reeds ingevuld in de Payconiq-link</p>
+                <img src="assets/rockwerchter/payconiq.png" alt="Payconiq Logo" class="payconiq-logo"
+                     onerror="this.style.display='none'">
                 <div class="modal-status" id="qrStatus" style="display:none;"></div>
             </div>
             <div class="rw-modal-footer">
                 <button class="rw-modal-btn cancel" id="qrModalCancel">Annuleren</button>
-                <button class="rw-modal-btn confirm" id="qrBevestig">Betaling bevestigen</button>
+                <button class="rw-modal-btn confirm" id="qrBevestig">&#10003; Betaling bevestigen</button>
             </div>
         </div>
     </div>
 
-    <!-- CASH MODAL -->
+    <!-- ════════════════════════════════════════
+         CASH MODAL
+         ════════════════════════════════════════ -->
     <div class="rw-modal-backdrop" id="cashModal">
         <div class="rw-modal">
             <div class="rw-modal-header">
@@ -130,28 +165,32 @@
             </div>
             <div class="rw-modal-body">
                 <div class="modal-totaal" id="cashTotaal"></div>
-
                 <div class="cash-input-section">
                     <label>Ontvangen bedrag</label>
 
-                    <!-- Snelknoppen -->
                     <div class="cash-snelknoppen">
-                        <button class="cash-snel-btn" data-bedrag="50">&#8364;50</button>
-                        <button class="cash-snel-btn" data-bedrag="20">&#8364;20</button>
-                        <button class="cash-snel-btn" data-bedrag="10">&#8364;10</button>
-                        <button class="cash-snel-btn" data-bedrag="5">&#8364;5</button>
-                        <button class="cash-snel-btn" data-bedrag="2">&#8364;2</button>
-                        <button class="cash-snel-btn" data-bedrag="1">&#8364;1</button>
-                        <button class="cash-snel-btn" data-bedrag="0.50">&#8364;0.50</button>
-                        <button class="cash-snel-btn" data-bedrag="0.20">&#8364;0.20</button>
-                        <button class="cash-snel-btn" data-bedrag="0.10">&#8364;0.10</button>
-                        <!-- Vinkje: bevestig exact bedrag -->
-                        <button class="cash-snel-btn exact-btn" id="cashExact" title="Exact bedrag">&#10003;</button>
-                        <!-- Kruisje: reset naar 0 -->
-                        <button class="cash-snel-btn reset-cash-btn" id="cashReset" title="Reset">&#10005;</button>
+                        <!-- Rij 1: biljetten -->
+                        <div class="cash-snel-rij">
+                            <button class="cash-snel-btn" data-bedrag="50">&#8364;50</button>
+                            <button class="cash-snel-btn" data-bedrag="20">&#8364;20</button>
+                            <button class="cash-snel-btn" data-bedrag="10">&#8364;10</button>
+                            <button class="cash-snel-btn" data-bedrag="5">&#8364;5</button>
+                        </div>
+                        <!-- Rij 2: munten -->
+                        <div class="cash-snel-rij">
+                            <button class="cash-snel-btn" data-bedrag="2">&#8364;2</button>
+                            <button class="cash-snel-btn" data-bedrag="1">&#8364;1</button>
+                            <button class="cash-snel-btn" data-bedrag="0.50">&#8364;0.50</button>
+                            <button class="cash-snel-btn" data-bedrag="0.20">&#8364;0.20</button>
+                            <button class="cash-snel-btn" data-bedrag="0.10">&#8364;0.10</button>
+                        </div>
+                        <!-- Rij 3: acties – altijd onder de knoppen -->
+                        <div class="cash-snel-rij cash-actie-rij">
+                            <button class="cash-snel-btn exact-btn" id="cashExact">&#10003; Exact</button>
+                            <button class="cash-snel-btn reset-cash-btn" id="cashReset">&#10005; Reset</button>
+                        </div>
                     </div>
 
-                    <!-- Handmatig veld -->
                     <div class="cash-input-wrapper">
                         <span class="euro-sign">&#8364;</span>
                         <input type="number" id="cashOntvangen" min="0" step="0.10" placeholder="0,00">
@@ -166,7 +205,28 @@
             </div>
             <div class="rw-modal-footer">
                 <button class="rw-modal-btn cancel" id="cashModalCancel">Annuleren</button>
-                <button class="rw-modal-btn confirm" id="cashBevestig" disabled>Bevestigen</button>
+                <button class="rw-modal-btn confirm" id="cashBevestig" disabled>&#10003; Bevestigen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         BESTELLINGEN OVERZICHT MODAL
+         ════════════════════════════════════════ -->
+    <div class="rw-modal-backdrop" id="bestellingenModal">
+        <div class="rw-modal rw-modal-breed">
+            <div class="rw-modal-header">
+                <h3>&#128203; Bestellingen</h3>
+                <button class="rw-modal-close" id="bestellingenModalClose">&#10005;</button>
+            </div>
+            <div class="rw-modal-body">
+                <div class="best-stats" id="bestStats"></div>
+                <div id="bestLijst">
+                    <p class="loading-tekst">Laden...</p>
+                </div>
+            </div>
+            <div class="rw-modal-footer">
+                <button class="rw-modal-btn cancel" id="bestellingenSluiten">Sluiten</button>
             </div>
         </div>
     </div>
