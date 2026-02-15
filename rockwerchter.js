@@ -71,9 +71,9 @@ onAuthStateChanged(auth, async (user) => {
                 $id('orderSummary').style.display  = 'block';
                 $id('paymentButtons').style.display = 'flex';
 
-                // Bestellingen-knop enkel voor admin
+                // Bestellingen-knop voor alle ingelogde users
                 const bestBtn = $id('bestellingenBtn');
-                if (bestBtn) bestBtn.style.display = isAdmin ? 'flex' : 'none';
+                if (bestBtn) bestBtn.style.display = 'flex';
             } else { guestMode(); }
         } catch (e) { console.error(e); guestMode(); }
     } else {
@@ -88,6 +88,7 @@ function guestMode() {
     document.getElementById('loginBanner').style.display    = 'flex';
     document.getElementById('orderSummary').style.display   = 'none';
     document.getElementById('paymentButtons').style.display = 'none';
+    document.getElementById('contact').style.display        = 'flex';
     const bestBtn = document.getElementById('bestellingenBtn');
     if (bestBtn) bestBtn.style.display = 'none';
 }
@@ -136,7 +137,7 @@ function voegToe(naam, n = 1) {
     if (!isLoggedIn) return;
     if (naam === 'Cup Refund') {
         const max = drankjes['Primus'].count + drankjes['Mystic'].count + drankjes['Cava of Wijn'].count;
-        if (drankjes['Cup Refund'].count + n > max) { alert('Extra bekers via refund ticket.'); return; }
+        if (drankjes['Cup Refund'].count + n > max) { alert('Max 1 refund per beker.'); return; }
     }
     drankjes[naam].count += n;
     sync(naam);
@@ -208,7 +209,7 @@ function updateOverzicht() {
             <div class="item-knoppen">
                 <button class="item-btn plus-btn">+3</button>
                 <button class="item-btn min-btn">\u22121</button>
-                <button class="item-btn delete-btn">✕</button>
+                <button class="item-btn delete-btn">\u00D7</button>
             </div>`;
         item.querySelector('.plus-btn').addEventListener('click',   () => voegToe(naam, 3));
         item.querySelector('.min-btn').addEventListener('click',    () => verwijder(naam));
@@ -481,12 +482,19 @@ document.getElementById('cashBevestig').addEventListener('click', async () => {
 });
 
 // ═══════════════════════════════════════════════
-// 4) BESTELLINGEN OVERZICHT (alleen admin)
+// 4) BESTELLINGEN OVERZICHT
 // ═══════════════════════════════════════════════
-document.getElementById('bestellingenBtn').addEventListener('click', () => {
-    if (!isAdmin) return; // extra frontend guard
-    laadBestellingen();
-});
+
+// Paginatie-state
+let alleDocs      = [];   // alle geladen Firestore-docs
+let getoondAantal = 0;    // hoeveel er momenteel getoond worden
+let totaalOmzet   = 0;
+let totaalAantal  = 0;
+let perMethode    = {};
+const PAGE_SIZE   = 15;
+const PAGE_MEER   = 5;
+
+document.getElementById('bestellingenBtn').addEventListener('click', laadBestellingen);
 document.getElementById('bestellingenModalClose').addEventListener('click', () => closeModal('bestellingenModal'));
 document.getElementById('bestellingenSluiten').addEventListener('click',    () => closeModal('bestellingenModal'));
 
@@ -495,125 +503,306 @@ async function laadBestellingen() {
     const statsEl = document.getElementById('bestStats');
     lijstEl.innerHTML = '<p class="loading-tekst">Laden...</p>';
     statsEl.innerHTML = '';
+    alleDocs      = [];
+    getoondAantal = 0;
+    totaalOmzet   = 0;
+    totaalAantal  = 0;
+    perMethode    = {};
     openModal('bestellingenModal');
 
     try {
-        const q    = query(collection(db, 'rockwerchter_bestellingen'), orderBy('datum', 'desc'), limit(100));
+        // Haal alles op (max 500) gesorteerd op datum desc
+        const q    = query(collection(db, 'rockwerchter_bestellingen'), orderBy('datum', 'desc'), limit(500));
         const snap = await getDocs(q);
 
         if (snap.empty) {
             lijstEl.innerHTML = '<p class="empty-message">Nog geen bestellingen.</p>';
-            statsEl.innerHTML = '';
             return;
         }
 
-        // Stats (alleen voor admin)
-        let totaalOmzet = 0, totaalAantal = 0;
-        const perMethode = {};
-        const docs = [];
-
         snap.forEach(d => {
-            const data = { ...d.data(), _docId: d.id }; // bewaar Firestore doc-ID voor delete
-            docs.push(data);
-            totaalOmzet  += data.totaal || 0;
+            const data = { ...d.data(), _docId: d.id };
+            alleDocs.push(data);
+            totaalOmzet += data.totaal || 0;
             totaalAantal++;
             const m = data.betaalmethode || 'onbekend';
             perMethode[m] = (perMethode[m] || 0) + 1;
         });
 
-        // Stats blok
-        statsEl.innerHTML = `
-            <div class="best-stat-rij">
-                <div class="best-stat">
-                    <span class="best-stat-getal">${totaalAantal}</span>
-                    <span class="best-stat-label">Bestellingen</span>
-                </div>
-                <div class="best-stat">
-                    <span class="best-stat-getal">${fmt(totaalOmzet)}</span>
-                    <span class="best-stat-label">Totale omzet</span>
-                </div>
-                ${Object.entries(perMethode).map(([m, n]) => `
-                    <div class="best-stat">
-                        <span class="best-stat-getal">${n}</span>
-                        <span class="best-stat-label">${m}</span>
-                    </div>`).join('')}
-            </div>`;
+        // Stats: alleen admin
+        renderStats(statsEl);
 
-        // Bestellingenlijst
+        // Toon eerste 15
         lijstEl.innerHTML = '';
-        docs.forEach(data => {
-            const datum    = data.datum?.toDate ? data.datum.toDate() : new Date();
-            const tijdStr  = datum.toLocaleTimeString('nl-BE',  { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            const datumStr = datum.toLocaleDateString('nl-BE',  { day: '2-digit', month: '2-digit' });
-            const itemsStr = Object.entries(data.items || {}).map(([n, v]) => `${v.count}\u00D7 ${n}`).join(', ');
-            const icon     = { kaart: '\uD83D\uDCB3', payconiq: '\uD83D\uDCF1', cash: '\uD83D\uDCB5' }[data.betaalmethode] || '?';
-            const extra    = data.betaalmethode === 'kaart'    ? ` \u00B7 ${data.terminal || ''}`
-                           : data.betaalmethode === 'cash'     ? ` \u00B7 wisselgeld: ${fmt(data.wisselgeld ?? 0)}`
-                           : '';
-
-            const kaart = document.createElement('div');
-            kaart.className = 'best-kaart';
-            kaart.dataset.docId = data._docId;
-
-            kaart.innerHTML = `
-                <div class="best-kaart-header">
-                    <div class="best-kaart-tijd">
-                        <span class="best-datum">${datumStr}</span>
-                        <span class="best-tijd">${tijdStr}</span>
-                    </div>
-                    <div class="best-kaart-meta">
-                        <span class="best-methode">${icon} ${data.betaalmethode}${extra}</span>
-                        <span class="best-naam">${data.userName || ''}</span>
-                    </div>
-                    <span class="best-prijs">${fmt(data.totaal || 0)}</span>
-                    <button class="best-delete-btn" title="Verwijder bestelling" data-id="${data._docId}">✕</button>
-                </div>
-                <div class="best-items">${itemsStr}</div>`;
-
-            // Delete knop
-            kaart.querySelector('.best-delete-btn').addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const docId = e.currentTarget.dataset.id;
-                if (!confirm('Bestelling verwijderen uit de database?')) return;
-                try {
-                    await deleteDoc(doc(db, 'rockwerchter_bestellingen', docId));
-                    // Update stats en verwijder kaart uit DOM
-                    totaalOmzet  -= data.totaal || 0;
-                    totaalAantal--;
-                    perMethode[data.betaalmethode] = (perMethode[data.betaalmethode] || 1) - 1;
-                    if (perMethode[data.betaalmethode] <= 0) delete perMethode[data.betaalmethode];
-                    kaart.remove();
-                    // Herlaad stats
-                    statsEl.innerHTML = `
-                        <div class="best-stat-rij">
-                            <div class="best-stat">
-                                <span class="best-stat-getal">${totaalAantal}</span>
-                                <span class="best-stat-label">Bestellingen</span>
-                            </div>
-                            <div class="best-stat">
-                                <span class="best-stat-getal">${fmt(totaalOmzet)}</span>
-                                <span class="best-stat-label">Totale omzet</span>
-                            </div>
-                            ${Object.entries(perMethode).map(([m, n]) => `
-                                <div class="best-stat">
-                                    <span class="best-stat-getal">${n}</span>
-                                    <span class="best-stat-label">${m}</span>
-                                </div>`).join('')}
-                        </div>`;
-                    if (totaalAantal === 0) lijstEl.innerHTML = '<p class="empty-message">Geen bestellingen meer.</p>';
-                } catch (err) {
-                    console.error('Delete fout:', err);
-                    alert('Fout bij verwijderen. Controleer je rechten.');
-                }
-            });
-
-            lijstEl.appendChild(kaart);
-        });
+        toonMeer(lijstEl, PAGE_SIZE);
 
     } catch (e) {
         console.error(e);
         lijstEl.innerHTML = '<p class="modal-status error">Fout bij laden. Controleer Firestore rules.</p>';
     }
 }
+
+function renderStats(statsEl) {
+    if (!isAdmin) { statsEl.innerHTML = ''; return; }
+    statsEl.innerHTML = `
+        <div class="best-stat-rij">
+            <div class="best-stat">
+                <span class="best-stat-getal">${totaalAantal}</span>
+                <span class="best-stat-label">Bestellingen</span>
+            </div>
+            <div class="best-stat">
+                <span class="best-stat-getal">${fmt(totaalOmzet)}</span>
+                <span class="best-stat-label">Totale omzet</span>
+            </div>
+            ${Object.entries(perMethode).map(([m, n]) => `
+                <div class="best-stat">
+                    <span class="best-stat-getal">${n}</span>
+                    <span class="best-stat-label">${m}</span>
+                </div>`).join('')}
+        </div>
+        ${isAdmin ? '<button class="export-btn" id="exportBtn">&#8681; Exporteer naar Excel</button>' : ''}`;
+
+    if (isAdmin) {
+        document.getElementById('exportBtn')?.addEventListener('click', exportNaarExcel);
+    }
+}
+
+function toonMeer(lijstEl, aantal) {
+    // Verwijder bestaande "meer laden" knop als die er is
+    document.getElementById('meerLadenBtn')?.remove();
+
+    const tot   = Math.min(getoondAantal + aantal, alleDocs.length);
+    const slice = alleDocs.slice(getoondAantal, tot);
+
+    slice.forEach(data => {
+        lijstEl.appendChild(maakBestellingKaart(data, lijstEl));
+    });
+
+    getoondAantal = tot;
+
+    // "Meer laden" knop enkel tonen als er nog meer zijn
+    if (getoondAantal < alleDocs.length) {
+        const rest  = Math.min(PAGE_MEER, alleDocs.length - getoondAantal);
+        const btn   = document.createElement('button');
+        btn.id        = 'meerLadenBtn';
+        btn.className = 'meer-laden-btn';
+        btn.textContent = `Meer laden (+${rest})`;
+        btn.addEventListener('click', () => toonMeer(lijstEl, PAGE_MEER));
+        lijstEl.appendChild(btn);
+    }
+}
+
+function maakBestellingKaart(data, lijstEl) {
+    const datum    = data.datum?.toDate ? data.datum.toDate() : new Date();
+    const tijdStr  = datum.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const datumStr = datum.toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit' });
+    const itemsStr = Object.entries(data.items || {}).map(([n, v]) => `${v.count}\u00D7 ${n}`).join(', ');
+    const icon     = { kaart: '\uD83D\uDCB3', payconiq: '\uD83D\uDCF1', cash: '\uD83D\uDCB5' }[data.betaalmethode] || '?';
+    const extra    = data.betaalmethode === 'kaart' ? ` \u00B7 ${data.terminal || ''}`
+                   : data.betaalmethode === 'cash'  ? ` \u00B7 wisselgeld: ${fmt(data.wisselgeld ?? 0)}`
+                   : '';
+
+    const kaart = document.createElement('div');
+    kaart.className = 'best-kaart';
+
+    // Delete-knop voor iedereen (ingelogd)
+    kaart.innerHTML = `
+        <div class="best-kaart-header">
+            <div class="best-kaart-tijd">
+                <span class="best-datum">${datumStr}</span>
+                <span class="best-tijd">${tijdStr}</span>
+            </div>
+            <div class="best-kaart-meta">
+                <span class="best-methode">${icon} ${data.betaalmethode}${extra}</span>
+                <span class="best-naam">${data.userName || ''}</span>
+            </div>
+            <span class="best-prijs">${fmt(data.totaal || 0)}</span>
+            <button class="best-delete-btn" title="Verwijder bestelling" data-id="${data._docId}">\u00D7</button>
+        </div>
+        <div class="best-items">${itemsStr}</div>`;
+
+    kaart.querySelector('.best-delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const docId = data._docId;
+        if (!confirm('Bestelling verwijderen?')) return;
+        try {
+            await deleteDoc(doc(db, 'rockwerchter_bestellingen', docId));
+            // Verwijder uit alleDocs
+            const idx = alleDocs.findIndex(d => d._docId === docId);
+            if (idx !== -1) {
+                alleDocs.splice(idx, 1);
+                totaalOmzet  -= data.totaal || 0;
+                totaalAantal--;
+                perMethode[data.betaalmethode] = (perMethode[data.betaalmethode] || 1) - 1;
+                if (perMethode[data.betaalmethode] <= 0) delete perMethode[data.betaalmethode];
+                getoondAantal = Math.max(0, getoondAantal - 1);
+            }
+            kaart.remove();
+            // Stats herrenderen
+            renderStats(document.getElementById('bestStats'));
+            if (alleDocs.length === 0) {
+                lijstEl.innerHTML = '<p class="empty-message">Geen bestellingen meer.</p>';
+            }
+        } catch (err) {
+            console.error('Delete fout:', err);
+            alert('Fout bij verwijderen. Controleer je rechten.');
+        }
+    });
+
+    return kaart;
+}
+
+// ═══════════════════════════════════════════════
+// 5) EXCEL EXPORT + DATABASE LEEGMAKEN (admin)
+//
+// Stap 1 – exportNaarExcel():  download .xlsx, open bevestigingsmodal
+// Stap 2 – leegDatabase():     verwijder alle docs na bevestiging admin
+// ═══════════════════════════════════════════════
+
+let exportDocIds = []; // bewaar doc-IDs tussen stap 1 en stap 2
+
+// Stap 1: exporteer naar Excel, open bevestigingsmodal
+async function exportNaarExcel() {
+    if (!isAdmin) return;
+
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) { exportBtn.disabled = true; exportBtn.textContent = 'Exporteren...'; }
+
+    try {
+        const q    = query(collection(db, 'rockwerchter_bestellingen'), orderBy('datum', 'asc'));
+        const snap = await getDocs(q);
+
+        if (snap.empty) {
+            alert('Geen bestellingen om te exporteren.');
+            if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = '\u21E9 Exporteer naar Excel'; }
+            return;
+        }
+
+        // Bouw Excel-rijen
+        const rijen = [['Datum', 'Tijd', 'Naam', 'Betaalmethode', 'Items', 'Totaal (\u20AC)', 'Ontvangen (\u20AC)', 'Wisselgeld (\u20AC)', 'Terminal', 'Bestelling ID']];
+        exportDocIds = [];
+
+        snap.forEach(d => {
+            const data     = d.data();
+            const datum    = data.datum?.toDate ? data.datum.toDate() : new Date();
+            const datumStr = datum.toLocaleDateString('nl-BE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const tijdStr  = datum.toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const items    = Object.entries(data.items || {}).map(([n, v]) => `${v.count}x ${n}`).join(', ');
+            exportDocIds.push(d.id);
+            rijen.push([
+                datumStr, tijdStr,
+                data.userName    || '',
+                data.betaalmethode || '',
+                items,
+                data.totaal      ?? 0,
+                data.ontvangen   ?? '',
+                data.wisselgeld  ?? '',
+                data.terminal    ?? '',
+                d.id
+            ]);
+        });
+
+        // Genereer xlsx
+        const ws = XLSX.utils.aoa_to_sheet(rijen);
+        ws['!cols'] = [
+            { wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 14 },
+            { wch: 50 }, { wch: 10 }, { wch: 12 }, { wch: 14 },
+            { wch: 12 }, { wch: 28 }
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Bestellingen');
+
+        const now  = new Date();
+        const naam = `rockwerchter_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}.xlsx`;
+        XLSX.writeFile(wb, naam);
+
+        // Reset export-knop
+        if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = '\u21E9 Exporteer naar Excel'; }
+
+        // Open bevestigingsmodal (stap 2)
+        const info = document.getElementById('exportBevestigInfo');
+        if (info) {
+            info.innerHTML = `
+                <div class="export-info-rij">
+                    <span class="export-info-label">Bestand</span>
+                    <span class="export-info-waarde">${naam}</span>
+                </div>
+                <div class="export-info-rij">
+                    <span class="export-info-label">Bestellingen</span>
+                    <span class="export-info-waarde">${exportDocIds.length}</span>
+                </div>`;
+        }
+        document.getElementById('exportModalStatus').style.display = 'none';
+        document.getElementById('exportLeegBtn').disabled  = false;
+        document.getElementById('exportLeegBtn').textContent = '\uD83D\uDDD1\uFE0F Database leegmaken';
+        openModal('exportModal');
+
+    } catch (err) {
+        console.error('Export fout:', err);
+        alert('Fout bij exporteren: ' + err.message);
+        if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = '\u21E9 Exporteer naar Excel'; }
+    }
+}
+
+// Stap 2: verwijder alle docs na bevestiging
+async function leegDatabase() {
+    if (!isAdmin || exportDocIds.length === 0) return;
+
+    const leegBtn = document.getElementById('exportLeegBtn');
+    const annuleerBtn = document.getElementById('exportAnnuleer');
+    const statusEl   = document.getElementById('exportModalStatus');
+
+    leegBtn.disabled     = true;
+    annuleerBtn.disabled = true;
+
+    let verwijderd = 0;
+    leegBtn.textContent = `Verwijderen (0/${exportDocIds.length})...`;
+
+    try {
+        for (const docId of exportDocIds) {
+            await deleteDoc(doc(db, 'rockwerchter_bestellingen', docId));
+            verwijderd++;
+            leegBtn.textContent = `Verwijderen (${verwijderd}/${exportDocIds.length})...`;
+        }
+
+        // Reset alle staat
+        alleDocs      = [];
+        getoondAantal = 0;
+        totaalOmzet   = 0;
+        totaalAantal  = 0;
+        perMethode    = {};
+        exportDocIds  = [];
+
+        statusEl.className   = 'modal-status success';
+        statusEl.textContent = `\u2713 ${verwijderd} bestellingen verwijderd uit de database.`;
+        statusEl.style.display = 'block';
+        leegBtn.textContent  = '\u2713 Geleegd';
+
+        // Na 2s: sluit modal, reset UI
+        setTimeout(() => {
+            closeModal('exportModal');
+            document.getElementById('bestLijst').innerHTML =
+                '<p class="empty-message">Database geleegd. Exportbestand is gedownload.</p>';
+            document.getElementById('bestStats').innerHTML = '';
+            annuleerBtn.disabled = false;
+        }, 2000);
+
+    } catch (err) {
+        console.error('Leeg fout:', err);
+        statusEl.className   = 'modal-status error';
+        statusEl.textContent = 'Fout bij verwijderen: ' + err.message;
+        statusEl.style.display = 'block';
+        leegBtn.disabled     = false;
+        annuleerBtn.disabled = false;
+        leegBtn.textContent  = '\uD83D\uDDD1\uFE0F Database leegmaken';
+    }
+}
+
+// Event listeners voor de export modal
+document.getElementById('exportAnnuleer').addEventListener('click', () => {
+    exportDocIds = []; // vergeet de IDs als geannuleerd
+    closeModal('exportModal');
+});
+document.getElementById('exportLeegBtn').addEventListener('click', leegDatabase);
 
 console.log('Rockwerchter.js klaar');

@@ -95,6 +95,7 @@
 .reset-icon-btn { color: var(--danger); }
 .reset-icon-btn:hover {
     background: var(--danger); border-color: var(--danger); color: #fff;
+    transform: rotate(-20deg) scale(1.08);
 }
 
 .overzicht-container { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -148,6 +149,10 @@
     background: rgba(0,0,0,0.55); z-index: 2000;
     align-items: center; justify-content: center;
     padding: 1rem; backdrop-filter: blur(2px);
+}
+/* Export modal moet boven de bestellingen modal uitkomen */
+#exportModal {
+    z-index: 3000;
 }
 .rw-modal-backdrop.active { display: flex; }
 
@@ -323,13 +328,35 @@
     display: flex; flex-wrap: wrap; gap: 0.75rem;
 }
 .best-stat {
-    flex: 1; min-width: 100px;
+    flex: 1; min-width: 90px;
     background: var(--off-white); border-radius: 10px;
-    padding: 0.75rem 1rem; text-align: center;
+    padding: 0.75rem 0.6rem; text-align: center;
     border: 1.5px solid var(--border-color);
+    container-type: inline-size; /* nodig voor cqw fluid font */
+    overflow: hidden;            /* kinderen mogen niet buiten het vak */
 }
-.best-stat-getal { display: block; font-size: 1.4rem; font-weight: 700; color: var(--primary-blue); }
-.best-stat-label { font-size: 0.78rem; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.04em; }
+.best-stat-getal {
+    display: block;
+    font-size: clamp(0.75rem, 4cqw, 1.4rem); /* schaalt kleiner bij lange tekst, nooit linebreak */
+    font-weight: 700;
+    color: var(--primary-blue);
+    white-space: nowrap;       /* geen regelbreuk */
+    overflow: hidden;
+    text-overflow: ellipsis;   /* veiligheidsnet als het toch te lang is */
+    line-height: 1.3;
+}
+.best-stat-label {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0;          /* geen extra spatiëring die tekst te breed maakt */
+    text-align: center;
+    margin-top: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 .loading-tekst { text-align: center; color: var(--text-gray); padding: 2rem; }
 
@@ -366,8 +393,8 @@
     .drank-prijs { font-size: 0.78rem; }
     .totaal-prijs { font-size: 1.3rem; }
     .cash-snel-btn { padding: 0.5rem 0.6rem; font-size: 0.83rem; }
-    .best-stat-rij { gap: 0.5rem; }
-    .best-stat { padding: 0.6rem 0.75rem; }
+    .best-stat-rij { gap: 0.4rem; }
+    .best-stat { padding: 0.5rem 0.4rem; }
 }
 @media (max-width: 400px) {
     .drankjes-section h2 { font-size: 1.5rem; }
@@ -417,3 +444,89 @@
     -webkit-appearance: none;
     margin: 0;
 }
+
+/* ── Meer laden knop ── */
+.meer-laden-btn {
+    display: block;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.7rem;
+    background: var(--off-white);
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.meer-laden-btn:hover {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    background: rgba(0,71,171,0.04);
+}
+
+/* ── Export knop (admin) ── */
+.export-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.8rem 1.2rem;
+    background: #1d6b2e;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.export-btn:hover:not(:disabled) {
+    background: #155224;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.18);
+}
+.export-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ── Export bevestigingsmodal ── */
+.export-info-rij {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+}
+.export-info-rij:last-child { border-bottom: none; }
+.export-info-label  { color: var(--text-gray); font-weight: 500; }
+.export-info-waarde { font-weight: 700; color: var(--text-dark); text-align: right; word-break: break-all; }
+
+.export-bevestig-info {
+    background: var(--off-white);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    border: 1.5px solid var(--border-color);
+}
+
+.export-waarschuwing {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    background: #fff8e1;
+    border: 1.5px solid #f0ad4e;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    color: #856404;
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+.export-waarschuwing svg { flex-shrink: 0; color: #f0ad4e; margin-top: 0.1rem; }
+.export-waarschuwing strong { color: #6d4c00; }
