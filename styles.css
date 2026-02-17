@@ -3075,6 +3075,19 @@ img {
     font-weight: 700;
 }
 
+/* Rij met h2 + vorm cirkels naast elkaar */
+.recent-matches-header {
+    display: flex;
+    align-items: center;
+    gap: 1.2rem;
+    margin-bottom: 2rem;
+}
+
+.recent-matches-header h2 {
+    margin-bottom: 0;   /* override de algemene h2 margin */
+    line-height: 1;
+}
+
 .match-card-container {
     min-height: 200px;
 }
@@ -3346,6 +3359,98 @@ img {
 .recent-matches-list {
     display: grid;
     gap: 1.5rem;
+}
+
+/* ---- Vorm Cirkels (naast h2, geen blok) ---- */
+.form-bar {
+    display: flex;
+    align-items: center;
+    /* geen background, geen padding, geen shadow */
+}
+
+.form-label {
+    display: none; /* tekst "Vorm" verborgen */
+}
+
+.form-circles {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+
+.form-circle {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.form-circle:hover {
+    transform: scale(1.25);
+}
+
+.form-circle.win {
+    background: var(--success);
+    box-shadow: 0 2px 5px rgba(40, 167, 69, 0.4);
+}
+
+.form-circle.loss {
+    background: var(--danger);
+    box-shadow: 0 2px 5px rgba(220, 53, 69, 0.35);
+}
+
+.form-circle.draw {
+    background: #555;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.form-circle.empty {
+    background: #d0d0d0;
+    border: 2px dashed #b0b0b0;
+}
+
+/* ---- Resultaatkleur op kaart (subtiele linker border) ---- */
+.recent-match-card.result-win  { border-left-color: var(--success); }
+.recent-match-card.result-loss { border-left-color: var(--danger);  }
+.recent-match-card.result-draw { border-left-color: #777;           }
+
+/* ---- Meer Laden Knop ---- */
+.load-more-btn {
+    width: 100%;
+    padding: 0.9rem 1.5rem;
+    background: var(--white);
+    color: var(--primary-blue);
+    border: 2px solid var(--primary-blue);
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 2px 6px var(--shadow);
+}
+
+.load-more-btn:hover {
+    background: var(--primary-blue);
+    color: var(--white);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(0, 71, 171, 0.25);
+}
+
+.load-more-btn:active {
+    transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+    .form-circle {
+        width: 14px;
+        height: 14px;
+    }
+
+    .recent-matches-header {
+        gap: 0.8rem;
+    }
 }
 
 .recent-match-card {

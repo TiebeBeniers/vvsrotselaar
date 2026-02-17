@@ -471,76 +471,155 @@ async function loadRanking() {
 // LOAD RECENT MATCHES
 // ===============================================
 
+// Sla alle geladen wedstrijden op voor "meer laden"
+let allRecentMatches = [];
+const INITIAL_SHOW = 3;
+const LOAD_MORE_STEP = 3;
+let currentlyShowing = INITIAL_SHOW;
+
+// Bereken win/loss/draw voor VVS Rotselaar
+function getMatchResult(match) {
+    const vvsNames = ['v.v.s rotselaar', 'vvs rotselaar', 'v.v.s. rotselaar'];
+    const homeIsVVS = vvsNames.includes((match.thuisploeg || '').toLowerCase());
+    const awayIsVVS = vvsNames.includes((match.uitploeg || '').toLowerCase());
+
+    const home = match.scoreThuis ?? 0;
+    const away = match.scoreUit  ?? 0;
+
+    if (!homeIsVVS && !awayIsVVS) return 'unknown';
+    if (home === away) return 'draw';
+
+    const vvsScore  = homeIsVVS ? home : away;
+    const oppScore  = homeIsVVS ? away : home;
+    return vvsScore > oppScore ? 'win' : 'loss';
+}
+
+function renderFormBar(matches) {
+    // matches zijn gesorteerd van meest recent → oud
+    // Neem de laatste 5 (of minder), keer de volgorde om → oudste links
+    const last5 = matches.slice(0, 5).reverse();
+
+    const circles = [];
+    for (let i = 0; i < 5; i++) {
+        if (i < last5.length) {
+            const result = getMatchResult(last5[i]);
+            if      (result === 'win')  circles.push('<span class="form-circle win"  title="Gewonnen"></span>');
+            else if (result === 'loss') circles.push('<span class="form-circle loss" title="Verloren"></span>');
+            else if (result === 'draw') circles.push('<span class="form-circle draw" title="Gelijkspel"></span>');
+            else                        circles.push('<span class="form-circle empty" title="Onbekend"></span>');
+        } else {
+            circles.push('<span class="form-circle empty" title="Geen wedstrijd"></span>');
+        }
+    }
+    return circles.join('');
+}
+
 async function loadRecentMatches() {
     console.log('Loading recent matches for', TEAM_TYPE);
     const container = document.getElementById('recentMatchesList');
-    
-    if (!container) {
-        console.error('Recent matches container not found');
-        return;
-    }
-    
+    if (!container) return;
+
     try {
         const recentQuery = query(
             collection(db, 'matches'),
             where('team', '==', TEAM_TYPE),
             where('status', '==', 'finished')
         );
-        
-        console.log('Querying finished matches for', TEAM_TYPE);
+
         const snapshot = await getDocs(recentQuery);
         console.log('Found', snapshot.size, 'finished matches');
-        
+
         if (snapshot.empty) {
-            console.log('No finished matches found');
             container.innerHTML = '<p class="no-matches">Nog geen afgelopen wedstrijden.</p>';
             return;
         }
-        
-        // Get all finished matches and sort by date
-        const matches = [];
+
+        // Verzamel en sorteer
+        allRecentMatches = [];
         snapshot.forEach(doc => {
-            const data = doc.data();
-            console.log('Finished match:', data.thuisploeg, 'vs', data.uitploeg, data.scoreThuis, '-', data.scoreUit);
-            matches.push({ id: doc.id, ...data });
+            allRecentMatches.push({ id: doc.id, ...doc.data() });
         });
-        
-        // Sort by date descending (most recent first)
-        matches.sort((a, b) => {
+        allRecentMatches.sort((a, b) => {
             const dateA = new Date(`${a.datum}T${a.uur || '00:00'}`);
             const dateB = new Date(`${b.datum}T${b.uur || '00:00'}`);
-            return dateB - dateA;
+            return dateB - dateA; // meest recent eerst
         });
-        
-        // Take only last 3
-        const recentMatches = matches.slice(0, 3);
-        console.log('Showing', recentMatches.length, 'recent matches');
-        
-        container.innerHTML = '';
-        
-        recentMatches.forEach(match => {
-            const card = createRecentMatchCard(match);
-            container.appendChild(card);
-        });
-        
+
+        currentlyShowing = INITIAL_SHOW;
+        renderRecentMatches(container);
+
+        // Vorm cirkels naast de h2 plaatsen
+        const section = container.closest('section');
+        if (section && allRecentMatches.length > 0) {
+            // Zoek bestaande header wrapper of maak aan
+            let header = section.querySelector('.recent-matches-header');
+            if (!header) {
+                const h2 = section.querySelector('h2');
+                if (h2) {
+                    header = document.createElement('div');
+                    header.className = 'recent-matches-header';
+                    h2.parentNode.insertBefore(header, h2);
+                    header.appendChild(h2);
+                }
+            }
+            if (header) {
+                // Verwijder oude form-bar als die er al is
+                const old = header.querySelector('.form-bar');
+                if (old) old.remove();
+
+                const formBar = document.createElement('div');
+                formBar.className = 'form-bar';
+                formBar.innerHTML = `<div class="form-circles">${renderFormBar(allRecentMatches)}</div>`;
+                header.appendChild(formBar);
+            }
+        }
+
     } catch (error) {
         console.error('Error loading recent matches:', error);
-        console.error('Error details:', error.message);
-        container.innerHTML = `<p class="error">Fout bij laden van wedstrijden: ${error.message}</p>`;
+        container.innerHTML = `<p class="error">Fout bij laden: ${error.message}</p>`;
+    }
+}
+
+function renderRecentMatches(container) {
+    container.innerHTML = '';
+
+    // Wedstrijdkaartjes
+    const toShow = allRecentMatches.slice(0, currentlyShowing);
+    toShow.forEach(match => {
+        container.appendChild(createRecentMatchCard(match));
+    });
+
+    // "Meer laden" knop
+    if (currentlyShowing < allRecentMatches.length) {
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'load-more-btn';
+        moreBtn.textContent = `Meer laden (${allRecentMatches.length - currentlyShowing} resterend)`;
+        moreBtn.addEventListener('click', () => {
+            currentlyShowing += LOAD_MORE_STEP;
+            renderRecentMatches(container);
+            moreBtn.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        });
+        container.appendChild(moreBtn);
     }
 }
 
 function createRecentMatchCard(match) {
     const card = document.createElement('div');
     card.className = 'recent-match-card';
-    
-    const matchDate = new Date(`${match.datum}T${match.uur}`);
+
+    const matchDate = new Date(`${match.datum}T${match.uur || '00:00'}`);
     const formattedDate = matchDate.toLocaleDateString('nl-BE', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric'
     });
-    
+
+    // Voeg result klasse toe aan de kaart voor kleurcodering
+    const result = getMatchResult(match);
+    if (result === 'win')  card.classList.add('result-win');
+    if (result === 'loss') card.classList.add('result-loss');
+    if (result === 'draw') card.classList.add('result-draw');
+
     card.innerHTML = `
         <div class="recent-match-date">${formattedDate} - ${match.uur}</div>
         <div class="recent-match-teams">
@@ -550,11 +629,8 @@ function createRecentMatchCard(match) {
         </div>
         ${match.beschrijving ? `<div class="recent-match-desc">${match.beschrijving}</div>` : ''}
     `;
-    
-    card.addEventListener('click', () => {
-        showMatchTimeline(match);
-    });
-    
+
+    card.addEventListener('click', () => showMatchTimeline(match));
     return card;
 }
 
