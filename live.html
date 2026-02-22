@@ -107,7 +107,8 @@
             <!-- Match Control Buttons -->
             <div class="match-controls">
                 <button class="match-control-btn pause" id="pauseBtn">RUST</button>
-                <button class="match-control-btn resume" id="resumeBtn" style="display: none;">HERVAT</button>
+                <button class="match-control-btn resume" id="resumeBtn" style="display: none;">START 2E HELFT</button>
+                <button class="match-control-btn extra-time" id="extraTimeBtn" style="display: none;">VERLENGINGEN</button>
                 <button class="match-control-btn end" id="endMatchBtn">BEËINDIG WEDSTRIJD</button>
             </div>
             
@@ -123,16 +124,49 @@
         <p>&copy; TiebeBeniers</p>
     </footer>
 
-    <!-- Modal for player input -->
+    <!-- ================================================ -->
+    <!-- Modal for player/event input (redesigned)        -->
+    <!-- ================================================ -->
     <div class="modal" id="playerModal">
         <div class="modal-content">
-            <h3 id="modalTitle">Speler Invoeren</h3>
+            <h3 id="modalTitle">Event Invoeren</h3>
             <div class="modal-body">
-                <input type="text" id="playerInput" placeholder="Naam speler (optioneel)">
-                <div id="substitutionInputs" style="display: none;">
-                    <input type="text" id="playerOutInput" placeholder="Speler uit (optioneel)">
-                    <input type="text" id="playerInInput" placeholder="Speler in (optioneel)">
+
+                <!-- GOAL / PENALTY / OWN-GOAL / YELLOW / RED: player picker -->
+                <div id="singlePlayerSection" style="display:none;">
+                    <label class="modal-label" id="playerPickerLabel">Speler</label>
+                    <!-- Dropdown from availability list -->
+                    <select id="playerSelect" class="modal-select">
+                        <option value="">— Selecteer speler —</option>
+                    </select>
+                    <!-- Fallback manual input -->
+                    <input type="text" id="playerManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
                 </div>
+
+                <!-- GOAL: optional assist picker -->
+                <div id="assistSection" style="display:none;">
+                    <label class="modal-label">Assist (optioneel)</label>
+                    <select id="assistSelect" class="modal-select">
+                        <option value="">— Geen assist —</option>
+                    </select>
+                    <input type="text" id="assistManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                </div>
+
+                <!-- SUBSTITUTION: separate out/in pickers -->
+                <div id="substitutionSection" style="display:none;">
+                    <label class="modal-label">Speler UIT</label>
+                    <select id="playerOutSelect" class="modal-select">
+                        <option value="">— Selecteer speler uit —</option>
+                    </select>
+                    <input type="text" id="playerOutManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+
+                    <label class="modal-label" style="margin-top:0.75rem;">Speler IN</label>
+                    <select id="playerInSelect" class="modal-select">
+                        <option value="">— Selecteer speler in —</option>
+                    </select>
+                    <input type="text" id="playerInManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                </div>
+
             </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="modalCancel">Annuleren</button>

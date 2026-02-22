@@ -52,6 +52,8 @@ let currentUser = null;
 let currentUserData = null;
 let allMembers = [];
 let allEvenementen = [];
+let allMatchesCache = [];   // cache for client-side filter
+let currentMatchFilter = 'all';
 
 // ===============================================
 // ACCESS CONTROL
@@ -136,6 +138,16 @@ tabButtons.forEach(btn => {
         
         btn.classList.add('active');
         document.getElementById(`${targetTab}Tab`).classList.add('active');
+    });
+});
+
+// ── Match filter buttons ──
+document.querySelectorAll('[data-match-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-match-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMatchFilter = btn.getAttribute('data-match-filter');
+        renderMatchList();
     });
 });
 
@@ -970,28 +982,62 @@ async function loadMatches() {
 function displayMatches(matchesSnapshot) {
     const matchesList = document.getElementById('matchesList');
     matchesList.innerHTML = '';
-    
+
     if (matchesSnapshot.empty) {
         console.log('No matches found');
-        matchesList.innerHTML = '<p class="text-center">Geen wedstrijden gevonden.</p>';
+        allMatchesCache = [];
+        renderMatchList();
         return;
     }
-    
+
     console.log('Found', matchesSnapshot.size, 'matches');
-    
-    const matches = [];
+
+    allMatchesCache = [];
     matchesSnapshot.forEach(docSnap => {
-        matches.push({ id: docSnap.id, ...docSnap.data() });
+        allMatchesCache.push({ id: docSnap.id, ...docSnap.data() });
     });
-    
-    matches.sort((a, b) => new Date(b.datum) - new Date(a.datum));
-    
-    matches.forEach(match => {
+
+    renderMatchList();
+    console.log('Matches loaded successfully');
+}
+
+function renderMatchList() {
+    const matchesList = document.getElementById('matchesList');
+    matchesList.innerHTML = '';
+
+    let filtered = allMatchesCache;
+
+    if (currentMatchFilter === 'planned') {
+        filtered = allMatchesCache.filter(m => m.status === 'planned');
+        // Sort by soonest first
+        const today = new Date();
+        filtered.sort((a, b) => {
+            const da = new Date(a.datum + 'T' + (a.uur || '00:00'));
+            const db_ = new Date(b.datum + 'T' + (b.uur || '00:00'));
+            // Future matches first (ascending), then past planned matches
+            const aFuture = da >= today;
+            const bFuture = db_ >= today;
+            if (aFuture && !bFuture) return -1;
+            if (!aFuture && bFuture) return 1;
+            return aFuture ? da - db_ : db_ - da;
+        });
+    } else if (currentMatchFilter === 'finished') {
+        filtered = allMatchesCache.filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust');
+        filtered.sort((a, b) => new Date(b.datum) - new Date(a.datum));
+    } else {
+        // All: most recent first
+        filtered = [...allMatchesCache].sort((a, b) => new Date(b.datum) - new Date(a.datum));
+    }
+
+    if (filtered.length === 0) {
+        matchesList.innerHTML = '<p class="text-center">Geen wedstrijden gevonden voor dit filter.</p>';
+        return;
+    }
+
+    filtered.forEach(match => {
         const matchCard = createMatchCard(match);
         matchesList.appendChild(matchCard);
     });
-    
-    console.log('Matches loaded successfully');
 }
 
 function createMatchCard(match) {

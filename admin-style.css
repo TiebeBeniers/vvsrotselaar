@@ -1,0 +1,1100 @@
+/* ===============================================
+   ADMIN-STYLE.CSS
+   V.V.S Rotselaar – Admin pagina's (admin.html + admin2.html)
+   Alle admin-specifieke stijlen, gedeeld door beide pagina's.
+   Algemene stijlen (header, footer, body, …) blijven in styles.css.
+   =============================================== */
+
+/* ── Page wrapper ── */
+.admin-page {
+    min-height: calc(100vh - 150px);
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.admin-container {
+    background: var(--white);
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.admin-container h2 {
+    color: var(--primary-blue);
+    font-size: 2rem;
+    margin-bottom: 2rem;
+}
+
+/* ── Tabs ── */
+.admin-tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-btn {
+    padding: 1rem 1.82rem;
+    background: transparent;
+    color: var(--text-gray);
+    font-weight: 600;
+    font-size: 1rem;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.tab-btn:hover { color: var(--primary-blue); }
+
+.tab-btn.active {
+    color: var(--primary-blue);
+    border-bottom-color: var(--primary-blue);
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── Buttons ── */
+.add-btn {
+    padding: 0.8rem 1.5rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-weight: 600;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.add-btn.secondary { background: var(--accent-blue); }
+
+.add-btn:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+.add-btn.secondary:hover { background: #0086b8; }
+
+.btn-secondary {
+    background: #6c757d;
+    color: var(--white);
+    padding: 0.875rem 2rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-family: inherit;
+}
+
+.btn-secondary:hover { background: #5a6268; }
+
+/* ── Badge ── */
+.badge {
+    display: inline-block;
+    background: var(--danger);
+    color: var(--white);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    margin-left: 0.5rem;
+    min-width: 20px;
+    text-align: center;
+    animation: pulse-badge 2s infinite;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.1); }
+}
+
+/* ── Loading ── */
+.loading {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-gray);
+    font-style: italic;
+}
+
+/* ── Cards (leden / wedstrijden / evenementen) ── */
+.member-card,
+.match-card,
+.evenement-card {
+    padding: 1.5rem;
+    background: var(--off-white);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s ease;
+}
+
+.member-card:hover,
+.match-card:hover,
+.evenement-card:hover { transform: translateX(4px); }
+
+.member-info,
+.match-info-admin,
+.evenement-info { flex: 1; }
+
+.member-info h4,
+.match-info-admin h4,
+.evenement-info h4 {
+    color: var(--primary-blue);
+    font-size: 1.2rem;
+    margin-bottom: 0.3rem;
+}
+
+.member-info p,
+.match-info-admin p,
+.evenement-info p {
+    color: var(--text-gray);
+    font-size: 0.95rem;
+}
+
+.member-badge,
+.match-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    background: var(--light-blue);
+    color: var(--white);
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+}
+
+.match-badge.upcoming { background: var(--accent-blue); }
+.match-badge.live {
+    background: var(--danger);
+    animation: blink 1.5s infinite;
+}
+.match-badge.finished {
+    background: var(--text-gray);
+    margin-bottom: 2px;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+}
+
+.match-description {
+    padding: 0.5rem;
+    background: var(--off-white);
+    border-radius: 8px;
+    color: var(--text-gray);
+    font-style: italic;
+}
+
+/* ── Card actions ── */
+.card-actions {
+    display: flex;
+    gap: 0.8rem;
+}
+
+.action-btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.action-btn.edit  { background: var(--accent-blue); color: var(--white); }
+.action-btn.delete { background: var(--danger); color: var(--white); }
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow);
+}
+
+/* ── Match filter toolbar ── */
+.match-filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+/* ── Filter buttons (reused for matches + contactberichten) ── */
+.filter-btn {
+    padding: 0.6rem 1.2rem;
+    background: var(--white);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.filter-btn:hover {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+}
+
+.filter-btn.active {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+}
+
+/* ── Match type selector (modal) ── */
+.match-type-selector {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.match-type-btn {
+    flex: 1;
+    padding: 0.875rem;
+    border: 2px solid var(--border-color);
+    background: var(--white);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s;
+    color: var(--text-gray);
+    font-family: inherit;
+}
+
+.match-type-btn.active {
+    background: var(--primary-blue);
+    color: var(--white);
+    border-color: var(--primary-blue);
+}
+
+.match-type-btn:hover:not(.active) {
+    border-color: var(--primary-blue);
+    background: rgba(0, 71, 171, 0.05);
+}
+
+/* ── Checkbox items (aangeduide personen) ── */
+.designated-persons-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    background: var(--off-white);
+}
+
+.checkbox-item {
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.checkbox-item:last-child { border-bottom: none; }
+
+.checkbox-item label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+/* ── Ranking manager ── */
+.ranking-manager {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+.ranking-instructions {
+    background: #f8f9fa;
+    border-left: 4px solid var(--primary-blue);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+
+.ranking-instructions h4 {
+    color: var(--primary-blue);
+    margin-bottom: 1rem;
+}
+
+.ranking-instructions code {
+    background: var(--white);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: #e83e8c;
+}
+
+.ranking-instructions ol {
+    margin-top: 1rem;
+    margin-left: 1.5rem;
+}
+
+.ranking-instructions ol li { margin-bottom: 0.5rem; }
+
+.ranking-form .form-group { margin-bottom: 1.5rem; }
+
+.ranking-form label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: #333;
+}
+
+.ranking-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    font-family: inherit;
+}
+
+.ranking-select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.ranking-file-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px dashed var(--border-color);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #f8f9fa;
+}
+
+.ranking-file-input:hover {
+    border-color: var(--primary-blue);
+    background: var(--white);
+}
+
+.ranking-textarea {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: 'Courier New', monospace;
+    resize: vertical;
+    transition: border-color 0.3s;
+}
+
+.ranking-textarea:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.ranking-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.ranking-preview {
+    margin-top: 2rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.ranking-preview h4 {
+    color: var(--success);
+    margin-bottom: 1rem;
+}
+
+.ranking-preview pre {
+    background: var(--white);
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.ranking-status {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 6px;
+    display: none;
+}
+
+.ranking-status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    display: block;
+}
+
+.ranking-status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    display: block;
+}
+
+/* Mobile: hide ranking, show message */
+.ranking-mobile-msg { display: none; }
+
+/* ── Contactberichten ── */
+.message-stats {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.stat-badge {
+    padding: 0.5rem 1rem;
+    background: var(--off-white);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: var(--text-gray);
+}
+
+.stat-badge.unread {
+    background: #FFF3CD;
+    color: #856404;
+}
+
+.stat-badge strong { color: var(--primary-blue); font-size: 1.1rem; }
+.stat-badge.unread strong { color: #856404; }
+
+.filter-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.contactberichten-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.message-card {
+    background: var(--white);
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px var(--shadow);
+    transition: all 0.2s ease;
+    position: relative;
+    border-left: 4px solid transparent;
+}
+
+.message-card.unread {
+    border-left-color: var(--primary-blue);
+    background: linear-gradient(to right, rgba(0,71,171,0.02), var(--white));
+}
+
+.message-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow-lg);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.message-info { flex: 1; }
+
+.message-email {
+    color: var(--primary-blue);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+
+.message-date {
+    color: var(--text-gray);
+    font-size: 0.85rem;
+}
+
+.message-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.message-badge.unread { background: #FFF3CD; color: #856404; }
+.message-badge.read   { background: var(--off-white); color: var(--text-gray); }
+
+.message-content {
+    color: var(--text-dark);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--off-white);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    transition: all 0.3s ease;
+}
+
+.message-content.collapsed {
+    max-height: 150px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+}
+
+.message-content.collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 50px;
+    background: linear-gradient(to bottom, transparent, var(--off-white));
+    pointer-events: none;
+}
+
+.message-content.expanded {
+    max-height: none;
+    overflow: visible;
+    cursor: pointer;
+}
+
+.message-expand-hint {
+    text-align: center;
+    color: var(--primary-blue);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.message-expand-hint:hover { opacity: 0.7; }
+
+.message-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.message-action-btn {
+    padding: 0.5rem 1rem;
+    background: var(--white);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: inherit;
+}
+
+.message-action-btn:hover {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+}
+
+.message-action-btn.mark-read  { border-color: var(--success); color: var(--success); }
+.message-action-btn.mark-read:hover { background: var(--success); color: var(--white); }
+.message-action-btn.delete     { border-color: var(--danger); color: var(--danger); }
+.message-action-btn.delete:hover { background: var(--danger); color: var(--white); }
+
+.messages-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-gray);
+}
+
+.messages-empty svg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 1rem;
+    opacity: 0.3;
+}
+
+.messages-empty h3 { color: var(--text-gray); font-size: 1.2rem; margin-bottom: 0.5rem; }
+.messages-empty p  { font-size: 0.9rem; }
+
+/* ── Account requests ── */
+.requests-list {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+}
+
+.request-card {
+    padding: 1.5rem;
+    background: var(--off-white);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 2px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+.request-info { margin-bottom: 1rem; }
+
+.request-info h4 {
+    color: var(--primary-blue);
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.request-info p { color: var(--text-dark); margin-bottom: 0.3rem; font-size: 0.95rem; }
+.request-date   { color: var(--text-gray); font-size: 0.85rem; font-style: italic; }
+
+.request-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-accept,
+.btn-reject {
+    flex: 1;
+    padding: 0.8rem 1.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.btn-accept { background: var(--success); color: var(--white); }
+.btn-accept:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40,167,69,0.3);
+}
+
+.btn-reject { background: var(--danger); color: var(--white); }
+.btn-reject:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220,53,69,0.3);
+}
+
+/* ── Modals ── */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1rem;
+}
+
+.modal.active { display: flex; }
+
+.modal-content {
+    background: var(--white);
+    padding: 2rem;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+}
+
+.modal-content.large { max-width: 600px; }
+
+.modal-content h3 {
+    color: var(--primary-blue);
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.modal-body { margin-bottom: 1.5rem; }
+
+.modal-body input {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    font-family: inherit;
+}
+
+.modal-body input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.admin-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.form-group { margin-bottom: 0; }
+
+.form-group label {
+    display: block;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.3s ease;
+    background: var(--white);
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.form-group textarea { min-height: 100px; resize: vertical; }
+.form-group small    { color: var(--text-gray); font-size: 0.82rem; margin-top: 0.3rem; display: block; }
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.modal-btn.cancel  { background: var(--border-color); color: var(--text-dark); }
+.modal-btn.confirm { background: var(--primary-blue); color: var(--white); }
+.modal-btn.danger  { background: var(--danger); color: var(--white); }
+
+.modal-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+/* ── Page navigation (admin1 ↔ admin2) ── */
+.admin-page-nav {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--border-color);
+}
+
+.page-nav-btn {
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    background: var(--white);
+    color: var(--text-gray);
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.page-nav-btn:hover,
+.page-nav-btn.active {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+}
+
+/* ── Werklijst beheer (admin2) ── */
+.werklijst-admin-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* Shift beheer card */
+.shift-admin-card {
+    background: var(--off-white);
+    border-radius: 10px;
+    border: 1.5px solid var(--border-color);
+    overflow: hidden;
+    transition: box-shadow 0.2s ease;
+}
+
+.shift-admin-card:hover { box-shadow: 0 4px 12px var(--shadow); }
+
+.shift-admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.9rem 1.25rem;
+    background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+    color: var(--white);
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.shift-admin-title { font-weight: 700; font-size: 1rem; }
+.shift-admin-meta  { font-size: 0.82rem; opacity: 0.85; }
+
+.shift-admin-actions-header {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.shift-admin-body {
+    padding: 1rem 1.25rem;
+}
+
+/* Person rows inside a shift card */
+.shift-person-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 1rem;
+    min-height: 24px;
+}
+
+.shift-person-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0.6rem;
+    border-radius: 6px;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    font-size: 0.88rem;
+}
+
+.shift-person-row .person-name { font-weight: 600; color: var(--text-dark); }
+.shift-person-row .person-name.is-responsible { color: var(--danger); }
+.shift-person-row .person-role { font-size: 0.75rem; color: var(--text-gray); margin-left: 0.4rem; }
+
+.shift-person-row .remove-person-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 0.3rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+    line-height: 1;
+}
+
+.shift-person-row .remove-person-btn:hover { background: #FEE2E2; }
+
+/* Add person inline form */
+.shift-add-person {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.shift-add-person input {
+    flex: 1;
+    padding: 0.55rem 0.9rem;
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+
+.shift-add-person input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.shift-add-person .add-person-btn {
+    padding: 0.55rem 1rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background 0.2s;
+}
+
+.shift-add-person .add-person-btn:hover { background: var(--dark-blue); }
+
+/* Small icon-style button (edit/delete in header) */
+.icon-btn {
+    padding: 0.3rem 0.7rem;
+    border: none;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.icon-btn.edit   { background: rgba(255,255,255,0.2); color: var(--white); }
+.icon-btn.edit:hover   { background: rgba(255,255,255,0.35); }
+.icon-btn.delete { background: rgba(220,53,69,0.7); color: var(--white); }
+.icon-btn.delete:hover { background: var(--danger); }
+
+/* Empty state for werklijst */
+.werklijst-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-gray);
+    font-style: italic;
+}
+
+/* Shift modal extras */
+.shift-modal-info {
+    background: var(--off-white);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.2rem;
+    font-size: 0.9rem;
+    color: var(--text-gray);
+}
+
+/* ── Utility ── */
+.text-center { text-align: center; }
+.error-text  { color: var(--danger); }
+
+/* ═══════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════ */
+
+@media (max-width: 768px) {
+
+    /* Tabs become vertical list */
+    .admin-tabs {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .tab-btn {
+        border-bottom: 1px solid var(--border-color);
+        border-left: 3px solid transparent;
+        text-align: left;
+    }
+
+    .tab-btn.active {
+        border-bottom: 1px solid var(--border-color);
+        border-left-color: var(--primary-blue);
+    }
+
+    /* Section header stacks */
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    /* Cards stack vertically */
+    .member-card,
+    .match-card,
+    .evenement-card {          /* ← evenement-card added here */
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .card-actions {
+        justify-content: stretch;
+    }
+
+    .action-btn { flex: 1; }
+
+    /* Header buttons stack */
+    .header-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .add-btn { width: 100%; }
+
+    /* Modal form adjustments */
+    .form-row          { grid-template-columns: 1fr; }
+    .modal-actions     { flex-direction: column; }
+    .match-type-selector { flex-direction: column; }
+
+    /* Contactberichten */
+    .message-header    { flex-direction: column; }
+    .message-stats     { flex-direction: row; align-items: flex-start; gap: 0.5rem; }
+    .filter-buttons    { flex-wrap: wrap; }
+    .message-actions   { flex-direction: column; }
+    .message-action-btn { justify-content: center; }
+
+    /* Ranking – hide on mobile, show message */
+    .ranking-manager   { display: none; }
+    .ranking-mobile-msg {
+        display: block;
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-gray);
+        font-style: italic;
+        background: var(--off-white);
+        border-radius: 8px;
+        border: 2px dashed var(--border-color);
+    }
+
+    .ranking-mobile-msg p {
+        font-size: 1rem;
+        margin-top: 0.75rem;
+    }
+
+    /* Werklijst shift header wraps */
+    .shift-admin-header { flex-direction: column; align-items: flex-start; }
+    .shift-admin-actions-header { width: 100%; justify-content: flex-end; }
+}

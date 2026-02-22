@@ -1,41 +1,62 @@
 // ===============================================
-// LIVE MATCH PAGE - IMPROVED TIMER VERSION
-// V.V.S Rotselaar
-// Fixed: Proper half-time with resumeStartedAt timestamp
+// LIVE MATCH PAGE - V.V.S Rotselaar
+// ===============================================
+// Phase system:
+//   phase 1 = 1e helft reguliere tijd
+//   phase 2 = 2e helft reguliere tijd
+//   phase 3 = 1e helft verlengingen (ET)
+//   phase 4 = 2e helft verlengingen (ET)
+//
+// Match status: 'live' | 'rust' | 'finished'
+// Extra Firestore fields:
+//   halfTimeReached      bool      – regular HT button clicked
+//   extraTimeStarted     bool      – verlengingen button clicked
+//   etHalfTimeReached    bool      – ET HT button clicked
+//   phase                number    – current phase (1–4)
+//   startedAt            Timestamp – kick-off
+//   pausedAt             Timestamp – when paused (freeze timer)
+//   resumeStartedAt      Timestamp – start 2nd regular half
+//   etStartedAt          Timestamp – start 1st ET half
+//   etResumeStartedAt    Timestamp – start 2nd ET half
 // ===============================================
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, serverTimestamp, deleteDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import {
+    collection, query, where, onSnapshot, getDocs,
+    doc, updateDoc, addDoc, serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-console.log('Live.js loaded (IMPROVED TIMER VERSION)');
+console.log('Live.js loaded');
 
-// ===============================================
-// GLOBAL STATE
-// ===============================================
+// ── Global state ──────────────────────────────────────────────────────────────
 
-let currentUser = null;
+let currentUser     = null;
 let currentUserData = null;
-let currentMatch = null;
-let currentMatchId = null;
-let matchListener = null;
-let eventsListener = null;
+let currentMatch    = null;
+let currentMatchId  = null;
+let matchListener   = null;
+let eventsListener  = null;
 let displayInterval = null;
-let hasAccess = false;
+let hasAccess       = false;
 
-// ===============================================
-// HAMBURGER MENU
-// ===============================================
+// Players for home (VVS) side only — away is always manual
+let homePlayers = [];
+
+// Yellow card counts per player name, rebuilt from events
+let yellowCardCounts = {};
+
+const ET_HALF_DURATION = 15;
+
+// ── Hamburger ─────────────────────────────────────────────────────────────────
 
 const hamburger = document.getElementById('hamburger');
-const navMenu = document.getElementById('navMenu');
-
+const navMenu   = document.getElementById('navMenu');
 if (hamburger && navMenu) {
     hamburger.addEventListener('click', () => {
         hamburger.classList.toggle('active');
         navMenu.classList.toggle('active');
     });
-
     navMenu.querySelectorAll('a').forEach(link => {
         link.addEventListener('click', () => {
             hamburger.classList.remove('active');
@@ -44,132 +65,94 @@ if (hamburger && navMenu) {
     });
 }
 
-// ===============================================
-// AUTH & ACCESS CONTROL
-// ===============================================
+// ── Auth ──────────────────────────────────────────────────────────────────────
 
 onAuthStateChanged(auth, async (user) => {
     const loginLink = document.getElementById('loginLink');
-    
     if (user) {
         currentUser = user;
-        console.log('User logged in:', user.uid);
-        
         try {
-            const userQuery = query(collection(db, 'users'), where('uid', '==', user.uid));
-            const userSnapshot = await getDocs(userQuery);
-            
-            if (!userSnapshot.empty) {
-                currentUserData = userSnapshot.docs[0].data();
-                console.log('User data loaded:', currentUserData.naam, 'Categorie:', currentUserData.categorie);
-                
-                if (loginLink) {
-                    loginLink.textContent = 'PROFIEL';
-                }
+            const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
+            if (!snap.empty) {
+                currentUserData = snap.docs[0].data();
+                if (loginLink) loginLink.textContent = 'PROFIEL';
             }
-        } catch (error) {
-            console.error('Error loading user data:', error);
-        }
+        } catch (e) { console.error('Error loading user data:', e); }
     } else {
         currentUser = null;
         currentUserData = null;
-        console.log('User not logged in (can still view)');
-        
-        if (loginLink) {
-            loginLink.textContent = 'LOGIN';
-        }
+        if (loginLink) loginLink.textContent = 'LOGIN';
     }
-    
-    // Load live match (for everyone)
     loadLiveMatch();
 });
 
-// ===============================================
-// LOAD LIVE MATCH
-// ===============================================
+// ── Load live match ───────────────────────────────────────────────────────────
 
 async function loadLiveMatch() {
-    console.log('Loading live match...');
-    
-    const liveMatchQuery = query(
-        collection(db, 'matches'),
-        where('status', 'in', ['live', 'rust'])
-    );
-    
     try {
-        const snapshot = await getDocs(liveMatchQuery);
-        
-        if (snapshot.empty) {
-            console.log('No live match found, redirecting...');
-            window.location.href = 'index.html';
-            return;
-        }
-        
-        currentMatchId = snapshot.docs[0].id;
-        currentMatch = snapshot.docs[0].data();
-        
-        console.log('Live match loaded:', currentMatch.thuisploeg, 'vs', currentMatch.uitploeg);
-        console.log('Match team:', currentMatch.team);
-        console.log('Match data:', currentMatch);
-        
-        // Check if user has access to controls
+        const snap = await getDocs(query(
+            collection(db, 'matches'),
+            where('status', 'in', ['live', 'rust'])
+        ));
+        if (snap.empty) { window.location.href = 'index.html'; return; }
+
+        currentMatchId = snap.docs[0].id;
+        currentMatch   = snap.docs[0].data();
+
         checkAccess();
-        
-        // Set up real-time listeners
         setupMatchListener();
         setupEventsListener();
-        
-        // Initial display
         updateMatchDisplay();
-        
-        // Start display interval
         startDisplayInterval();
-        
-    } catch (error) {
-        console.error('Error loading live match:', error);
-        alert('Fout bij laden wedstrijd: ' + error.message);
+
+        if (hasAccess) await loadAvailablePlayers();
+    } catch (e) {
+        console.error('Error loading live match:', e);
+        alert('Fout bij laden wedstrijd: ' + e.message);
     }
 }
 
 function checkAccess() {
+    const panel = document.getElementById('controlPanel');
     if (!currentUser || !currentUserData || !currentMatch) {
         hasAccess = false;
-        document.getElementById('controlPanel').style.display = 'none';
-        console.log('No access to controls (not logged in or no user data)');
+        if (panel) panel.style.display = 'none';
         return;
     }
-    
     const isBestuurslid = currentUserData.categorie === 'bestuurslid';
-    const isDesignated = currentMatch.aangeduidePersonen && 
-                        currentMatch.aangeduidePersonen.includes(currentUser.uid);
-    
+    const isDesignated  = currentMatch.aangeduidePersonen?.includes(currentUser.uid);
     hasAccess = isBestuurslid || isDesignated;
-    
     if (hasAccess) {
-        console.log('User has access to controls');
-        document.getElementById('controlPanel').style.display = 'block';
+        if (panel) panel.style.display = 'block';
         setupControlButtons();
     } else {
-        console.log('User does NOT have access to controls');
-        document.getElementById('controlPanel').style.display = 'none';
+        if (panel) panel.style.display = 'none';
     }
 }
 
-// ===============================================
-// REAL-TIME LISTENERS
-// ===============================================
+// ── Load available players ────────────────────────────────────────────────────
+
+async function loadAvailablePlayers() {
+    if (!currentMatchId) return;
+    try {
+        const snap = await getDocs(collection(db, 'matches', currentMatchId, 'availability'));
+        homePlayers = [];
+        snap.forEach(d => {
+            const data = d.data();
+            if (data.available) homePlayers.push({ uid: d.id, name: data.displayName || d.id });
+        });
+        homePlayers.sort((a, b) => a.name.localeCompare(b.name));
+        console.log('Home players loaded:', homePlayers.length);
+    } catch (e) { console.error('Error loading players:', e); }
+}
+
+// ── Real-time listeners ───────────────────────────────────────────────────────
 
 function setupMatchListener() {
-    if (matchListener) {
-        matchListener();
-    }
-    
-    const matchRef = doc(db, 'matches', currentMatchId);
-    
-    matchListener = onSnapshot(matchRef, (snapshot) => {
-        if (snapshot.exists()) {
-            currentMatch = snapshot.data();
-            console.log('Match updated:', currentMatch.status);
+    if (matchListener) matchListener();
+    matchListener = onSnapshot(doc(db, 'matches', currentMatchId), snap => {
+        if (snap.exists()) {
+            currentMatch = snap.data();
             updateMatchDisplay();
             updateControlButtonStates();
         }
@@ -177,389 +160,455 @@ function setupMatchListener() {
 }
 
 function setupEventsListener() {
-    if (eventsListener) {
-        eventsListener();
-    }
-    
-    const eventsQuery = query(
-        collection(db, 'events'),
-        where('matchId', '==', currentMatchId)
-    );
-    
-    eventsListener = onSnapshot(eventsQuery, (snapshot) => {
-        console.log('Events updated, count:', snapshot.size);
-        loadTimeline();
-    });
-}
-
-// ===============================================
-// DISPLAY FUNCTIONS
-// ===============================================
-
-function updateMatchDisplay() {
-    if (!currentMatch) return;
-    
-    // Team names
-    document.getElementById('homeTeamName').textContent = currentMatch.thuisploeg;
-    document.getElementById('awayTeamName').textContent = currentMatch.uitploeg;
-    
-    // Scores
-    document.getElementById('homeScore').textContent = currentMatch.scoreThuis || 0;
-    document.getElementById('awayScore').textContent = currentMatch.scoreUit || 0;
-    
-    // Timer with proper formatting
-    const timeDisplay = calculateTimeDisplay();
-    document.getElementById('currentMinute').textContent = timeDisplay;
-    
-    // Status
-    const statusEl = document.getElementById('matchStatus');
-    if (currentMatch.status === 'rust') {
-        statusEl.textContent = 'Rust';
-        statusEl.style.background = '#FFC107';
-    } else if (currentMatch.status === 'live') {
-        statusEl.textContent = 'Live';
-        statusEl.style.background = '#DC3545';
-    }
-    
-    // Description
-    const descEl = document.getElementById('matchDescription');
-    if (currentMatch.beschrijving && currentMatch.beschrijving.trim()) {
-        descEl.textContent = currentMatch.beschrijving;
-        descEl.style.display = 'block';
-    } else {
-        descEl.style.display = 'none';
-    }
-    
-    // Control panel team names
-    if (hasAccess) {
-        document.getElementById('homeTeamControlTitle').textContent = currentMatch.thuisploeg;
-        document.getElementById('awayTeamControlTitle').textContent = currentMatch.uitploeg;
-    }
-}
-
-function getHalfTime() {
-    // Veteranen: 35 minutes, Zaterdag/Zondag: 45 minutes
-    if (currentMatch.team === 'veteranen') {
-        return 35;
-    } else {
-        return 45;
-    }
-}
-
-function calculateElapsedTime() {
-    if (!currentMatch || !currentMatch.startedAt) return 0;
-    
-    const halfTimeReached = currentMatch.halfTimeReached || false;
-    
-    if (!halfTimeReached) {
-        // First half - count from match start
-        const startTime = currentMatch.startedAt.toMillis();
-        const currentTime = currentMatch.status === 'rust' && currentMatch.pausedAt 
-            ? currentMatch.pausedAt.toMillis() 
-            : Date.now();
-        
-        const elapsed = Math.floor((currentTime - startTime) / 1000);
-        return Math.max(0, elapsed);
-    } else {
-        // Second half - count from resume start
-        if (currentMatch.resumeStartedAt) {
-            const resumeStart = currentMatch.resumeStartedAt.toMillis();
-            const currentTime = Date.now();
-            
-            const elapsed = Math.floor((currentTime - resumeStart) / 1000);
-            return Math.max(0, elapsed);
-        } else {
-            // Still in rust, show halfTime
-            const halfTime = getHalfTime();
-            return halfTime * 60;
+    if (eventsListener) eventsListener();
+    eventsListener = onSnapshot(
+        query(collection(db, 'events'), where('matchId', '==', currentMatchId)),
+        snap => {
+            const counts = {};
+            snap.forEach(d => {
+                const ev = d.data();
+                if ((ev.type === 'yellow' || ev.type === 'yellow2red') && ev.speler) {
+                    counts[ev.speler] = (counts[ev.speler] || 0) + 1;
+                }
+            });
+            yellowCardCounts = counts;
+            loadTimeline(snap);
         }
+    );
+}
+
+// ── Time calculation ──────────────────────────────────────────────────────────
+
+function getRegularHalfDuration() {
+    return currentMatch?.team === 'veteranen' ? 35 : 45;
+}
+
+function calculateElapsedSeconds() {
+    if (!currentMatch?.startedAt) return 0;
+    const phase  = currentMatch.phase || 1;
+    const frozen = currentMatch.status === 'rust' && currentMatch.pausedAt;
+    const now    = frozen ? currentMatch.pausedAt.toMillis() : Date.now();
+
+    let startMs;
+    if (phase === 1) {
+        startMs = currentMatch.startedAt.toMillis();
+    } else if (phase === 2) {
+        startMs = currentMatch.resumeStartedAt?.toMillis();
+    } else if (phase === 3) {
+        startMs = currentMatch.etStartedAt?.toMillis();
+    } else {
+        startMs = currentMatch.etResumeStartedAt?.toMillis();
     }
+    if (!startMs) return 0;
+    return Math.max(0, Math.floor((now - startMs) / 1000));
 }
 
 function calculateTimeDisplay() {
-    const elapsedSeconds = calculateElapsedTime();
-    const totalMinutes = Math.floor(elapsedSeconds / 60);
-    const seconds = elapsedSeconds % 60;
-    
-    const halfTime = getHalfTime();
-    const halfTimeReached = currentMatch.halfTimeReached || false;
-    
-    if (!halfTimeReached) {
-        // First half
-        if (totalMinutes < halfTime) {
-            // Regular first half: 0' → 34'
-            return `${totalMinutes}:${String(seconds).padStart(2, '0')}`;
-        } else {
-            // Extra time first half: 35+1, 35+2, etc.
-            const extraTime = totalMinutes - halfTime;
-            return `${halfTime}+${extraTime}:${String(seconds).padStart(2, '0')}`;
-        }
-    } else {
-        // Second half
-        if (currentMatch.status === 'rust' && !currentMatch.resumeStartedAt) {
-            // Still in rust, show halfTime
-            return `${halfTime}:${String(seconds).padStart(2, '0')}`;
-        } else {
-            // After resume: 35' → 70' (veteranen) or 45' → 90' (zaterdag/zondag)
-            const secondHalfMinute = halfTime + totalMinutes;
-            
-            if (secondHalfMinute <= halfTime * 2) {
-                // Regular second half
-                return `${secondHalfMinute}:${String(seconds).padStart(2, '0')}`;
-            } else {
-                // Extra time second half: 70+1, 90+1, etc.
-                const extraTime = secondHalfMinute - (halfTime * 2);
-                return `${halfTime * 2}+${extraTime}:${String(seconds).padStart(2, '0')}`;
-            }
-        }
+    const elapsed  = calculateElapsedSeconds();
+    const mins     = Math.floor(elapsed / 60);
+    const secs     = elapsed % 60;
+    const pad      = s => String(s).padStart(2, '0');
+    const halfDur  = getRegularHalfDuration();
+    const fullDur  = halfDur * 2;
+    const phase    = currentMatch?.phase || 1;
+    const status   = currentMatch?.status;
+
+    if (phase === 1) {
+        if (mins < halfDur) return `${mins}:${pad(secs)}`;
+        return `${halfDur}+${mins - halfDur}:${pad(secs)}`;
     }
+    if (phase === 2) {
+        // Frozen during rust before 2nd half starts
+        if (status === 'rust' && !currentMatch?.resumeStartedAt) return `${halfDur}:00`;
+        const disp = halfDur + mins;
+        if (disp <= fullDur) return `${disp}:${pad(secs)}`;
+        return `${fullDur}+${disp - fullDur}:${pad(secs)}`;
+    }
+    if (phase === 3) {
+        // Frozen during ET rust before ET 1st half starts
+        if (status === 'rust' && !currentMatch?.etStartedAt) return `${fullDur}:00`;
+        const disp = fullDur + mins;
+        const etFull = fullDur + ET_HALF_DURATION;
+        if (disp <= etFull) return `${disp}:${pad(secs)}`;
+        return `${etFull}+${disp - etFull}:${pad(secs)}`;
+    }
+    // phase 4
+    if (status === 'rust' && !currentMatch?.etResumeStartedAt) return `${fullDur + ET_HALF_DURATION}:00`;
+    const disp   = fullDur + ET_HALF_DURATION + mins;
+    const etFull = fullDur + ET_HALF_DURATION * 2;
+    if (disp <= etFull) return `${disp}:${pad(secs)}`;
+    return `${etFull}+${disp - etFull}:${pad(secs)}`;
 }
 
 function getCurrentMinuteForEvent() {
-    const elapsedSeconds = calculateElapsedTime();
-    const totalMinutes = Math.floor(elapsedSeconds / 60);
-    const halfTime = getHalfTime();
-    const halfTimeReached = currentMatch.halfTimeReached || false;
-    
-    if (!halfTimeReached) {
-        // First half
-        return totalMinutes;
-    } else {
-        // Second half
-        if (currentMatch.status === 'rust' && !currentMatch.resumeStartedAt) {
-            // Still in rust
-            return halfTime;
+    const elapsed = calculateElapsedSeconds();
+    const mins    = Math.floor(elapsed / 60);
+    const halfDur = getRegularHalfDuration();
+    const fullDur = halfDur * 2;
+    const phase   = currentMatch?.phase || 1;
+
+    if (phase === 1) return mins;
+    if (phase === 2) {
+        if (currentMatch?.status === 'rust' && !currentMatch?.resumeStartedAt) return halfDur;
+        return halfDur + mins;
+    }
+    if (phase === 3) return fullDur + mins;
+    return fullDur + ET_HALF_DURATION + mins;
+}
+
+// ── Display update ────────────────────────────────────────────────────────────
+
+function updateMatchDisplay() {
+    if (!currentMatch) return;
+
+    document.getElementById('homeTeamName').textContent  = currentMatch.thuisploeg;
+    document.getElementById('awayTeamName').textContent  = currentMatch.uitploeg;
+    document.getElementById('homeScore').textContent     = currentMatch.scoreThuis ?? 0;
+    document.getElementById('awayScore').textContent     = currentMatch.scoreUit   ?? 0;
+    document.getElementById('currentMinute').textContent = calculateTimeDisplay();
+
+    const statusEl = document.getElementById('matchStatus');
+    if (statusEl) {
+        if (currentMatch.status === 'rust') {
+            statusEl.textContent       = 'Rust';
+            statusEl.style.background  = '#FFC107';
+        } else if (currentMatch.extraTimeStarted) {
+            statusEl.textContent       = 'Verlengingen';
+            statusEl.style.background  = '#9C27B0';
         } else {
-            // After resume: starts at halfTime (35 or 45)
-            return halfTime + totalMinutes;
+            statusEl.textContent       = 'Live';
+            statusEl.style.background  = '#DC3545';
         }
+    }
+
+    const descEl = document.getElementById('matchDescription');
+    if (descEl) {
+        if (currentMatch.beschrijving?.trim()) {
+            descEl.textContent    = currentMatch.beschrijving;
+            descEl.style.display  = 'block';
+        } else {
+            descEl.style.display  = 'none';
+        }
+    }
+
+    if (hasAccess) {
+        const hct = document.getElementById('homeTeamControlTitle');
+        const act = document.getElementById('awayTeamControlTitle');
+        if (hct) hct.textContent = currentMatch.thuisploeg;
+        if (act) act.textContent = currentMatch.uitploeg;
     }
 }
 
 function startDisplayInterval() {
-    if (displayInterval) {
-        clearInterval(displayInterval);
-    }
-    
+    if (displayInterval) clearInterval(displayInterval);
     displayInterval = setInterval(() => {
-        if (currentMatch && currentMatch.status === 'live') {
-            updateMatchDisplay();
-        }
+        if (currentMatch?.status === 'live') updateMatchDisplay();
     }, 1000);
 }
 
-// ===============================================
-// CONTROL BUTTONS
-// ===============================================
-
-function setupControlButtons() {
-    const controlBtns = document.querySelectorAll('.control-btn[data-action]');
-    controlBtns.forEach(btn => {
-        btn.addEventListener('click', handleControlClick);
-    });
-    
-    const pauseBtn = document.getElementById('pauseBtn');
-    const resumeBtn = document.getElementById('resumeBtn');
-    const endMatchBtn = document.getElementById('endMatchBtn');
-    const scoreCorrectBtn = document.getElementById('scoreCorrectBtn');
-    
-    if (pauseBtn) {
-        pauseBtn.addEventListener('click', handlePause);
-    }
-    
-    if (resumeBtn) {
-        resumeBtn.addEventListener('click', handleResume);
-    }
-    
-    if (endMatchBtn) {
-        endMatchBtn.addEventListener('click', handleEndMatch);
-    }
-    
-    if (scoreCorrectBtn) {
-        scoreCorrectBtn.addEventListener('click', openScoreModal);
-    }
-    
-    updateControlButtonStates();
-}
+// ── Control button states ─────────────────────────────────────────────────────
 
 function updateControlButtonStates() {
     if (!hasAccess || !currentMatch) return;
-    
-    const pauseBtn = document.getElementById('pauseBtn');
-    const resumeBtn = document.getElementById('resumeBtn');
-    
-    const halfTimeReached = currentMatch.halfTimeReached || false;
-    
-    if (currentMatch.status === 'rust') {
-        if (pauseBtn) pauseBtn.style.display = 'none';
-        if (resumeBtn) resumeBtn.style.display = 'inline-block';
-    } else {
-        if (pauseBtn) pauseBtn.style.display = halfTimeReached ? 'none' : 'inline-block';
-        if (resumeBtn) resumeBtn.style.display = 'none';
+
+    const phase             = currentMatch.phase || 1;
+    const status            = currentMatch.status;
+    const extraTimeStarted  = currentMatch.extraTimeStarted  || false;
+    const etHalfTimeReached = currentMatch.etHalfTimeReached || false;
+
+    const pauseBtn     = document.getElementById('pauseBtn');
+    const resumeBtn    = document.getElementById('resumeBtn');
+    const extraTimeBtn = document.getElementById('extraTimeBtn');
+
+    // RUST button: visible during live phase 1 or phase 3 only
+    if (pauseBtn) {
+        const showPause = status === 'live' && (phase === 1 || phase === 3);
+        pauseBtn.style.display = showPause ? 'inline-block' : 'none';
+    }
+
+    // HERVAT / START button: visible when status === 'rust'
+    if (resumeBtn) {
+        resumeBtn.style.display = status === 'rust' ? 'inline-block' : 'none';
+        if (status === 'rust') {
+            if (!extraTimeStarted) {
+                resumeBtn.textContent = 'START 2E HELFT';
+            } else if (!etHalfTimeReached) {
+                resumeBtn.textContent = 'START VERLENGINGEN';
+            } else {
+                resumeBtn.textContent = 'START 2E VERLENGING';
+            }
+        }
+    }
+
+    // VERLENGINGEN button: only when live in phase 2, score equal, not veteranen, ET not yet started
+    if (extraTimeBtn) {
+        const scoreEqual = (currentMatch.scoreThuis ?? 0) === (currentMatch.scoreUit ?? 0);
+        const showET = status === 'live'
+            && phase === 2
+            && !extraTimeStarted
+            && scoreEqual
+            && currentMatch.team !== 'veteranen';
+        extraTimeBtn.style.display = showET ? 'inline-block' : 'none';
     }
 }
 
-let pendingAction = null;
+// ── Setup control buttons ─────────────────────────────────────────────────────
 
-function handleControlClick(e) {
-    const btn = e.currentTarget;
-    const team = btn.dataset.team;
-    const action = btn.dataset.action;
-    
-    pendingAction = { team, action };
-    
-    const modal = document.getElementById('playerModal');
-    const modalTitle = document.getElementById('modalTitle');
-    const playerInput = document.getElementById('playerInput');
-    const substitutionInputs = document.getElementById('substitutionInputs');
-    
-    if (action === 'substitution') {
-        modalTitle.textContent = 'Wissel Invoeren';
-        playerInput.style.display = 'none';
-        substitutionInputs.style.display = 'block';
-        document.getElementById('playerOutInput').value = '';
-        document.getElementById('playerInInput').value = '';
-    } else {
-        const actionNames = {
-            'goal': 'Goal',
-            'penalty': 'Penalty',
-            'own-goal': 'Eigen Doelpunt',
-            'yellow': 'Gele Kaart',
-            'red': 'Rode Kaart'
-        };
-        modalTitle.textContent = `${actionNames[action] || action} - Speler Invoeren`;
-        playerInput.style.display = 'block';
-        substitutionInputs.style.display = 'none';
-        playerInput.value = '';
-    }
-    
-    modal.classList.add('active');
+function setupControlButtons() {
+    document.querySelectorAll('.control-btn[data-action]').forEach(btn => {
+        btn.addEventListener('click', handleControlClick);
+    });
+
+    const pauseBtn       = document.getElementById('pauseBtn');
+    const resumeBtn      = document.getElementById('resumeBtn');
+    const extraTimeBtn   = document.getElementById('extraTimeBtn');
+    const endMatchBtn    = document.getElementById('endMatchBtn');
+    const scoreCorrectBtn = document.getElementById('scoreCorrectBtn');
+
+    if (pauseBtn)        pauseBtn.addEventListener('click', handlePause);
+    if (resumeBtn)       resumeBtn.addEventListener('click', handleResume);
+    if (extraTimeBtn)    extraTimeBtn.addEventListener('click', handleExtraTime);
+    if (endMatchBtn)     endMatchBtn.addEventListener('click', handleEndMatch);
+    if (scoreCorrectBtn) scoreCorrectBtn.addEventListener('click', openScoreModal);
+
+    updateControlButtonStates();
 }
+
+// ── Pause handler ─────────────────────────────────────────────────────────────
 
 async function handlePause() {
     try {
-        const currentMinuteForEvent = getCurrentMinuteForEvent();
+        const minute   = getCurrentMinuteForEvent();
+        const phase    = currentMatch.phase || 1;
         const matchRef = doc(db, 'matches', currentMatchId);
-        
-        await updateDoc(matchRef, {
-            status: 'rust',
-            pausedAt: serverTimestamp(),
-            halfTimeReached: true
-        });
-        
+
+        const upd = { status: 'rust', pausedAt: serverTimestamp() };
+        if (phase === 1) {
+            // End of 1st regular half — advance phase counter to 2 (rust before 2nd half)
+            upd.halfTimeReached = true;
+            upd.phase = 2;
+        } else if (phase === 3) {
+            // End of 1st ET half
+            upd.etHalfTimeReached = true;
+            upd.phase = 4;
+        }
+
+        await updateDoc(matchRef, upd);
         await addDoc(collection(db, 'events'), {
             matchId: currentMatchId,
-            minuut: currentMinuteForEvent,
-            half: 1,  // Rust is always end of first half
-            type: 'rust',
-            ploeg: 'center',
-            speler: '',
+            minuut:  minute,
+            half:    phase,
+            type:    'rust',
+            ploeg:   'center',
+            speler:  '',
             timestamp: serverTimestamp()
         });
-        
-        console.log('Match paused (half-time) at minute:', currentMinuteForEvent);
-    } catch (error) {
-        console.error('Error pausing match:', error);
-        alert('Fout bij pauze: ' + error.message);
+        console.log('Paused at minute', minute, 'phase', phase);
+    } catch (e) {
+        console.error('Error pausing:', e);
+        alert('Fout bij pauze: ' + e.message);
     }
 }
+
+// ── Resume handler ────────────────────────────────────────────────────────────
 
 async function handleResume() {
     try {
-        const halfTime = getHalfTime();
+        const phase    = currentMatch.phase || 1;
         const matchRef = doc(db, 'matches', currentMatchId);
-        
-        // Set new start time for second half
-        await updateDoc(matchRef, {
-            status: 'live',
-            pausedAt: null,
-            resumeStartedAt: serverTimestamp()  // NEW: timestamp for second half start
-        });
-        
-        // Resume event at halfTime minute (35' or 45')
-        await addDoc(collection(db, 'events'), {
-            matchId: currentMatchId,
-            minuut: halfTime,
-            half: 2,  // Hervat is start of second half
-            type: 'hervat',
-            ploeg: 'center',
-            speler: '',
-            timestamp: serverTimestamp()
-        });
-        
-        console.log('Match resumed at minute:', halfTime);
-    } catch (error) {
-        console.error('Error resuming match:', error);
-        alert('Fout bij hervatten: ' + error.message);
+
+        const upd = { status: 'live', pausedAt: null };
+
+        if (phase === 2 && !currentMatch.resumeStartedAt) {
+            upd.resumeStartedAt = serverTimestamp();
+        } else if (phase === 3 && !currentMatch.etStartedAt) {
+            upd.etStartedAt = serverTimestamp();
+        } else if (phase === 4 && !currentMatch.etResumeStartedAt) {
+            upd.etResumeStartedAt = serverTimestamp();
+        }
+
+        await updateDoc(matchRef, upd);
+        // No event written — timeline stays clean (no "hervat" block)
+        console.log('Resumed, phase:', phase);
+    } catch (e) {
+        console.error('Error resuming:', e);
+        alert('Fout bij hervatten: ' + e.message);
     }
 }
+
+// ── Extra time handler ────────────────────────────────────────────────────────
+
+async function handleExtraTime() {
+    const halfDur = getRegularHalfDuration();
+    const fullDur = halfDur * 2;
+    if (!confirm(`Verlengingen starten? De timer springt naar ${fullDur}' en er volgen 2 × 15 minuten.`)) return;
+
+    try {
+        const minute   = getCurrentMinuteForEvent();
+        const matchRef = doc(db, 'matches', currentMatchId);
+
+        // Put in rust so the designated person sees "START VERLENGINGEN"
+        await updateDoc(matchRef, {
+            status:           'rust',
+            pausedAt:         serverTimestamp(),
+            extraTimeStarted: true,
+            phase:            3
+        });
+
+        // Mark end of regular time in the timeline
+        await addDoc(collection(db, 'events'), {
+            matchId:  currentMatchId,
+            minuut:   minute,
+            half:     2,
+            type:     'einde-regulier',
+            ploeg:    'center',
+            speler:   '',
+            timestamp: serverTimestamp()
+        });
+
+        console.log('Extra time initiated at minute', minute);
+    } catch (e) {
+        console.error('Error starting extra time:', e);
+        alert('Fout bij verlengingen: ' + e.message);
+    }
+}
+
+// ── End match handler ─────────────────────────────────────────────────────────
 
 async function handleEndMatch() {
-    if (!confirm('Weet je zeker dat je de wedstrijd wilt beëindigen?')) {
-        return;
-    }
-    
+    if (!confirm('Weet je zeker dat je de wedstrijd wilt beëindigen?')) return;
     try {
-        const currentMinuteForEvent = getCurrentMinuteForEvent();
+        const minute   = getCurrentMinuteForEvent();
+        const phase    = currentMatch.phase || 1;
         const matchRef = doc(db, 'matches', currentMatchId);
-        const halfTimeReached = currentMatch.halfTimeReached || false;
-        
-        await updateDoc(matchRef, {
-            status: 'finished'
-        });
-        
+
+        await updateDoc(matchRef, { status: 'finished' });
         await addDoc(collection(db, 'events'), {
-            matchId: currentMatchId,
-            minuut: currentMinuteForEvent,
-            half: halfTimeReached ? 2 : 1,
-            type: 'einde',
-            ploeg: 'center',
-            speler: '',
+            matchId:  currentMatchId,
+            minuut:   minute,
+            half:     phase,
+            type:     'einde',
+            ploeg:    'center',
+            speler:   '',
             timestamp: serverTimestamp()
         });
-        
-        console.log('Match ended');
+
         alert('Wedstrijd beëindigd!');
         window.location.href = 'index.html';
-        
-    } catch (error) {
-        console.error('Error ending match:', error);
-        alert('Fout bij beëindigen wedstrijd: ' + error.message);
+    } catch (e) {
+        console.error('Error ending match:', e);
+        alert('Fout bij beëindigen: ' + e.message);
     }
 }
 
-// ===============================================
-// PLAYER INPUT MODAL
-// ===============================================
+// ── Player picker modal ───────────────────────────────────────────────────────
+
+let pendingAction = null;
+
+function populateSelect(selectEl, players, emptyLabel = '— Selecteer speler —') {
+    selectEl.innerHTML = `<option value="">${emptyLabel}</option>`;
+    players.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.textContent = p.name;
+        selectEl.appendChild(opt);
+    });
+}
+
+function getModalValue(selectId, manualId) {
+    const sel = document.getElementById(selectId);
+    const man = document.getElementById(manualId);
+    if (sel && sel.value) return sel.value;
+    if (man && man.value.trim()) return man.value.trim();
+    return '';
+}
+
+function handleControlClick(e) {
+    const btn    = e.currentTarget;
+    const team   = btn.dataset.team;
+    const action = btn.dataset.action;
+
+    pendingAction = { team, action };
+
+    const modal           = document.getElementById('playerModal');
+    const modalTitle      = document.getElementById('modalTitle');
+    const singleSection   = document.getElementById('singlePlayerSection');
+    const assistSection   = document.getElementById('assistSection');
+    const subSection      = document.getElementById('substitutionSection');
+    const pickerLabel     = document.getElementById('playerPickerLabel');
+
+    singleSection.style.display = 'none';
+    assistSection.style.display = 'none';
+    subSection.style.display    = 'none';
+
+    const actionNames = {
+        goal: 'Goal', penalty: 'Penalty', 'own-goal': 'Eigen Doelpunt',
+        yellow: 'Gele Kaart', red: 'Rode Kaart', substitution: 'Wissel'
+    };
+    modalTitle.textContent = actionNames[action] || action;
+
+    const isAway   = team === 'away';
+    const players  = isAway ? [] : homePlayers; // away → always manual
+
+    if (action === 'substitution') {
+        subSection.style.display = 'block';
+        const outSel = document.getElementById('playerOutSelect');
+        const inSel  = document.getElementById('playerInSelect');
+        populateSelect(outSel, players, '— Speler uit —');
+        populateSelect(inSel,  players, '— Speler in —');
+        // Hide dropdowns for away (empty anyway, but cleaner)
+        outSel.style.display = isAway ? 'none' : '';
+        inSel.style.display  = isAway ? 'none' : '';
+        document.getElementById('playerOutManualInput').value = '';
+        document.getElementById('playerInManualInput').value  = '';
+    } else {
+        singleSection.style.display = 'block';
+        pickerLabel.textContent = action === 'own-goal' ? 'Speler (eigen doelpunt)' : 'Speler';
+        const playerSel = document.getElementById('playerSelect');
+        populateSelect(playerSel, players);
+        playerSel.style.display = isAway ? 'none' : '';
+        document.getElementById('playerManualInput').value = '';
+
+        if (action === 'goal' || action === 'penalty') {
+            assistSection.style.display = 'block';
+            const assistSel = document.getElementById('assistSelect');
+            populateSelect(assistSel, players, '— Geen assist —');
+            assistSel.style.display = isAway ? 'none' : '';
+            document.getElementById('assistManualInput').value = '';
+        }
+    }
+
+    modal.classList.add('active');
+}
+
+// ── Modal confirm / cancel ────────────────────────────────────────────────────
 
 const modalConfirm = document.getElementById('modalConfirm');
-const modalCancel = document.getElementById('modalCancel');
+const modalCancel  = document.getElementById('modalCancel');
 
 if (modalConfirm) {
     modalConfirm.addEventListener('click', async () => {
         if (!pendingAction) return;
-        
         const modal = document.getElementById('playerModal');
         const { team, action } = pendingAction;
-        
-        let playerName = '';
-        let playerOut = '';
-        let playerIn = '';
-        
+
+        let playerName = '', assistName = '', playerOut = '', playerIn = '';
+
         if (action === 'substitution') {
-            playerOut = document.getElementById('playerOutInput').value.trim();
-            playerIn = document.getElementById('playerInInput').value.trim();
+            playerOut = getModalValue('playerOutSelect', 'playerOutManualInput');
+            playerIn  = getModalValue('playerInSelect',  'playerInManualInput');
         } else {
-            playerName = document.getElementById('playerInput').value.trim();
+            playerName = getModalValue('playerSelect', 'playerManualInput');
+            if (action === 'goal' || action === 'penalty') {
+                assistName = getModalValue('assistSelect', 'assistManualInput');
+            }
         }
-        
+
         modal.classList.remove('active');
-        
-        await executeAction(team, action, playerName, playerOut, playerIn);
+        await executeAction(team, action, playerName, playerOut, playerIn, assistName);
         pendingAction = null;
     });
 }
-
 if (modalCancel) {
     modalCancel.addEventListener('click', () => {
         document.getElementById('playerModal').classList.remove('active');
@@ -567,271 +616,234 @@ if (modalCancel) {
     });
 }
 
-async function executeAction(team, action, playerName = '', playerOut = '', playerIn = '') {
+// ── Execute action ────────────────────────────────────────────────────────────
+
+async function executeAction(team, action, playerName = '', playerOut = '', playerIn = '', assistName = '') {
     try {
-        const currentMinuteForEvent = getCurrentMinuteForEvent();
+        const minute   = getCurrentMinuteForEvent();
+        const phase    = currentMatch.phase || 1;
         const matchRef = doc(db, 'matches', currentMatchId);
-        
-        // Determine which half we're in
-        const halfTimeReached = currentMatch.halfTimeReached || false;
-        const half = halfTimeReached ? 2 : 1;
-        
+
+        let resolvedAction = action;
+        if (action === 'yellow' && playerName && (yellowCardCounts[playerName] || 0) >= 1) {
+            resolvedAction = 'yellow2red';
+        }
+
         const eventData = {
             matchId: currentMatchId,
-            minuut: currentMinuteForEvent,
-            half: half,  // NEW: Track which half (1 or 2)
-            type: action,
-            ploeg: team,
-            speler: playerName,
+            minuut:  minute,
+            half:    phase,
+            type:    resolvedAction,
+            ploeg:   team,
+            speler:  playerName,
             timestamp: serverTimestamp()
         };
-        
-        // Handle score updates
-        if (action === 'goal' || action === 'penalty') {
-            const newScore = (team === 'home' ? currentMatch.scoreThuis : currentMatch.scoreUit) + 1;
-            const scoreField = team === 'home' ? 'scoreThuis' : 'scoreUit';
-            await updateDoc(matchRef, { [scoreField]: newScore });
-        } else if (action === 'own-goal') {
-            const oppositeTeam = team === 'home' ? 'away' : 'home';
-            const newScore = (oppositeTeam === 'home' ? currentMatch.scoreThuis : currentMatch.scoreUit) + 1;
-            const scoreField = oppositeTeam === 'home' ? 'scoreThuis' : 'scoreUit';
-            await updateDoc(matchRef, { [scoreField]: newScore });
+
+        if ((resolvedAction === 'goal' || resolvedAction === 'penalty') && assistName) {
+            eventData.assist = assistName;
         }
-        
-        // Handle substitution
-        if (action === 'substitution') {
+
+        if (resolvedAction === 'goal' || resolvedAction === 'penalty') {
+            const field    = team === 'home' ? 'scoreThuis' : 'scoreUit';
+            const newScore = ((team === 'home' ? currentMatch.scoreThuis : currentMatch.scoreUit) || 0) + 1;
+            await updateDoc(matchRef, { [field]: newScore });
+        } else if (resolvedAction === 'own-goal') {
+            const oppTeam  = team === 'home' ? 'away' : 'home';
+            const field    = oppTeam === 'home' ? 'scoreThuis' : 'scoreUit';
+            const cur      = (oppTeam === 'home' ? currentMatch.scoreThuis : currentMatch.scoreUit) || 0;
+            await updateDoc(matchRef, { [field]: cur + 1 });
+        }
+
+        if (resolvedAction === 'substitution') {
             eventData.spelerUit = playerOut;
-            eventData.spelerIn = playerIn;
+            eventData.spelerIn  = playerIn;
         }
-        
+
         await addDoc(collection(db, 'events'), eventData);
-        console.log('Action executed:', action, 'at minute:', currentMinuteForEvent, 'half:', half);
-        
-    } catch (error) {
-        console.error('Error executing action:', error);
-        alert('Fout bij uitvoeren actie: ' + error.message);
+        console.log('Action:', resolvedAction, 'min:', minute, 'phase:', phase);
+    } catch (e) {
+        console.error('Error executing action:', e);
+        alert('Fout bij uitvoeren actie: ' + e.message);
     }
 }
 
-// ===============================================
-// SCORE CORRECTION MODAL
-// ===============================================
+// ── Score correction modal ────────────────────────────────────────────────────
 
 function openScoreModal() {
-    const modal = document.getElementById('scoreModal');
-    const homeScoreInput = document.getElementById('homeScoreInput');
-    const awayScoreInput = document.getElementById('awayScoreInput');
-    const homeLabel = document.getElementById('homeTeamLabel');
-    const awayLabel = document.getElementById('awayTeamLabel');
-    
-    homeLabel.textContent = currentMatch.thuisploeg;
-    awayLabel.textContent = currentMatch.uitploeg;
-    
-    homeScoreInput.value = currentMatch.scoreThuis || 0;
-    awayScoreInput.value = currentMatch.scoreUit || 0;
-    
-    modal.classList.add('active');
+    document.getElementById('homeTeamLabel').textContent = currentMatch.thuisploeg;
+    document.getElementById('awayTeamLabel').textContent = currentMatch.uitploeg;
+    document.getElementById('homeScoreInput').value      = currentMatch.scoreThuis ?? 0;
+    document.getElementById('awayScoreInput').value      = currentMatch.scoreUit   ?? 0;
+    document.getElementById('scoreModal').classList.add('active');
 }
 
 const scoreModalConfirm = document.getElementById('scoreModalConfirm');
-const scoreModalCancel = document.getElementById('scoreModalCancel');
+const scoreModalCancel  = document.getElementById('scoreModalCancel');
 
 if (scoreModalConfirm) {
     scoreModalConfirm.addEventListener('click', async () => {
-        const homeScore = parseInt(document.getElementById('homeScoreInput').value) || 0;
-        const awayScore = parseInt(document.getElementById('awayScoreInput').value) || 0;
-        
+        const h = parseInt(document.getElementById('homeScoreInput').value) || 0;
+        const a = parseInt(document.getElementById('awayScoreInput').value) || 0;
         try {
-            const matchRef = doc(db, 'matches', currentMatchId);
-            await updateDoc(matchRef, {
-                scoreThuis: homeScore,
-                scoreUit: awayScore
-            });
-            
-            console.log('Score corrected:', homeScore, '-', awayScore);
+            await updateDoc(doc(db, 'matches', currentMatchId), { scoreThuis: h, scoreUit: a });
             document.getElementById('scoreModal').classList.remove('active');
-            
-        } catch (error) {
-            console.error('Error correcting score:', error);
-            alert('Fout bij aanpassen score: ' + error.message);
+        } catch (e) {
+            console.error('Error correcting score:', e);
+            alert('Fout bij aanpassen score: ' + e.message);
         }
     });
 }
-
 if (scoreModalCancel) {
     scoreModalCancel.addEventListener('click', () => {
         document.getElementById('scoreModal').classList.remove('active');
     });
 }
 
-// ===============================================
-// TIMELINE
-// ===============================================
+// ── Timeline ──────────────────────────────────────────────────────────────────
 
-async function loadTimeline() {
+function loadTimeline(snapshot) {
     const timeline = document.getElementById('timeline');
     if (!timeline) return;
-    
-    try {
-        const eventsQuery = query(
-            collection(db, 'events'),
-            where('matchId', '==', currentMatchId)
-        );
-        
-        const eventsSnapshot = await getDocs(eventsQuery);
-        
-        if (eventsSnapshot.empty) {
-            timeline.innerHTML = '<div class="timeline-empty">Nog geen events...</div>';
-            return;
-        }
-        
-        const events = [];
-        eventsSnapshot.forEach(docSnap => {
-            events.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        
-        // Separate by half
-        const firstHalfEvents = [];
-        const secondHalfEvents = [];
-        let rustEvent = null;
-        let hervatEvent = null;
-        
-        events.forEach(event => {
-            if (event.type === 'rust') {
-                rustEvent = event;
-            } else if (event.type === 'hervat') {
-                hervatEvent = event;
-            } else {
-                // Use half field if available, otherwise fallback to old logic
-                const eventHalf = event.half || 1;
-                
-                if (eventHalf === 2) {
-                    secondHalfEvents.push(event);
-                } else {
-                    firstHalfEvents.push(event);
-                }
-            }
-        });
-        
-        // Sort first half descending
-        firstHalfEvents.sort((a, b) => {
-            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
-            if (minuteDiff !== 0) return minuteDiff;
-            if (a.timestamp && b.timestamp) {
-                return b.timestamp.toMillis() - a.timestamp.toMillis();
-            }
-            return 0;
-        });
-        
-        // Sort second half descending
-        secondHalfEvents.sort((a, b) => {
-            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
-            if (minuteDiff !== 0) return minuteDiff;
-            if (a.timestamp && b.timestamp) {
-                return b.timestamp.toMillis() - a.timestamp.toMillis();
-            }
-            return 0;
-        });
-        
-        // Combine in correct order: second half → hervat → rust → first half
-        const sortedEvents = [];
-        sortedEvents.push(...secondHalfEvents);
-        if (hervatEvent) sortedEvents.push(hervatEvent);
-        if (rustEvent) sortedEvents.push(rustEvent);
-        sortedEvents.push(...firstHalfEvents);
-        
-        timeline.innerHTML = '';
-        sortedEvents.forEach(event => {
-            const eventEl = createEventElement(event);
-            timeline.appendChild(eventEl);
-        });
-        
-    } catch (error) {
-        console.error('Error loading timeline:', error);
+
+    if (snapshot.empty) {
+        timeline.innerHTML = '<div class="timeline-empty">Nog geen events...</div>';
+        return;
+    }
+
+    const events = [];
+    snapshot.forEach(d => events.push({ id: d.id, ...d.data() }));
+    timeline.innerHTML = '';
+    renderTimeline(events, timeline);
+}
+
+/**
+ * Shared renderer — also used by team.js for post-match timeline.
+ * Groups events by phase (half), inserts structural separators.
+ * Display order (top = most recent):
+ *   einde → ET half 4 events → ET rust → ET half 3 events
+ *   → einde-regulier → regular half 2 events → rust (HT) → regular half 1 events → aftrap
+ */
+export function renderTimeline(events, container) {
+    const STRUCTURAL = new Set(['aftrap', 'rust', 'einde-regulier', 'einde']);
+    const structural = events.filter(e => STRUCTURAL.has(e.type));
+    const regular    = events.filter(e => !STRUCTURAL.has(e.type));
+
+    const byHalf = { 1: [], 2: [], 3: [], 4: [] };
+    regular.forEach(e => {
+        const h = e.half || 1;
+        if (byHalf[h]) byHalf[h].push(e);
+    });
+
+    const sortDesc = (a, b) => {
+        const d = (b.minuut || 0) - (a.minuut || 0);
+        if (d !== 0) return d;
+        if (a.timestamp && b.timestamp) return b.timestamp.toMillis() - a.timestamp.toMillis();
+        return 0;
+    };
+    [1, 2, 3, 4].forEach(h => byHalf[h].sort(sortDesc));
+
+    const rustEvents    = structural.filter(e => e.type === 'rust');
+    const rustHT        = rustEvents.find(e => e.half === 1 || e.half === 2) || rustEvents[0] || null;
+    const rustET        = rustEvents.find(e => e.half === 3 || e.half === 4);
+    const aftrap        = structural.find(e => e.type === 'aftrap');
+    const eindeReg      = structural.find(e => e.type === 'einde-regulier');
+    const einde         = structural.find(e => e.type === 'einde');
+
+    const ordered = [];
+    if (einde) ordered.push(einde);
+
+    byHalf[4].forEach(e => ordered.push(e));
+    if (rustET) ordered.push(rustET);
+    byHalf[3].forEach(e => ordered.push(e));
+    if (eindeReg) ordered.push(eindeReg);
+    byHalf[2].forEach(e => ordered.push(e));
+    if (rustHT) ordered.push(rustHT);
+    byHalf[1].forEach(e => ordered.push(e));
+    if (aftrap) ordered.push(aftrap);
+
+    ordered.forEach(e => container.appendChild(createEventElement(e)));
+}
+
+// Returns an <img> tag for a given event type.
+// All PNG files are expected in /assets/.
+function eventIcon(type, half) {
+    const img = (file, alt) =>
+        `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
+
+    switch (type) {
+        case 'aftrap':        return img('goal.png',      'Aftrap');
+        case 'goal':          return img('goal.png',      'Goal');
+        case 'penalty':       return img('penalty.png',   'Penalty');
+        case 'own-goal':      return img('own-goal.png',  'Eigen doelpunt');
+        case 'yellow':        return img('yellow.png',    'Gele kaart');
+        case 'yellow2red':    return img('yellow2red.png','2e Gele kaart / Rood');
+        case 'red':           return img('red.png',       'Rode kaart');
+        case 'substitution':  return img('sub.png',       'Wissel');
+        case 'rust':
+            return (half >= 3)
+                ? img('rust.png', 'Rust verlengingen')
+                : img('rust.png', 'Rust');
+        case 'einde-regulier': return img('extra-time.png', 'Verlengingen');
+        case 'einde':          return img('einde.png',       'Einde');
+        default:               return `<span class="timeline-icon-fallback">•</span>`;
     }
 }
 
-function createEventElement(event) {
+export function createEventElement(event) {
     const div = document.createElement('div');
     div.className = `timeline-event ${event.type}`;
-    
-    let icon = '';
-    let text = '';
-    let teamClass = '';
-    
-    if (event.ploeg === 'home') {
-        teamClass = 'home';
-    } else if (event.ploeg === 'away') {
-        teamClass = 'away';
-    } else {
-        teamClass = 'center';
-    }
-    
+
+    let teamClass = 'center';
+    if (event.ploeg === 'home') teamClass = 'home';
+    else if (event.ploeg === 'away') teamClass = 'away';
     div.classList.add(teamClass);
-    
+
+    let text = '';
+
     switch (event.type) {
         case 'aftrap':
-            icon = '⚽';
-            text = 'Aftrap';
-            break;
+            text = 'Aftrap'; break;
         case 'goal':
-            icon = '⚽';
             text = `GOAL${event.speler ? ' - ' + event.speler : ''}`;
+            if (event.assist) text += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
         case 'penalty':
-            icon = '⚽';
             text = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
+            if (event.assist) text += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
         case 'own-goal':
-            icon = '⚽';
-            text = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            text = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'yellow':
-            icon = '🟨';
-            text = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            text = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`; break;
+        case 'yellow2red':
+            text = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'red':
-            icon = '🟥';
-            text = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            text = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'substitution':
-            icon = '🔄';
-            text = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`;
-            break;
+            text = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`; break;
         case 'rust':
-            icon = '⏸';
-            text = 'Rust';
-            break;
-        case 'hervat':
-            icon = '▶️';
-            text = 'Hervat';
-            break;
+            text = (event.half >= 3) ? 'Rust verlengingen' : 'Rust'; break;
+        case 'einde-regulier':
+            text = 'Einde reguliere tijd — Verlengingen'; break;
         case 'einde':
-            icon = '🏁';
-            text = 'Einde wedstrijd';
-            break;
+            text = 'Einde wedstrijd'; break;
         default:
-            icon = '•';
             text = event.type;
     }
-    
+
     div.innerHTML = `
         <span class="event-time">${event.minuut}'</span>
-        <span class="event-icon">${icon}</span>
+        <span class="event-icon">${eventIcon(event.type, event.half)}</span>
         <span class="event-text">${text}</span>
     `;
-    
     return div;
 }
 
-// ===============================================
-// CLEANUP
-// ===============================================
+// ── Cleanup ───────────────────────────────────────────────────────────────────
 
 window.addEventListener('beforeunload', () => {
-    console.log('Page unloading, cleaning up...');
-    if (matchListener) matchListener();
-    if (eventsListener) eventsListener();
+    if (matchListener)   matchListener();
+    if (eventsListener)  eventsListener();
     if (displayInterval) clearInterval(displayInterval);
 });
 

@@ -4043,3 +4043,131 @@ img {
         font-size: 2rem;
     }
 }
+
+/* ================================================
+   NEW: Player picker modal styles (live.js update)
+   ================================================ */
+
+.modal-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    color: var(--text-dark, #1a1a1a);
+}
+
+.modal-select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    background: #fff;
+    color: #1a1a1a;
+    margin-bottom: 0.4rem;
+    box-sizing: border-box;
+    appearance: auto;
+}
+
+.modal-select:focus {
+    outline: none;
+    border-color: var(--primary-green, #2d6a2d);
+    box-shadow: 0 0 0 2px rgba(45, 106, 45, 0.15);
+}
+
+.modal-input-manual {
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    background: #fafafa;
+    color: #555;
+    box-sizing: border-box;
+}
+
+.modal-input-manual::placeholder { color: #aaa; }
+
+#assistSection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+}
+
+/* 2x yellow → red icon in timeline */
+.card-icon-double {
+    display: inline-flex;
+    gap: 1px;
+    vertical-align: middle;
+}
+
+.card-icon-double .card-y { font-size: 0.9em; }
+.card-icon-double .card-r { font-size: 0.9em; margin-left: -4px; }
+
+.timeline-event.yellow2red .event-text { color: #c0392b; font-weight: 600; }
+
+/* Assist text in timeline */
+.event-assist {
+    font-size: 0.82em;
+    color: #777;
+    font-style: italic;
+}
+
+/* Extra player button in availability */
+.availability-btn.extra-player {
+    background: var(--primary-green, #2d6a2d);
+    color: #fff;
+    font-size: 0.85rem;
+}
+
+/* ── Extra time (verlengingen) button ────────────────────── */
+.match-control-btn.extra-time {
+    background: #9C27B0;
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    transition: background 0.2s;
+}
+.match-control-btn.extra-time:hover {
+    background: #7B1FA2;
+}
+
+/* ── einde-regulier timeline event ──────────────────────── */
+.timeline-event.einde-regulier {
+    background: rgba(156, 39, 176, 0.08);
+    border-left: 3px solid #9C27B0;
+    font-style: italic;
+}
+
+/* ── Timeline icon images ────────────────────────────────── */
+.timeline-icon-img {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: block;
+    flex-shrink: 0;
+}
+
+/* Slightly smaller in the team-page modal timeline */
+.timeline-item .timeline-icon .timeline-icon-img {
+    width: 20px;
+    height: 20px;
+}
+
+/* Fallback dot when no image matches */
+.timeline-icon-fallback {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+/* ── "BEZIG" live-badge variant ─────────────────────────── */
+.live-badge.bezig {
+    background: #FF8C00;   /* amber/oranje — neutraal, niet rood zoals live */
+    color: #fff;
+    animation: none;        /* geen puls, want niet live gevolgd */
+}

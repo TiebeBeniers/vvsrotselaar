@@ -255,7 +255,7 @@ function displayPlannedMatch(match, container) {
         
         // Load availability data (alleen als user ingelogd is)
         if (currentUser) {
-            loadAvailability(match.id);
+            loadAvailability(match.id, match);
         }
         
     } catch (error) {
@@ -639,192 +639,173 @@ function createRecentMatchCard(match) {
 // ===============================================
 
 async function showMatchTimeline(match) {
-    const modal = document.getElementById('timelineModal');
-    const modalTitle = document.getElementById('timelineModalTitle');
-    const modalHomeTeam = document.getElementById('modalHomeTeam');
-    const modalAwayTeam = document.getElementById('modalAwayTeam');
-    const modalHomeScore = document.getElementById('modalHomeScore');
-    const modalAwayScore = document.getElementById('modalAwayScore');
-    const modalMatchDate = document.getElementById('modalMatchDate');
+    const modal           = document.getElementById('timelineModal');
+    const modalTitle      = document.getElementById('timelineModalTitle');
+    const modalHomeTeam   = document.getElementById('modalHomeTeam');
+    const modalAwayTeam   = document.getElementById('modalAwayTeam');
+    const modalHomeScore  = document.getElementById('modalHomeScore');
+    const modalAwayScore  = document.getElementById('modalAwayScore');
+    const modalMatchDate  = document.getElementById('modalMatchDate');
     const modalMatchLocation = document.getElementById('modalMatchLocation');
-    const modalTimeline = document.getElementById('modalTimeline');
-    
+    const modalTimeline   = document.getElementById('modalTimeline');
+
     if (!modal) return;
-    
-    // Update modal header
-    modalTitle.textContent = 'Wedstrijd Samenvatting';
-    modalHomeTeam.textContent = match.thuisploeg;
-    modalAwayTeam.textContent = match.uitploeg;
-    modalHomeScore.textContent = match.scoreThuis || 0;
-    modalAwayScore.textContent = match.scoreUit || 0;
-    
+
+    modalTitle.textContent      = 'Wedstrijd Samenvatting';
+    modalHomeTeam.textContent   = match.thuisploeg;
+    modalAwayTeam.textContent   = match.uitploeg;
+    modalHomeScore.textContent  = match.scoreThuis || 0;
+    modalAwayScore.textContent  = match.scoreUit   || 0;
+
     const matchDate = new Date(`${match.datum}T${match.uur}`);
     modalMatchDate.textContent = matchDate.toLocaleDateString('nl-BE', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
     });
     modalMatchLocation.textContent = match.locatie;
-    
-    // Show modal
+
     modal.classList.add('active');
-    
-    // Load timeline
     modalTimeline.innerHTML = '<div class="loading">Laden...</div>';
-    
+
     try {
-        // Query WITHOUT orderBy to avoid needing composite index
-        const eventsQuery = query(
+        const eventsSnapshot = await getDocs(query(
             collection(db, 'events'),
             where('matchId', '==', match.id)
-        );
-        
-        const eventsSnapshot = await getDocs(eventsQuery);
-        
+        ));
+
         if (eventsSnapshot.empty) {
-            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar, deze match werd niet Live gevolgd.</p>';
+            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
             return;
         }
-        
+
         const events = [];
-        eventsSnapshot.forEach(doc => {
-            events.push({ id: doc.id, ...doc.data() });
-        });
-        
-        // Sort events manually (same logic as live.js)
-        const firstHalfEvents = [];
-        const secondHalfEvents = [];
-        let rustEvent = null;
-        let hervatEvent = null;
-        
-        events.forEach(event => {
-            if (event.type === 'rust') {
-                rustEvent = event;
-            } else if (event.type === 'hervat') {
-                hervatEvent = event;
-            } else {
-                // Use half field if available
-                const eventHalf = event.half || 1;
-                
-                if (eventHalf === 2) {
-                    secondHalfEvents.push(event);
-                } else {
-                    firstHalfEvents.push(event);
-                }
-            }
-        });
-        
-        // Sort first half descending (most recent first)
-        firstHalfEvents.sort((a, b) => {
-            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
-            if (minuteDiff !== 0) return minuteDiff;
-            if (a.timestamp && b.timestamp) {
-                return b.timestamp.toMillis() - a.timestamp.toMillis();
-            }
-            return 0;
-        });
-        
-        // Sort second half descending
-        secondHalfEvents.sort((a, b) => {
-            const minuteDiff = (b.minuut || 0) - (a.minuut || 0);
-            if (minuteDiff !== 0) return minuteDiff;
-            if (a.timestamp && b.timestamp) {
-                return b.timestamp.toMillis() - a.timestamp.toMillis();
-            }
-            return 0;
-        });
-        
-        // Combine: second half → hervat → rust → first half
-        const sortedEvents = [];
-        sortedEvents.push(...secondHalfEvents);
-        if (hervatEvent) sortedEvents.push(hervatEvent);
-        if (rustEvent) sortedEvents.push(rustEvent);
-        sortedEvents.push(...firstHalfEvents);
-        
-        displayTimeline(sortedEvents, modalTimeline, match);
-        
+        eventsSnapshot.forEach(d => events.push({ id: d.id, ...d.data() }));
+
+        modalTimeline.innerHTML = '';
+        renderTimelineTeam(events, modalTimeline);
+
     } catch (error) {
         console.error('Error loading match timeline:', error);
-        modalTimeline.innerHTML = '<p class="error">Fout bij laden van timeline. Probeer het opnieuw.</p>';
+        modalTimeline.innerHTML = '<p class="error">Fout bij laden van timeline.</p>';
     }
 }
 
-function displayTimeline(events, container, match) {
-    container.innerHTML = '';
-    
-    events.forEach(event => {
-        const item = createTimelineItem(event, match);
-        container.appendChild(item);
+/**
+ * Renders a post-match timeline — logic mirrored from live.js.
+ * Structural events (aftrap, rust, einde-regulier, einde) used as dividers.
+ * Hervat events are intentionally ignored (not shown).
+ * Order (top = most recent):
+ *   einde → ET half 4 → ET rust → ET half 3 → einde-regulier
+ *   → 2nd half → HT rust → 1st half → aftrap
+ */
+function renderTimelineTeam(events, container) {
+    const STRUCTURAL = new Set(['aftrap', 'rust', 'einde-regulier', 'einde', 'hervat']);
+    // Filter out 'hervat' entirely from display
+    const structural = events.filter(e => STRUCTURAL.has(e.type) && e.type !== 'hervat');
+    const regular    = events.filter(e => !STRUCTURAL.has(e.type));
+
+    const byHalf = { 1: [], 2: [], 3: [], 4: [] };
+    regular.forEach(e => {
+        const h = e.half || 1;
+        if (byHalf[h]) byHalf[h].push(e);
     });
+
+    const sortDesc = (a, b) => {
+        const d = (b.minuut || 0) - (a.minuut || 0);
+        if (d !== 0) return d;
+        if (a.timestamp && b.timestamp) return b.timestamp.toMillis() - a.timestamp.toMillis();
+        return 0;
+    };
+    [1, 2, 3, 4].forEach(h => byHalf[h].sort(sortDesc));
+
+    const rustEvents = structural.filter(e => e.type === 'rust');
+    const rustHT     = rustEvents.find(e => (e.half || 1) <= 2) || rustEvents[0] || null;
+    const rustET     = rustEvents.find(e => (e.half || 1) >= 3) || null;
+    const aftrap     = structural.find(e => e.type === 'aftrap');
+    const eindeReg   = structural.find(e => e.type === 'einde-regulier');
+    const einde      = structural.find(e => e.type === 'einde');
+
+    const ordered = [];
+    if (einde) ordered.push(einde);
+    byHalf[4].forEach(e => ordered.push(e));
+    if (rustET) ordered.push(rustET);
+    byHalf[3].forEach(e => ordered.push(e));
+    if (eindeReg) ordered.push(eindeReg);
+    byHalf[2].forEach(e => ordered.push(e));
+    if (rustHT) ordered.push(rustHT);
+    byHalf[1].forEach(e => ordered.push(e));
+    if (aftrap) ordered.push(aftrap);
+
+    ordered.forEach(e => container.appendChild(createTimelineItem(e)));
 }
 
-function createTimelineItem(event, match) {
+// Returns an <img> tag for a given event type — mirrors live.js eventIcon().
+function eventIcon(type, half) {
+    const img = (file, alt) =>
+        `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
+    switch (type) {
+        case 'aftrap':         return img('goal.png',       'Aftrap');
+        case 'goal':           return img('goal.png',       'Goal');
+        case 'penalty':        return img('penalty.png',    'Penalty');
+        case 'own-goal':       return img('own-goal.png',   'Eigen doelpunt');
+        case 'yellow':         return img('yellow.png',     'Gele kaart');
+        case 'yellow2red':     return img('yellow2red.png', '2e Gele kaart / Rood');
+        case 'red':            return img('red.png',        'Rode kaart');
+        case 'substitution':   return img('sub.png',        'Wissel');
+        case 'rust':
+            return (half >= 3)
+                ? img('rust.png', 'Rust verlengingen')
+                : img('rust.png', 'Rust');
+        case 'einde-regulier': return img('extra-time.png', 'Verlengingen');
+        case 'einde':          return img('einde.png',      'Einde');
+        default:               return `<span class="timeline-icon-fallback">•</span>`;
+    }
+}
+
+function createTimelineItem(event) {
     const item = document.createElement('div');
     item.className = `timeline-item ${event.ploeg || 'center'}`;
-    
-    const iconMap = {
-        'aftrap': '⚽',
-        'goal': '⚽',
-        'penalty': '⚽',
-        'own-goal': '⚽',
-        'yellow': '🟨',
-        'red': '🟥',
-        'substitution': '🔄',
-        'rust': '⏸',
-        'hervat': '▶️',
-        'einde': '🏁'
-    };
-    
-    const icon = iconMap[event.type] || '•';
-    
+
     let description = '';
+
     switch (event.type) {
         case 'aftrap':
-            description = 'Aftrap';
-            break;
+            description = 'Aftrap'; break;
         case 'goal':
             description = `GOAL${event.speler ? ' - ' + event.speler : ''}`;
+            if (event.assist) description += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
         case 'penalty':
             description = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
+            if (event.assist) description += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
         case 'own-goal':
-            description = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            description = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'yellow':
-            description = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            description = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`; break;
+        case 'yellow2red':
+            description = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'red':
-            description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`;
-            break;
+            description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'substitution':
-            description = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`;
-            break;
+            description = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`; break;
         case 'rust':
-            description = 'Rust';
-            break;
-        case 'hervat':
-            description = 'Hervat 2e helft';
-            break;
+            description = (event.half >= 3) ? 'Rust verlengingen' : 'Rust'; break;
+        case 'einde-regulier':
+            description = 'Einde reguliere tijd — Verlengingen'; break;
         case 'einde':
-            description = 'Einde wedstrijd';
-            break;
+            description = 'Einde wedstrijd'; break;
         default:
             description = event.type;
     }
-    
-    // Structuur zoals live.js: minuut, icoon, en description los van elkaar
+
     item.innerHTML = `
         <span class="timeline-minute">${event.minuut || 0}'</span>
-        <span class="timeline-icon">${icon}</span>
+        <span class="timeline-icon">${eventIcon(event.type, event.half)}</span>
         <div class="timeline-content">
             <span class="timeline-description">${description}</span>
         </div>
     `;
-    
     return item;
 }
 
@@ -858,12 +839,12 @@ function loadStatistics() {
     const statisticsData = {
         zondag: {
             topScorers: [
-                { name: 'Roel Wouters', goals: 10 },
+                { name: 'Roel Wouters', goals: 11 },
                 { name: 'Dries Moermans', goals: 6 },
-                { name: 'Ruben Staal', goals: 4 }
+                { name: 'Ruben Staal', goals: 6 }
             ],
             topAssists: [
-                { name: 'Dries Moermans', assists: 9 },
+                { name: 'Dries Moermans', assists: 10 },
                 { name: 'Jesse Janssens', assists: 5 },
                 { name: 'Nand Wallays', assists: 4 }
             ]
@@ -928,7 +909,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let availabilityListener = null;
 
-async function loadAvailability(matchId) {
+async function loadAvailability(matchId, matchData = {}) {
     console.log('Loading availability for match:', matchId);
     const contentDiv = document.getElementById('availabilityContent');
     
@@ -936,33 +917,40 @@ async function loadAvailability(matchId) {
     
     // Als gebruiker NIET ingelogd is: toon helemaal niks
     if (!currentUser) {
-        contentDiv.innerHTML = ''; // Volledig leeg
+        contentDiv.innerHTML = '';
         return;
     }
     
-    // Gebruiker is ingelogd - check of het zijn eigen ploeg is
     try {
-        // Haal gebruikersdata op
         const userQuery = query(collection(db, 'users'), where('uid', '==', currentUser.uid));
         const userSnapshot = await getDocs(userQuery);
         
         if (userSnapshot.empty) {
-            console.log('User data not found');
             contentDiv.innerHTML = '';
             return;
         }
         
         const userData = userSnapshot.docs[0].data();
-        const userCategorie = userData.categorie; // veteranen/zaterdag/zondag/bestuurslid
+        const userCategorie = userData.categorie;
         
         console.log('User categorie:', userCategorie, 'Team type:', TEAM_TYPE);
         
-        // Check of gebruiker bij deze ploeg hoort
         const isOwnTeam = userCategorie === TEAM_TYPE;
         const isBestuurslid = userCategorie === 'bestuurslid';
+        const isDesignated = matchData.aangeduidePersonen &&
+            matchData.aangeduidePersonen.includes(currentUser.uid);
+        const canManageList = isBestuurslid || isDesignated;
         
         if (isOwnTeam) {
             // Eigen ploeg: toon knoppen EN lijst
+            // Als ook aangeduid persoon: toon ook extra speler knop
+            const extraPlayerBtn = canManageList ? `
+                <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="margin-top:0.5rem; background: var(--primary-green, #2d6a2d); color: #fff; font-size: 0.85rem;">
+                    <span>+</span>
+                    <span>Speler van andere ploeg toevoegen</span>
+                </button>
+            ` : '';
+
             contentDiv.innerHTML = `
                 <div class="availability-actions">
                     <button class="availability-btn available" id="availableBtn">
@@ -973,46 +961,45 @@ async function loadAvailability(matchId) {
                         <span>✗</span>
                         <span>Ik kan niet komen</span>
                     </button>
+                    ${extraPlayerBtn}
                 </div>
                 <div class="availability-list" id="availabilityList">
                     <div class="loading">Laden...</div>
                 </div>
             `;
             
-            // Setup button handlers
-            const availableBtn = document.getElementById('availableBtn');
-            const unavailableBtn = document.getElementById('unavailableBtn');
+            document.getElementById('availableBtn').addEventListener('click', () => setAvailability(matchId, true, userData.naam));
+            document.getElementById('unavailableBtn').addEventListener('click', () => setAvailability(matchId, false, userData.naam));
+            if (canManageList) {
+                document.getElementById('addExtraPlayerBtn').addEventListener('click', () => showAddExtraPlayerModal(matchId));
+            }
             
-            availableBtn.addEventListener('click', () => setAvailability(matchId, true, userData.naam));
-            unavailableBtn.addEventListener('click', () => setAvailability(matchId, false, userData.naam));
+            setupAvailabilityListener(matchId, true, canManageList);
             
-            // Setup real-time listener met lijst
-            setupAvailabilityListener(matchId, true);
-            
-        } else if (isBestuurslid) {
-            // Bestuurslid: alleen lijst zien, geen knoppen
+        } else if (canManageList) {
+            // Aangeduid persoon of bestuurslid van andere ploeg: lijst zien + extra speler toevoegen
             contentDiv.innerHTML = `
                 <div class="availability-info">
-                    <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 1rem; font-style: italic;">
-                        Als bestuurslid kun je de beschikbaarheid bekijken
+                    <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-style: italic;">
+                        Je kunt de beschikbaarheid bekijken en spelers van andere ploegen toevoegen.
                     </p>
+                    <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="background: var(--primary-green, #2d6a2d); color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                        <span>+</span>
+                        <span>Speler van andere ploeg toevoegen</span>
+                    </button>
                 </div>
                 <div class="availability-list" id="availabilityList">
                     <div class="loading">Laden...</div>
                 </div>
             `;
             
-            // Setup real-time listener met lijst
-            setupAvailabilityListener(matchId, true);
+            document.getElementById('addExtraPlayerBtn').addEventListener('click', () => showAddExtraPlayerModal(matchId));
+            setupAvailabilityListener(matchId, true, true);
             
         } else {
             // Andere ploeg: alleen telling zien, geen lijst
-            contentDiv.innerHTML = `
-                <div class="availability-summary-only"></div>
-            `;
-            
-            // Setup real-time listener zonder lijst (alleen telling)
-            setupAvailabilityListener(matchId, false);
+            contentDiv.innerHTML = `<div class="availability-summary-only"></div>`;
+            setupAvailabilityListener(matchId, false, false);
         }
         
     } catch (error) {
@@ -1021,7 +1008,259 @@ async function loadAvailability(matchId) {
     }
 }
 
-function setupAvailabilityListener(matchId, showList = true) {
+// -----------------------------------------------
+// EXTRA PLAYER MODAL (from other teams)
+// -----------------------------------------------
+
+// Cache of all users (loaded once per page session)
+let allUsersCache = null;
+
+async function getAllUsers() {
+    if (allUsersCache) return allUsersCache;
+    const snapshot = await getDocs(collection(db, 'users'));
+    allUsersCache = [];
+    snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        // Exclude users from the current team page — they already have availability buttons
+        if (data.categorie !== TEAM_TYPE) {
+            allUsersCache.push({
+                uid: data.uid || docSnap.id,
+                naam: data.naam || data.displayName || '',
+                categorie: data.categorie || ''
+            });
+        }
+    });
+    allUsersCache.sort((a, b) => a.naam.localeCompare(b.naam));
+    return allUsersCache;
+}
+
+function showAddExtraPlayerModal(matchId) {
+    const existing = document.getElementById('extraPlayerModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'extraPlayerModal';
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>Speler van andere ploeg toevoegen</h3>
+            <div class="modal-body">
+                <p style="font-size:0.9rem; color: var(--text-gray); margin-bottom:0.75rem;">
+                    Zoek een bestaand VVS-lid van een andere ploeg en voeg hem toe aan de
+                    beschikbaarheidslijst voor deze wedstrijd.
+                </p>
+                <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.4rem;">Zoek speler</label>
+                <input
+                    type="text"
+                    id="extraPlayerSearch"
+                    placeholder="Typ naam…"
+                    autocomplete="off"
+                    style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ccc; border-radius:8px; font-size:1rem; box-sizing:border-box;"
+                >
+                <div
+                    id="extraPlayerResults"
+                    style="margin-top:0.4rem; max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:8px; display:none;"
+                ></div>
+                <div id="extraPlayerSelected" style="display:none; margin-top:0.75rem; padding:0.5rem 0.75rem; background:#f0f7f0; border:1px solid #b2d8b2; border-radius:8px; font-size:0.9rem;"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="extraPlayerCancel">Annuleren</button>
+                <button class="modal-btn confirm" id="extraPlayerConfirm" disabled style="opacity:0.5;">Toevoegen</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let selectedUser = null;
+
+    const searchInput    = modal.querySelector('#extraPlayerSearch');
+    const resultsBox     = modal.querySelector('#extraPlayerResults');
+    const selectedBox    = modal.querySelector('#extraPlayerSelected');
+    const confirmBtn     = modal.querySelector('#extraPlayerConfirm');
+    const cancelBtn      = modal.querySelector('#extraPlayerCancel');
+
+    const teamLabels = {
+        veteranen: 'Veteranen',
+        zaterdag:  'Zaterdag',
+        zondag:    'Zondag',
+        bestuurslid: 'Bestuurslid'
+    };
+
+    function selectUser(user) {
+        selectedUser = user;
+        searchInput.value = user.naam;
+        resultsBox.style.display = 'none';
+        selectedBox.style.display = 'block';
+        selectedBox.textContent = `✓  ${user.naam}  (${teamLabels[user.categorie] || user.categorie})`;
+        confirmBtn.disabled = false;
+        confirmBtn.style.opacity = '1';
+    }
+
+    function clearSelection() {
+        selectedUser = null;
+        selectedBox.style.display = 'none';
+        confirmBtn.disabled = true;
+        confirmBtn.style.opacity = '0.5';
+    }
+
+    searchInput.addEventListener('input', async () => {
+        const q = searchInput.value.trim().toLowerCase();
+        clearSelection();
+
+        if (q.length < 1) {
+            resultsBox.style.display = 'none';
+            return;
+        }
+
+        const users = await getAllUsers();
+        const matches = users.filter(u => u.naam.toLowerCase().includes(q));
+
+        if (matches.length === 0) {
+            resultsBox.innerHTML = `
+                <div style="padding:0.6rem 0.75rem; color:#888; font-size:0.9rem;">Geen spelers gevonden</div>
+                <div
+                    class="extra-player-result extra-player-manual-opt"
+                    style="padding:0.55rem 0.75rem; cursor:pointer; font-size:0.88rem; color:#555; border-top:1px solid #eee; font-style:italic;"
+                >
+                    ✏️ Handmatig toevoegen…
+                </div>
+            `;
+            resultsBox.style.display = 'block';
+            resultsBox.querySelector('.extra-player-manual-opt')?.addEventListener('click', () => {
+                showManualFallback(modal, matchId, q);
+            });
+            return;
+        }
+
+        resultsBox.innerHTML = matches.map((u, i) => `
+            <div
+                class="extra-player-result"
+                data-idx="${i}"
+                style="padding:0.55rem 0.75rem; cursor:pointer; font-size:0.92rem; border-bottom:1px solid #f0f0f0; display:flex; justify-content:space-between; align-items:center;"
+            >
+                <span>${u.naam}</span>
+                <span style="font-size:0.78rem; color:#888;">${teamLabels[u.categorie] || u.categorie}</span>
+            </div>
+        `).join('');
+        // Add "manual" option at bottom
+        resultsBox.innerHTML += `
+            <div
+                class="extra-player-result extra-player-manual-opt"
+                style="padding:0.55rem 0.75rem; cursor:pointer; font-size:0.88rem; color:#555; border-top:2px solid #eee; font-style:italic;"
+            >
+                ✏️ Niet gevonden? Handmatig toevoegen…
+            </div>
+        `;
+        resultsBox.style.display = 'block';
+
+        resultsBox.querySelectorAll('.extra-player-result:not(.extra-player-manual-opt)').forEach((row, i) => {
+            row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
+            row.addEventListener('mouseleave', () => row.style.background = '');
+            row.addEventListener('click', () => selectUser(matches[i]));
+        });
+        resultsBox.querySelector('.extra-player-manual-opt')?.addEventListener('click', () => {
+            showManualFallback(modal, matchId, searchInput.value.trim());
+        });
+    });
+
+    cancelBtn.addEventListener('click', () => modal.remove());
+
+    confirmBtn.addEventListener('click', async () => {
+        if (!selectedUser) return;
+
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Bezig…';
+
+        try {
+            // Use the player's uid as the document key so duplicates are prevented
+            const availabilityRef = doc(db, 'matches', matchId, 'availability', selectedUser.uid);
+            await setDoc(availabilityRef, {
+                available: true,
+                displayName: selectedUser.naam,
+                isExternalPlayer: true,
+                fromTeam: selectedUser.categorie,  // which team they normally play for
+                addedBy: currentUser.uid,
+                timestamp: new Date().toISOString()
+            });
+            console.log('Extra player added:', selectedUser.naam, '(', selectedUser.categorie, ')');
+            modal.remove();
+        } catch (error) {
+            console.error('Error adding extra player:', error);
+            alert('Fout bij toevoegen speler: ' + error.message);
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Toevoegen';
+        }
+    });
+
+    // Focus search on open
+    setTimeout(() => searchInput.focus(), 50);
+}
+
+/**
+ * Shows a simple manual-entry fallback inside the same modal overlay.
+ * Called when the user clicks "Handmatig toevoegen" in the search results.
+ */
+function showManualFallback(modal, matchId, prefillName = '') {
+    const body = modal.querySelector('.modal-body');
+    body.innerHTML = `
+        <p style="font-size:0.9rem; color:var(--text-gray); margin-bottom:0.75rem;">
+            Vul de naam en ploeg in van de speler die niet in het systeem staat.
+        </p>
+        <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.3rem;">Naam</label>
+        <input
+            type="text"
+            id="manualFallbackName"
+            value="${prefillName}"
+            placeholder="Voornaam Achternaam"
+            style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ccc; border-radius:8px; font-size:1rem; box-sizing:border-box; margin-bottom:0.75rem;"
+        >
+        <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.3rem;">Ploeg</label>
+        <select id="manualFallbackTeam" style="width:100%; padding:0.5rem 0.75rem; border:1px solid #ccc; border-radius:8px; font-size:1rem; box-sizing:border-box;">
+            <option value="veteranen">Veteranen</option>
+            <option value="zaterdag">Zaterdag</option>
+            <option value="zondag">Zondag</option>
+            <option value="overig">Overig / Extern</option>
+        </select>
+    `;
+
+    const confirmBtn = modal.querySelector('#extraPlayerConfirm');
+    confirmBtn.disabled = false;
+    confirmBtn.style.opacity = '1';
+    confirmBtn.textContent = 'Toevoegen';
+
+    // Override confirm handler for manual mode
+    const newConfirm = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+
+    newConfirm.addEventListener('click', async () => {
+        const name = document.getElementById('manualFallbackName')?.value.trim();
+        const team = document.getElementById('manualFallbackTeam')?.value;
+        if (!name) { alert('Voer een naam in.'); return; }
+
+        newConfirm.disabled = true;
+        newConfirm.textContent = 'Bezig…';
+        try {
+            const safeKey = 'manual_' + name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+            await setDoc(doc(db, 'matches', matchId, 'availability', safeKey), {
+                available:        true,
+                displayName:      name,
+                isExternalPlayer: true,
+                fromTeam:         team,
+                addedBy:          currentUser.uid,
+                timestamp:        new Date().toISOString()
+            });
+            modal.remove();
+        } catch (err) {
+            console.error('Error adding manual player:', err);
+            alert('Fout bij toevoegen: ' + err.message);
+            newConfirm.disabled = false;
+            newConfirm.textContent = 'Toevoegen';
+        }
+    });
+}
+
+function setupAvailabilityListener(matchId, showList = true, canManage = false) {
     // Clean up previous listener
     if (availabilityListener) {
         availabilityListener();
@@ -1038,45 +1277,30 @@ function setupAvailabilityListener(matchId, showList = true) {
         const availableBtn = document.getElementById('availableBtn');
         const unavailableBtn = document.getElementById('unavailableBtn');
         
-        // Count and organize data
         let availableCount = 0;
         let unavailableCount = 0;
         const availabilities = [];
         
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            availabilities.push({
-                userId: doc.id,
-                ...data
-            });
-            
-            if (data.available) {
-                availableCount++;
-            } else {
-                unavailableCount++;
-            }
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            availabilities.push({ userId: docSnap.id, ...data });
+            if (data.available) availableCount++;
+            else unavailableCount++;
         });
         
-        // Update counts in header (altijd zichtbaar)
         if (availableCountEl) availableCountEl.textContent = availableCount;
         if (unavailableCountEl) unavailableCountEl.textContent = unavailableCount;
         
-        // Update button states if user is logged in
         if (currentUser && availableBtn && unavailableBtn) {
             availableBtn.classList.remove('selected');
             unavailableBtn.classList.remove('selected');
-            
             const userAvailability = availabilities.find(a => a.userId === currentUser.uid);
             if (userAvailability) {
-                if (userAvailability.available) {
-                    availableBtn.classList.add('selected');
-                } else {
-                    unavailableBtn.classList.add('selected');
-                }
+                if (userAvailability.available) availableBtn.classList.add('selected');
+                else unavailableBtn.classList.add('selected');
             }
         }
         
-        // Display list ONLY if showList is true (eigen ploeg of bestuurslid)
         if (showList && availabilityList) {
             if (availabilities.length === 0) {
                 availabilityList.innerHTML = `
@@ -1085,27 +1309,51 @@ function setupAvailabilityListener(matchId, showList = true) {
                     </div>
                 `;
             } else {
-                // Sort: available first, then alphabetically
                 availabilities.sort((a, b) => {
-                    if (a.available !== b.available) {
-                        return b.available - a.available; // true (1) before false (0)
-                    }
-                    return a.displayName.localeCompare(b.displayName);
+                    if (a.available !== b.available) return b.available - a.available;
+                    return (a.displayName || '').localeCompare(b.displayName || '');
                 });
                 
-                availabilityList.innerHTML = availabilities.map(av => `
-                    <div class="availability-player">
-                        <span class="player-name">${av.displayName}</span>
-                        <span class="availability-status ${av.available ? 'available' : 'unavailable'}">
-                            <span>${av.available ? '✓' : '✗'}</span>
-                            <span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>
-                        </span>
-                    </div>
-                `).join('');
+                availabilityList.innerHTML = availabilities.map(av => {
+                    const isExternal = av.isExternalPlayer === true;
+                    const teamLabels = { veteranen: 'Veteranen', zaterdag: 'Zaterdag', zondag: 'Zondag', bestuurslid: 'Bestuurslid' };
+                    const sideLabel = isExternal
+                        ? ` <span style="font-size:0.75rem; color:#888; font-style:italic;">(${teamLabels[av.fromTeam] || av.fromTeam || 'extern'})</span>`
+                        : '';
+                    const removeBtn = (canManage && isExternal)
+                        ? `<button class="remove-extra-player-btn" data-uid="${av.userId}" data-matchid="${matchId}" style="margin-left:auto; background:none; border:none; cursor:pointer; color:#4A4A4A; font-size:1rem;" title="Verwijder">✕</button>`
+                        : '';
+                    return `
+                        <div class="availability-player" style="display:flex; align-items:center; gap:0.5rem;">
+                            <span class="player-name">${av.displayName}${sideLabel}</span>
+                            <span class="availability-status ${av.available ? 'available' : 'unavailable'}" style="margin-left:${removeBtn ? '0' : 'auto'};">
+                                <span>${av.available ? '✓' : '✗'}</span>
+                                <span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>
+                            </span>
+                            ${removeBtn}
+                        </div>
+                    `;
+                }).join('');
+
+                // Wire up remove buttons
+                availabilityList.querySelectorAll('.remove-extra-player-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const uid = btn.dataset.uid;
+                        const mid = btn.dataset.matchid;
+                        if (!confirm('Speler verwijderen uit de lijst?')) return;
+                        try {
+                            await deleteDoc(doc(db, 'matches', mid, 'availability', uid));
+                        } catch (err) {
+                            console.error('Error removing extra player:', err);
+                            alert('Fout bij verwijderen: ' + err.message);
+                        }
+                    });
+                });
             }
         }
     }, (error) => {
         console.error('Error loading availability:', error);
+        const availabilityList = document.getElementById('availabilityList');
         if (availabilityList && showList) {
             availabilityList.innerHTML = `<p class="error">Fout bij laden van beschikbaarheid</p>`;
         }
