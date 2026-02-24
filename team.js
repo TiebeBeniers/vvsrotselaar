@@ -945,9 +945,9 @@ async function loadAvailability(matchId, matchData = {}) {
             // Eigen ploeg: toon knoppen EN lijst
             // Als ook aangeduid persoon: toon ook extra speler knop
             const extraPlayerBtn = canManageList ? `
-                <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="margin-top:0.5rem; background: var(--primary-green, #2d6a2d); color: #fff; font-size: 0.85rem;">
+                <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="margin-top:0.5rem;">
                     <span>+</span>
-                    <span>Speler van andere ploeg toevoegen</span>
+                    <span>Speler toevoegen</span>
                 </button>
             ` : '';
 
@@ -983,9 +983,9 @@ async function loadAvailability(matchId, matchData = {}) {
                     <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-style: italic;">
                         Je kunt de beschikbaarheid bekijken en spelers van andere ploegen toevoegen.
                     </p>
-                    <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="background: var(--primary-green, #2d6a2d); color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                    <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="margin-bottom: 0.5rem;">
                         <span>+</span>
-                        <span>Speler van andere ploeg toevoegen</span>
+                        <span>Speler toevoegen</span>
                     </button>
                 </div>
                 <div class="availability-list" id="availabilityList">

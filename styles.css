@@ -1653,6 +1653,7 @@ img {
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    position: relative;
 }
 
 .modal-content.large {
@@ -3632,8 +3633,9 @@ img {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 2rem;
+    gap: 1rem;
     margin-bottom: 1.5rem;
+    flex-wrap: nowrap;
 }
 
 .modal-team {
@@ -3644,9 +3646,12 @@ img {
 }
 
 .modal-team h4 {
-    font-size: 1.2rem;
+    font-size: 1rem;
     color: var(--text-dark);
     margin: 0;
+    text-align: center;
+    word-break: break-word;
+    max-width: 120px;
 }
 
 .modal-score {
@@ -3821,6 +3826,7 @@ img {
 
 .availability-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.8rem;
     margin-bottom: 1rem;
 }
@@ -4034,11 +4040,6 @@ img {
         text-align: center;
     }
     
-    .modal-teams {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
     .modal-score {
         font-size: 2rem;
     }
@@ -4115,9 +4116,17 @@ img {
 
 /* Extra player button in availability */
 .availability-btn.extra-player {
-    background: var(--primary-green, #2d6a2d);
+    background: var(--primary-blue);
     color: #fff;
     font-size: 0.85rem;
+    border: 2px solid var(--primary-blue);
+    flex: none;
+    width: 100%;
+}
+
+.availability-btn.extra-player:hover {
+    background: var(--dark-blue);
+    border-color: var(--dark-blue);
 }
 
 /* ── Extra time (verlengingen) button ────────────────────── */
