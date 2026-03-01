@@ -353,19 +353,19 @@ function calculateDisplayTime(match) {
         if (phase === 2) {
             if (match.status === 'rust' && !match.resumeStartedAt) return `${halfTime}'`;
             const d = halfTime + mins;
-            return d <= fullTime ? `${d}'` : `${fullTime}+${d - fullTime}'`;
+            return d < fullTime ? `${d}'` : `${fullTime}+${d - fullTime}'`;
         }
         if (phase === 3) {
             if (match.status === 'rust' && !match.etStartedAt) return `${fullTime}'`;
             const d = fullTime + mins;
             const etEnd = fullTime + ET_HALF;
-            return d <= etEnd ? `${d}'` : `${etEnd}+${d - etEnd}'`;
+            return d < etEnd ? `${d}'` : `${etEnd}+${d - etEnd}'`;
         }
         // phase 4
         if (match.status === 'rust' && !match.etResumeStartedAt) return `${fullTime + ET_HALF}'`;
         const d    = fullTime + ET_HALF + mins;
         const end  = fullTime + ET_HALF * 2;
-        return d <= end ? `${d}'` : `${end}+${d - end}'`;
+        return d < end ? `${d}'` : `${end}+${d - end}'`;
 
     } catch (err) {
         console.error('Error calculating display time:', err);
@@ -453,16 +453,16 @@ async function startMatch(matchData) {
 
         // If the person starts > START_LATE_THRESHOLD_MINUTES after kick-off,
         // use the SCHEDULED time as startedAt so the timer is correct.
-        // Otherwise use the real click time (serverTimestamp).
+        // Otherwise capture the exact click time client-side (avoids server round-trip delay).
         let startedAt;
         if (lateMinutes > START_LATE_THRESHOLD_MINUTES) {
             // Back-date to scheduled kick-off
             startedAt = Timestamp.fromDate(scheduledTime);
             console.log(`Late start (${Math.round(lateMinutes)} min) — using scheduled time as startedAt`);
         } else {
-            // On-time: use server timestamp (set below via updateDoc)
-            startedAt = null; // signal to use serverTimestamp
-            console.log(`On-time start — using serverTimestamp`);
+            // On-time: capture exact click moment before any await
+            startedAt = Timestamp.fromDate(now);
+            console.log(`On-time start — using client timestamp`);
         }
 
         const updatePayload = {
@@ -479,13 +479,7 @@ async function startMatch(matchData) {
             etResumeStartedAt: null,
         };
 
-        if (startedAt) {
-            // Late start: use back-dated Timestamp
-            updatePayload.startedAt = startedAt;
-        } else {
-            // On-time: let Firestore set the server time
-            updatePayload.startedAt = serverTimestamp();
-        }
+        updatePayload.startedAt = startedAt;
 
         await updateDoc(matchRef, updatePayload);
 

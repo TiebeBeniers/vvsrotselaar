@@ -103,12 +103,23 @@ async function loadNextMatch() {
                 // Live match found
                 const matchData = snapshot.docs[0].data();
                 const matchId = snapshot.docs[0].id;
-                displayLiveMatch({ id: matchId, ...matchData }, container);
-                startLiveUpdate({ id: matchId, ...matchData });
+                const fullMatch = { id: matchId, ...matchData };
+
+                // If the card isn't rendered yet, render it; otherwise just refresh data
+                const container = document.getElementById('nextMatchContainer');
+                if (!container) return;
+
+                if (!container.querySelector('.team-live-card')) {
+                    displayLiveMatch(fullMatch, container);
+                    startLiveUpdate(fullMatch);
+                } else {
+                    refreshLiveMatch(fullMatch);
+                }
             } else {
                 // No live match, show next planned match
                 stopLiveUpdate();
-                loadPlannedMatch(container);
+                const container = document.getElementById('nextMatchContainer');
+                if (container) loadPlannedMatch(container);
             }
         });
         
@@ -265,23 +276,26 @@ function displayPlannedMatch(match, container) {
 }
 
 function displayLiveMatch(match, container) {
+    const isRust = match.status === 'rust';
+    const isET   = match.extraTimeStarted;
+    const badgeText  = isRust ? 'RUST' : (isET ? 'VERL.' : 'LIVE');
+    const badgeClass = isRust ? 'rust' : 'live';
+
     container.innerHTML = `
-        <div class="next-match-card live">
-            <div class="live-badge-small">
-                ${match.status === 'rust' ? 'RUST' : 'LIVE'}
-            </div>
+        <div class="next-match-card live team-live-card">
+            <div class="live-badge-small ${badgeClass}">${badgeText}</div>
             <div class="live-match-display">
                 <div class="live-team">
                     <div class="team-name">${match.thuisploeg}</div>
-                    <div class="live-score" id="liveHomeScore">${match.scoreThuis || 0}</div>
+                    <div class="live-score" id="liveHomeScore">${match.scoreThuis ?? 0}</div>
                 </div>
                 <div class="live-center">
-                    <div class="live-time" id="liveTime">0'</div>
+                    <div class="live-time" id="liveTime">${calculateDisplayTime(match)}</div>
                     <div class="live-separator">-</div>
                 </div>
                 <div class="live-team">
                     <div class="team-name">${match.uitploeg}</div>
-                    <div class="live-score" id="liveAwayScore">${match.scoreUit || 0}</div>
+                    <div class="live-score" id="liveAwayScore">${match.scoreUit ?? 0}</div>
                 </div>
             </div>
             <button class="watch-live-btn" onclick="window.location.href='live.html'">
@@ -289,73 +303,75 @@ function displayLiveMatch(match, container) {
             </button>
         </div>
     `;
-    
-    updateLiveDisplay(match);
 }
 
 function updateLiveDisplay(match) {
-    const timeEl = document.getElementById('liveTime');
+    const timeEl      = document.getElementById('liveTime');
     const homeScoreEl = document.getElementById('liveHomeScore');
     const awayScoreEl = document.getElementById('liveAwayScore');
+    const badgeEl     = document.querySelector('.team-live-card .live-badge-small');
     
     if (!timeEl) return;
     
-    // Update scores
-    if (homeScoreEl) homeScoreEl.textContent = match.scoreThuis || 0;
-    if (awayScoreEl) awayScoreEl.textContent = match.scoreUit || 0;
-    
-    // Update time
-    timeEl.textContent = calculateDisplayTime(match);
+    if (homeScoreEl) homeScoreEl.textContent = match.scoreThuis ?? 0;
+    if (awayScoreEl) awayScoreEl.textContent = match.scoreUit   ?? 0;
+    if (timeEl)      timeEl.textContent      = calculateDisplayTime(match);
+
+    if (badgeEl) {
+        const isRust = match.status === 'rust';
+        const isET   = match.extraTimeStarted;
+        badgeEl.textContent = isRust ? 'RUST' : (isET ? 'VERL.' : 'LIVE');
+        badgeEl.className   = `live-badge-small ${isRust ? 'rust' : 'live'}`;
+    }
 }
 
 function calculateDisplayTime(match) {
     if (!match.startedAt) return "0'";
     
     try {
-        const halfTimeReached = match.halfTimeReached || false;
+        const phase    = match.phase || 1;
         const halfTime = match.team === 'veteranen' ? 35 : 45;
-        
-        let elapsedSeconds;
-        
-        if (!halfTimeReached) {
-            const startTime = match.startedAt.toMillis();
-            const currentTime = match.status === 'rust' && match.pausedAt 
-                ? match.pausedAt.toMillis() 
-                : Date.now();
-            
-            elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+        const fullTime = halfTime * 2;
+        const ET_HALF  = 15;
+
+        const frozen = match.status === 'rust' && match.pausedAt;
+        const now    = frozen ? match.pausedAt.toMillis() : Date.now();
+
+        let startMs;
+        if (phase === 1) {
+            startMs = match.startedAt.toMillis();
+        } else if (phase === 2) {
+            startMs = match.resumeStartedAt?.toMillis();
+        } else if (phase === 3) {
+            startMs = match.etStartedAt?.toMillis();
         } else {
-            if (match.resumeStartedAt) {
-                const resumeStart = match.resumeStartedAt.toMillis();
-                elapsedSeconds = Math.floor((Date.now() - resumeStart) / 1000);
-            } else {
-                elapsedSeconds = halfTime * 60;
-            }
+            startMs = match.etResumeStartedAt?.toMillis();
         }
-        
-        const totalMinutes = Math.floor(elapsedSeconds / 60);
-        
-        if (!halfTimeReached) {
-            if (totalMinutes < halfTime) {
-                return `${totalMinutes}'`;
-            } else {
-                const extraTime = totalMinutes - halfTime;
-                return `${halfTime}+${extraTime}'`;
-            }
-        } else {
-            if (match.status === 'rust' && !match.resumeStartedAt) {
-                return `${halfTime}'`;
-            } else {
-                const secondHalfMinute = halfTime + totalMinutes;
-                
-                if (secondHalfMinute <= halfTime * 2) {
-                    return `${secondHalfMinute}'`;
-                } else {
-                    const extraTime = secondHalfMinute - (halfTime * 2);
-                    return `${halfTime * 2}+${extraTime}'`;
-                }
-            }
+        if (!startMs) return "0'";
+
+        const elapsedSeconds = Math.max(0, Math.floor((now - startMs) / 1000));
+        const mins = Math.floor(elapsedSeconds / 60);
+
+        if (phase === 1) {
+            return mins < halfTime ? `${mins}'` : `${halfTime}+${mins - halfTime}'`;
         }
+        if (phase === 2) {
+            if (match.status === 'rust' && !match.resumeStartedAt) return `${halfTime}'`;
+            const d = halfTime + mins;
+            return d < fullTime ? `${d}'` : `${fullTime}+${d - fullTime}'`;
+        }
+        if (phase === 3) {
+            if (match.status === 'rust' && !match.etStartedAt) return `${fullTime}'`;
+            const d = fullTime + mins;
+            const etEnd = fullTime + ET_HALF;
+            return d < etEnd ? `${d}'` : `${etEnd}+${d - etEnd}'`;
+        }
+        // phase 4
+        if (match.status === 'rust' && !match.etResumeStartedAt) return `${fullTime + ET_HALF}'`;
+        const d    = fullTime + ET_HALF + mins;
+        const end  = fullTime + ET_HALF * 2;
+        return d < end ? `${d}'` : `${end}+${d - end}'`;
+
     } catch (error) {
         console.error('Error calculating time:', error);
         return "0'";
@@ -373,6 +389,12 @@ function startLiveUpdate(match) {
             updateLiveDisplay(currentLiveMatch);
         }
     }, 1000);
+}
+
+// Called from the onSnapshot to keep currentLiveMatch up to date
+function refreshLiveMatch(match) {
+    currentLiveMatch = match;
+    updateLiveDisplay(match);
 }
 
 function stopLiveUpdate() {
@@ -744,14 +766,15 @@ function eventIcon(type, half) {
     const img = (file, alt) =>
         `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
     switch (type) {
-        case 'aftrap':         return img('goal.png',       'Aftrap');
-        case 'goal':           return img('goal.png',       'Goal');
-        case 'penalty':        return img('penalty.png',    'Penalty');
-        case 'own-goal':       return img('own-goal.png',   'Eigen doelpunt');
-        case 'yellow':         return img('yellow.png',     'Gele kaart');
-        case 'yellow2red':     return img('yellow2red.png', '2e Gele kaart / Rood');
-        case 'red':            return img('red.png',        'Rode kaart');
-        case 'substitution':   return img('sub.png',        'Wissel');
+        case 'aftrap':          return img('goal.png',           'Aftrap');
+        case 'goal':            return img('goal.png',           'Goal');
+        case 'penalty':         return img('penalty.png',        'Penalty');
+        case 'penalty-missed':  return img('penalty_missed.png', 'Penalty gemist');
+        case 'own-goal':        return img('own-goal.png',       'Eigen doelpunt');
+        case 'yellow':          return img('yellow.png',         'Gele kaart');
+        case 'yellow2red':      return img('yellow2red.png',     '2e Gele kaart / Rood');
+        case 'red':             return img('red.png',            'Rode kaart');
+        case 'substitution':    return img('sub.png',            'Wissel');
         case 'rust':
             return (half >= 3)
                 ? img('rust.png', 'Rust verlengingen')
@@ -779,6 +802,9 @@ function createTimelineItem(event) {
             description = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
             if (event.assist) description += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
+        case 'penalty-missed':
+            description = `Penalty gemist${event.speler ? ' - ' + event.speler : ''}`;
+            break;
         case 'own-goal':
             description = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'yellow':
@@ -787,8 +813,17 @@ function createTimelineItem(event) {
             description = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'red':
             description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'substitution':
-            description = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`; break;
+        case 'substitution': {
+            const injuryIcon = event.injured
+                ? ` <img src="assets/blessure.png" alt="Geblesseerd" class="timeline-icon-img timeline-icon-inline" title="Geblesseerd">`
+                : '';
+            if (event.spelerUit && event.spelerIn) {
+                description = `Wissel: ${event.spelerUit}${injuryIcon} → ${event.spelerIn}`;
+            } else {
+                description = `Wissel${injuryIcon}`;
+            }
+            break;
+        }
         case 'rust':
             description = (event.half >= 3) ? 'Rust verlengingen' : 'Rust'; break;
         case 'einde-regulier':
@@ -839,14 +874,14 @@ function loadStatistics() {
     const statisticsData = {
         zondag: {
             topScorers: [
-                { name: 'Roel Wouters', goals: 11 },
+                { name: 'Roel Wouters', goals: 12 },
                 { name: 'Dries Moermans', goals: 6 },
                 { name: 'Ruben Staal', goals: 6 }
             ],
             topAssists: [
-                { name: 'Dries Moermans', assists: 10 },
+                { name: 'Dries Moermans', assists: 11 },
                 { name: 'Jesse Janssens', assists: 5 },
-                { name: 'Nand Wallays', assists: 4 }
+                { name: 'Nand Wallays', assists: 5 }
             ]
         }
     };

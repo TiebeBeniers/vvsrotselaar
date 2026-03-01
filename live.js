@@ -24,7 +24,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, onSnapshot, getDocs,
-    doc, updateDoc, addDoc, serverTimestamp
+    doc, updateDoc, addDoc, serverTimestamp, Timestamp
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Live.js loaded');
@@ -40,8 +40,10 @@ let eventsListener  = null;
 let displayInterval = null;
 let hasAccess       = false;
 
-// Players for home (VVS) side only — away is always manual
+// Players for VVS side — which side that is depends on thuisploeg/uitploeg
 let homePlayers = [];
+// 'home' if VVS is thuisploeg, 'away' if VVS is uitploeg
+let vvsSide = 'home';
 
 // Yellow card counts per player name, rebuilt from events
 let yellowCardCounts = {};
@@ -142,7 +144,12 @@ async function loadAvailablePlayers() {
             if (data.available) homePlayers.push({ uid: d.id, name: data.displayName || d.id });
         });
         homePlayers.sort((a, b) => a.name.localeCompare(b.name));
-        console.log('Home players loaded:', homePlayers.length);
+
+        // Determine which side VVS plays on
+        // VVS team name contains 'rotselaar' (case-insensitive) or is the match's own team
+        const thuisploeg = (currentMatch?.thuisploeg || '').toLowerCase();
+        vvsSide = thuisploeg.includes('rotselaar') ? 'home' : 'away';
+        console.log('Home players loaded:', homePlayers.length, '| VVS side:', vvsSide);
     } catch (e) { console.error('Error loading players:', e); }
 }
 
@@ -221,7 +228,8 @@ function calculateTimeDisplay() {
         // Frozen during rust before 2nd half starts
         if (status === 'rust' && !currentMatch?.resumeStartedAt) return `${halfDur}:00`;
         const disp = halfDur + mins;
-        if (disp <= fullDur) return `${disp}:${pad(secs)}`;
+        // Use strict < so that at exactly 90:00 we switch to 90+0:xx
+        if (disp < fullDur) return `${disp}:${pad(secs)}`;
         return `${fullDur}+${disp - fullDur}:${pad(secs)}`;
     }
     if (phase === 3) {
@@ -229,14 +237,14 @@ function calculateTimeDisplay() {
         if (status === 'rust' && !currentMatch?.etStartedAt) return `${fullDur}:00`;
         const disp = fullDur + mins;
         const etFull = fullDur + ET_HALF_DURATION;
-        if (disp <= etFull) return `${disp}:${pad(secs)}`;
+        if (disp < etFull) return `${disp}:${pad(secs)}`;
         return `${etFull}+${disp - etFull}:${pad(secs)}`;
     }
     // phase 4
     if (status === 'rust' && !currentMatch?.etResumeStartedAt) return `${fullDur + ET_HALF_DURATION}:00`;
     const disp   = fullDur + ET_HALF_DURATION + mins;
     const etFull = fullDur + ET_HALF_DURATION * 2;
-    if (disp <= etFull) return `${disp}:${pad(secs)}`;
+    if (disp < etFull) return `${disp}:${pad(secs)}`;
     return `${etFull}+${disp - etFull}:${pad(secs)}`;
 }
 
@@ -382,7 +390,8 @@ async function handlePause() {
         const phase    = currentMatch.phase || 1;
         const matchRef = doc(db, 'matches', currentMatchId);
 
-        const upd = { status: 'rust', pausedAt: serverTimestamp() };
+        const now      = Timestamp.fromDate(new Date()); // exact click moment
+        const upd = { status: 'rust', pausedAt: now };
         if (phase === 1) {
             // End of 1st regular half — advance phase counter to 2 (rust before 2nd half)
             upd.halfTimeReached = true;
@@ -419,12 +428,13 @@ async function handleResume() {
 
         const upd = { status: 'live', pausedAt: null };
 
+        const now = Timestamp.fromDate(new Date()); // exact click moment
         if (phase === 2 && !currentMatch.resumeStartedAt) {
-            upd.resumeStartedAt = serverTimestamp();
+            upd.resumeStartedAt = now;
         } else if (phase === 3 && !currentMatch.etStartedAt) {
-            upd.etStartedAt = serverTimestamp();
+            upd.etStartedAt = now;
         } else if (phase === 4 && !currentMatch.etResumeStartedAt) {
-            upd.etResumeStartedAt = serverTimestamp();
+            upd.etResumeStartedAt = now;
         }
 
         await updateDoc(matchRef, upd);
@@ -450,7 +460,7 @@ async function handleExtraTime() {
         // Put in rust so the designated person sees "START VERLENGINGEN"
         await updateDoc(matchRef, {
             status:           'rust',
-            pausedAt:         serverTimestamp(),
+            pausedAt:         Timestamp.fromDate(new Date()), // exact click moment
             extraTimeStarted: true,
             phase:            3
         });
@@ -515,11 +525,16 @@ function populateSelect(selectEl, players, emptyLabel = '— Selecteer speler �
     });
 }
 
-function getModalValue(selectId, manualId) {
+function getModalValue(selectId, manualId, isOpponent = false) {
     const sel = document.getElementById(selectId);
     const man = document.getElementById(manualId);
     if (sel && sel.value) return sel.value;
-    if (man && man.value.trim()) return man.value.trim();
+    if (man && man.value.trim()) {
+        const val = man.value.trim();
+        // If this is the opponent side and the input is a number, format it
+        if (isOpponent && /^\d+$/.test(val)) return `Nummer ${val}`;
+        return val;
+    }
     return '';
 }
 
@@ -547,8 +562,19 @@ function handleControlClick(e) {
     };
     modalTitle.textContent = actionNames[action] || action;
 
-    const isAway   = team === 'away';
-    const players  = isAway ? [] : homePlayers; // away → always manual
+    // Is this team the VVS side?
+    const isVvs   = team === vvsSide;
+    const players  = isVvs ? homePlayers : [];
+
+    // Show/hide injury checkbox (only for substitution)
+    const injuryRow = document.getElementById('injuryRow');
+    if (injuryRow) injuryRow.style.display = 'none';
+    const injuryCheck = document.getElementById('injuryCheck');
+    if (injuryCheck) injuryCheck.checked = false;
+
+    // Show/hide penalty missed button
+    const penaltyMissedRow = document.getElementById('penaltyMissedRow');
+    if (penaltyMissedRow) penaltyMissedRow.style.display = 'none';
 
     if (action === 'substitution') {
         subSection.style.display = 'block';
@@ -556,25 +582,35 @@ function handleControlClick(e) {
         const inSel  = document.getElementById('playerInSelect');
         populateSelect(outSel, players, '— Speler uit —');
         populateSelect(inSel,  players, '— Speler in —');
-        // Hide dropdowns for away (empty anyway, but cleaner)
-        outSel.style.display = isAway ? 'none' : '';
-        inSel.style.display  = isAway ? 'none' : '';
+        // Hide dropdowns for opponent (show number input instead)
+        outSel.style.display = isVvs ? '' : 'none';
+        inSel.style.display  = isVvs ? '' : 'none';
+        document.getElementById('playerOutManualInput').placeholder = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
+        document.getElementById('playerInManualInput').placeholder  = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
         document.getElementById('playerOutManualInput').value = '';
         document.getElementById('playerInManualInput').value  = '';
+        // Show injury checkbox
+        if (injuryRow) injuryRow.style.display = 'flex';
     } else {
         singleSection.style.display = 'block';
         pickerLabel.textContent = action === 'own-goal' ? 'Speler (eigen doelpunt)' : 'Speler';
         const playerSel = document.getElementById('playerSelect');
         populateSelect(playerSel, players);
-        playerSel.style.display = isAway ? 'none' : '';
+        playerSel.style.display = isVvs ? '' : 'none';
+        document.getElementById('playerManualInput').placeholder = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
         document.getElementById('playerManualInput').value = '';
 
         if (action === 'goal' || action === 'penalty') {
             assistSection.style.display = 'block';
             const assistSel = document.getElementById('assistSelect');
             populateSelect(assistSel, players, '— Geen assist —');
-            assistSel.style.display = isAway ? 'none' : '';
+            assistSel.style.display = isVvs ? '' : 'none';
+            document.getElementById('assistManualInput').placeholder = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
             document.getElementById('assistManualInput').value = '';
+        }
+
+        if (action === 'penalty') {
+            if (penaltyMissedRow) penaltyMissedRow.style.display = 'flex';
         }
     }
 
@@ -591,21 +627,25 @@ if (modalConfirm) {
         if (!pendingAction) return;
         const modal = document.getElementById('playerModal');
         const { team, action } = pendingAction;
+        const isOpponent = team !== vvsSide;
 
         let playerName = '', assistName = '', playerOut = '', playerIn = '';
+        let injured = false;
 
         if (action === 'substitution') {
-            playerOut = getModalValue('playerOutSelect', 'playerOutManualInput');
-            playerIn  = getModalValue('playerInSelect',  'playerInManualInput');
+            playerOut = getModalValue('playerOutSelect', 'playerOutManualInput', isOpponent);
+            playerIn  = getModalValue('playerInSelect',  'playerInManualInput',  isOpponent);
+            const injuryCheck = document.getElementById('injuryCheck');
+            injured = injuryCheck ? injuryCheck.checked : false;
         } else {
-            playerName = getModalValue('playerSelect', 'playerManualInput');
+            playerName = getModalValue('playerSelect', 'playerManualInput', isOpponent);
             if (action === 'goal' || action === 'penalty') {
-                assistName = getModalValue('assistSelect', 'assistManualInput');
+                assistName = getModalValue('assistSelect', 'assistManualInput', isOpponent);
             }
         }
 
         modal.classList.remove('active');
-        await executeAction(team, action, playerName, playerOut, playerIn, assistName);
+        await executeAction(team, action, playerName, playerOut, playerIn, assistName, { injured });
         pendingAction = null;
     });
 }
@@ -616,9 +656,24 @@ if (modalCancel) {
     });
 }
 
+// Penalty missed button
+const penaltyMissedBtn = document.getElementById('penaltyMissedBtn');
+if (penaltyMissedBtn) {
+    penaltyMissedBtn.addEventListener('click', async () => {
+        if (!pendingAction) return;
+        const modal = document.getElementById('playerModal');
+        const { team } = pendingAction;
+        const isOpponent = team !== vvsSide;
+        const playerName = getModalValue('playerSelect', 'playerManualInput', isOpponent);
+        modal.classList.remove('active');
+        await executeAction(team, 'penalty-missed', playerName, '', '', '', {});
+        pendingAction = null;
+    });
+}
+
 // ── Execute action ────────────────────────────────────────────────────────────
 
-async function executeAction(team, action, playerName = '', playerOut = '', playerIn = '', assistName = '') {
+async function executeAction(team, action, playerName = '', playerOut = '', playerIn = '', assistName = '', options = {}) {
     try {
         const minute   = getCurrentMinuteForEvent();
         const phase    = currentMatch.phase || 1;
@@ -653,10 +708,12 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
             const cur      = (oppTeam === 'home' ? currentMatch.scoreThuis : currentMatch.scoreUit) || 0;
             await updateDoc(matchRef, { [field]: cur + 1 });
         }
+        // penalty-missed: no score change
 
         if (resolvedAction === 'substitution') {
             eventData.spelerUit = playerOut;
             eventData.spelerIn  = playerIn;
+            if (options.injured) eventData.injured = true;
         }
 
         await addDoc(collection(db, 'events'), eventData);
@@ -771,14 +828,15 @@ function eventIcon(type, half) {
         `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
 
     switch (type) {
-        case 'aftrap':        return img('goal.png',      'Aftrap');
-        case 'goal':          return img('goal.png',      'Goal');
-        case 'penalty':       return img('penalty.png',   'Penalty');
-        case 'own-goal':      return img('own-goal.png',  'Eigen doelpunt');
-        case 'yellow':        return img('yellow.png',    'Gele kaart');
-        case 'yellow2red':    return img('yellow2red.png','2e Gele kaart / Rood');
-        case 'red':           return img('red.png',       'Rode kaart');
-        case 'substitution':  return img('sub.png',       'Wissel');
+        case 'aftrap':          return img('goal.png',           'Aftrap');
+        case 'goal':            return img('goal.png',           'Goal');
+        case 'penalty':         return img('penalty.png',        'Penalty');
+        case 'penalty-missed':  return img('penalty_missed.png', 'Penalty gemist');
+        case 'own-goal':        return img('own-goal.png',       'Eigen doelpunt');
+        case 'yellow':          return img('yellow.png',         'Gele kaart');
+        case 'yellow2red':      return img('yellow2red.png',     '2e Gele kaart / Rood');
+        case 'red':             return img('red.png',            'Rode kaart');
+        case 'substitution':    return img('sub.png',            'Wissel');
         case 'rust':
             return (half >= 3)
                 ? img('rust.png', 'Rust verlengingen')
@@ -811,6 +869,9 @@ export function createEventElement(event) {
             text = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
             if (event.assist) text += ` <span class="event-assist">(assist: ${event.assist})</span>`;
             break;
+        case 'penalty-missed':
+            text = `Penalty gemist${event.speler ? ' - ' + event.speler : ''}`;
+            break;
         case 'own-goal':
             text = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'yellow':
@@ -819,8 +880,17 @@ export function createEventElement(event) {
             text = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'red':
             text = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'substitution':
-            text = `Wissel${event.spelerUit && event.spelerIn ? ': ' + event.spelerUit + ' → ' + event.spelerIn : ''}`; break;
+        case 'substitution': {
+            const injuryIcon = event.injured
+                ? ` <img src="assets/blessure.png" alt="Geblesseerd" class="timeline-icon-img timeline-icon-inline" title="Geblesseerd">`
+                : '';
+            if (event.spelerUit && event.spelerIn) {
+                text = `Wissel: ${event.spelerUit}${injuryIcon} → ${event.spelerIn}`;
+            } else {
+                text = `Wissel${injuryIcon}`;
+            }
+            break;
+        }
         case 'rust':
             text = (event.half >= 3) ? 'Rust verlengingen' : 'Rust'; break;
         case 'einde-regulier':

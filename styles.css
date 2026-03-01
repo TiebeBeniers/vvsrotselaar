@@ -104,7 +104,7 @@ img {
     width: 20px;
     height: 20px;
     margin-right: 0.8rem;
-    background-image: url('../assets/bier.png');
+    background-image: url('assets/bier.png');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
