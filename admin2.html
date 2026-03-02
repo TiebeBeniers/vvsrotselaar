@@ -41,17 +41,42 @@
                 <button class="tab-btn active" data-tab="werklijst">Werklijst Beheren</button>
             </div>
 
-            <!-- ── Werklijst Tab ── -->
+            <!-- ══ Werklijst tab ════════════════════════════════════════════════ -->
             <div class="tab-content active" id="werklijstTab">
-                <div class="section-header">
-                    <h3>Rock Werchter – Werklijst</h3>
-                    <button class="add-btn" id="addShiftBtn">+ Shift Toevoegen</button>
+
+                <!-- ── Overzicht werklijsten ── -->
+                <div id="werklijstenView">
+                    <div class="section-header">
+                        <h3>Werklijsten</h3>
+                        <button class="add-btn" id="addWerklijstBtn">+ Werklijst Toevoegen</button>
+                    </div>
+                    <p class="wl-admin-hint">
+                        Maak werklijsten aan voor verschillende evenementen.
+                        Maximaal <strong>één</strong> werklijst is actief tegelijk — dit is de lijst die leden zien op de werklijstpagina.
+                    </p>
+                    <div id="werklijstenList" class="werklijsten-list">
+                        <div class="loading">Laden…</div>
+                    </div>
                 </div>
 
-                <div class="werklijst-admin-grid" id="werklijstAdminGrid">
-                    <div class="loading">Laden...</div>
+                <!-- ── Shift-editor voor een werklijst ── -->
+                <div id="shiftsEditorView" style="display:none;">
+                    <div class="section-header">
+                        <div class="shifts-editor-title-row">
+                            <button class="back-btn" id="backToWerklijstenBtn">← Terug</button>
+                            <div>
+                                <h3 id="shiftsEditorTitle">Werklijst</h3>
+                                <span class="wl-active-badge" id="shiftsEditorActive" style="display:none;">● ACTIEF</span>
+                            </div>
+                        </div>
+                        <button class="add-btn" id="addShiftBtn">+ Shift Toevoegen</button>
+                    </div>
+                    <div id="shiftsEditorGrid" class="shifts-editor-grid">
+                        <div class="loading">Laden…</div>
+                    </div>
                 </div>
-            </div>
+
+            </div><!-- /werklijstTab -->
 
             <!-- ── Pagina navigatie ── -->
             <div class="admin-page-nav">
@@ -65,7 +90,29 @@
         <p>&copy; TiebeBeniers</p>
     </footer>
 
-    <!-- ── Shift toevoegen / bewerken Modal ── -->
+    <!-- ═══════════════════════════════════════════
+         Modal: Werklijst aanmaken / hernoemen
+    ════════════════════════════════════════════ -->
+    <div class="modal" id="werklijstModal">
+        <div class="modal-content">
+            <h3 id="werklijstModalTitle">Werklijst Toevoegen</h3>
+            <form id="werklijstForm" class="admin-form">
+                <div class="form-group">
+                    <label for="werklijstNaam">Naam van de werklijst *</label>
+                    <input type="text" id="werklijstNaam" required placeholder="bv. Rock Werchter 2026">
+                </div>
+                <input type="hidden" id="werklijstId">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="werklijstModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         Modal: Shift toevoegen / bewerken
+    ════════════════════════════════════════════ -->
     <div class="modal" id="shiftModal">
         <div class="modal-content large">
             <h3 id="shiftModalTitle">Shift Toevoegen</h3>
@@ -84,9 +131,23 @@
                         <input type="text" id="shiftTime" required placeholder="bv. 08:00 – 14:00">
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="shiftMax">Max. personen (leeg = onbeperkt)</label>
+                        <input type="number" id="shiftMax" min="1" placeholder="bv. 5">
+                    </div>
+                    <div class="form-group">
+                        <label for="shiftCategory">Categorie *</label>
+                        <input type="text" id="shiftCategory" required
+                               placeholder="bv. Festival, Opbouw, Mosseldag"
+                               list="categoryList">
+                        <datalist id="categoryList"></datalist>
+                        <small>Shiften met dezelfde categorie worden gegroepeerd.</small>
+                    </div>
+                </div>
                 <div class="form-group">
-                    <label for="shiftMax">Max. personen (leeg = onbeperkt)</label>
-                    <input type="number" id="shiftMax" min="1" placeholder="bv. 5">
+                    <label for="shiftNote">Opmerking (optioneel)</label>
+                    <input type="text" id="shiftNote" placeholder="bv. Einduur niet bepaald – kan uitlopen">
                 </div>
                 <input type="hidden" id="shiftId">
                 <div class="modal-actions">
@@ -97,7 +158,9 @@
         </div>
     </div>
 
-    <!-- ── Confirm Delete Modal ── -->
+    <!-- ═══════════════════════════════════════════
+         Modal: Bevestigen verwijderen
+    ════════════════════════════════════════════ -->
     <div class="modal" id="confirmModal">
         <div class="modal-content">
             <h3>Bevestigen</h3>

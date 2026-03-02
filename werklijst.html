@@ -37,7 +37,7 @@
 
     <!-- ── Hero ── -->
     <div class="werklijst-hero">
-        <span class="event-tag">🎸 Rock Werchter 2026</span>
+        <span class="event-tag" id="heroEventTag">📋 Werkplanning</span>
         <h2>Werkplanning</h2>
         <p>Duid hieronder jouw shiften aan.</p>
     </div>
@@ -59,36 +59,37 @@
             <!-- Loading -->
             <div class="werklijst-loading" id="loadingSpinner">
                 <div class="werklijst-spinner"></div>
-                <span>Laden...</span>
+                <span>Laden…</span>
             </div>
 
             <!-- Main Content -->
             <div id="mainContent" style="display:none;">
 
+                <!-- Geen actieve werklijst -->
+                <div class="auth-guard" id="noActiveWerklijst" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <h3>Geen actieve werkplanning</h3>
+                    <p>Er is momenteel geen werkplanning actief. Neem contact op met de beheerder.</p>
+                </div>
+
+                <!-- Geen shiften in actieve werklijst -->
+                <div class="werklijst-empty-notice" id="emptyShiftsNotice" style="display:none;">
+                    <p>Er zijn nog geen shiften aangemaakt voor deze werkplanning.</p>
+                </div>
+
                 <!-- Legende -->
                 <div class="wl-legend">
                     <span class="wl-legend-title">Legende:</span>
                     <span class="wl-legend-item"><span class="wl-legend-dot available"></span> Beschikbaar</span>
-                    <span class="wl-legend-item"><span class="wl-legend-dot full"></span> Vol (aanmelden nog mogelijk)</span>
+                    <span class="wl-legend-item"><span class="wl-legend-dot full"></span> Vol</span>
                     <span class="wl-legend-item"><span class="wl-legend-dot signed"></span> Jij bent ingeschreven</span>
                     <span class="wl-legend-item"><span class="wl-legend-dot responsible"></span> Verantwoordelijke</span>
                 </div>
 
-                <!-- Festival Shiften -->
-                <div class="wl-section-label">
-                    <h3>Festival Shiften</h3>
-                    <div class="wl-divider"></div>
-                    <span class="wl-tag">2 – 5 JULI</span>
-                </div>
-                <div class="festival-grid" id="festivalGrid"></div>
-
-                <!-- Opbouw & Afbouw -->
-                <div class="wl-section-label">
-                    <h3>Opbouw &amp; Afbouw</h3>
-                    <div class="wl-divider"></div>
-                    <span class="wl-tag tag-secondary">VOOR &amp; NA</span>
-                </div>
-                <div class="special-grid" id="specialGrid"></div>
+                <!-- Dynamisch gegenereerde secties per categorie -->
+                <div id="dynamicSections"></div>
 
             </div>
         </div>

@@ -1,79 +1,33 @@
 // ===============================================
 // WERKLIJST.JS – Rock Werchter Shiften
 // V.V.S Rotselaar
+// Leest dynamisch van de actieve werklijst in Firestore:
+//   werklijsten/{id}            → { naam, active }
+//   werklijsten/{id}/shifts/{id} → { label, date, time, max, note, section, persons }
 // ===============================================
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, doc, setDoc, onSnapshot,
-    query, where, getDocs
+    query, where, getDocs, limit
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-// ── Data Definitions ─────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────────
+let currentUser        = null;
+let currentUserData    = null;
+let activeWerklijst    = null;   // { id, naam }
+let shiftsData         = {};     // shiftId → shift doc data
+let pendingShiftId     = null;
+let unsubShifts        = null;
+let toastTimer         = null;
 
-const FESTIVAL_DAYS = [
-    { id: 'do_2jul', label: 'Donderdag', date: '2 juli',  calDate: '20260702' },
-    { id: 'vr_3jul', label: 'Vrijdag',   date: '3 juli',  calDate: '20260703' },
-    { id: 'za_4jul', label: 'Zaterdag',  date: '4 juli',  calDate: '20260704' },
-    { id: 'zo_5jul', label: 'Zondag',    date: '5 juli',  calDate: '20260705' },
-];
-
-// startH/endH in 24h; overnightEnd = true means end is next calendar day
-const SHIFT_SLOTS = [
-    { suffix: 'shift1', time: '08:00 – 14:00', max: 3, startH: '080000', endH: '140000', overnightEnd: false },
-    { suffix: 'shift2', time: '14:00 – 19:00', max: 5, startH: '140000', endH: '190000', overnightEnd: false },
-    { suffix: 'shift3', time: '19:00 – 00:00', max: 5, startH: '190000', endH: '000000', overnightEnd: true  },
-    { suffix: 'shift4', time: '00:00 – 06:00', max: 5, startH: '000000', endH: '060000', overnightEnd: false },
-];
-
-const SPECIAL_SHIFTS = [
-    {
-        id:        'opbouw_30jun',
-        label:     'Opbouw',
-        date:      'Dinsdag 30 juni',
-        time:      'Vanaf 18:00',
-        note:      'Einduur niet bepaald – kan uitlopen',
-        isSpecial: true,
-        calDate:   '20260630', calStart: '180000', calEnd: '220000',
-    },
-    {
-        id:        'inrichting_1jul',
-        label:     'Inrichting tent',
-        date:      'Woensdag 1 juli',
-        time:      'Vanaf 09:00',
-        note:      'Einduur niet bepaald – kan uitlopen',
-        isSpecial: true,
-        calDate:   '20260701', calStart: '090000', calEnd: '170000',
-    },
-    {
-        id:        'afbouw_7jul',
-        label:     'Afbouw & Opruim',
-        date:      'Maandag 7 juli',
-        time:      'Vanaf 16:00',
-        note:      'Einduur niet bepaald – kan uitlopen',
-        isSpecial: true,
-        calDate:   '20260707', calStart: '160000', calEnd: '200000',
-    },
-];
-
-// ── State ─────────────────────────────────────────────────────────────────────
-
-let currentUser     = null;
-let currentUserData = null;
-let shiftsData      = {};      // shiftId → { persons: [...] }
-let pendingShiftId  = null;
-let unsubShifts     = null;
-let toastTimer      = null;
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
-
+// ── Auth ───────────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
-    document.getElementById('loadingSpinner').style.display = 'none';
-
     if (!user) {
-        document.getElementById('authGuard').style.display = 'flex';
-        document.getElementById('loginLink').textContent   = 'LOGIN';
+        document.getElementById('loadingSpinner').style.display = 'none';
+        document.getElementById('authGuard').style.display      = 'flex';
+        document.getElementById('loginLink').textContent        = 'LOGIN';
         return;
     }
 
@@ -91,22 +45,53 @@ onAuthStateChanged(auth, async (user) => {
         console.error('User load error:', e);
     }
 
-    document.getElementById('mainContent').style.display = 'block';
-    buildSchedule();
-    listenToShifts();
+    await loadActiveWerklijst();
 });
 
-// ── Firestore listener ────────────────────────────────────────────────────────
+// ── Load active werklijst ──────────────────────────────────────────────────────
+async function loadActiveWerklijst() {
+    try {
+        const snap = await getDocs(
+            query(collection(db, 'werklijsten'), where('active', '==', true), limit(1))
+        );
 
+        document.getElementById('loadingSpinner').style.display = 'none';
+
+        if (snap.empty) {
+            // No active werklijst
+            document.getElementById('mainContent').style.display = 'block';
+            document.getElementById('noActiveWerklijst').style.display = 'flex';
+            return;
+        }
+
+        const wlDoc = snap.docs[0];
+        activeWerklijst = { id: wlDoc.id, ...wlDoc.data() };
+
+        // Update hero tag
+        const heroTag = document.getElementById('heroEventTag');
+        if (heroTag) heroTag.textContent = '📋 ' + (activeWerklijst.naam || 'Werkplanning');
+
+        document.getElementById('mainContent').style.display = 'block';
+        listenToShifts();
+
+    } catch (e) {
+        console.error('loadActiveWerklijst error:', e);
+        document.getElementById('loadingSpinner').style.display = 'none';
+        showToast('Fout bij laden van werklijst: ' + e.message, 'error');
+    }
+}
+
+// ── Firestore shifts listener ──────────────────────────────────────────────────
 function listenToShifts() {
+    if (!activeWerklijst) return;
     if (unsubShifts) unsubShifts();
 
     unsubShifts = onSnapshot(
-        collection(db, 'werchter_shifts'),
+        collection(db, 'werklijsten', activeWerklijst.id, 'shifts'),
         (snapshot) => {
             shiftsData = {};
-            snapshot.forEach(d => { shiftsData[d.id] = d.data(); });
-            renderAll();
+            snapshot.forEach(d => { shiftsData[d.id] = { id: d.id, ...d.data() }; });
+            rebuildSchedule();
         },
         (err) => {
             console.error('Shifts listener error:', err);
@@ -115,157 +100,171 @@ function listenToShifts() {
     );
 }
 
-// ── Build DOM (runs once after auth) ─────────────────────────────────────────
+// ── Build / rebuild the schedule DOM ─────────────────────────────────────────
+function rebuildSchedule() {
+    const allShifts = Object.values(shiftsData);
 
-function buildSchedule() {
-    // Festival grid
-    const fGrid = document.getElementById('festivalGrid');
-    fGrid.innerHTML = FESTIVAL_DAYS.map(day => `
-        <div class="wl-day-column">
-            <div class="wl-day-header wl-collapsible" id="hdr-${day.id}">
-                <div class="wl-day-header-inner">
-                    <div class="day-name">${day.label}</div>
-                    <div class="day-date">${day.date}</div>
+    // Show "empty" notice if nothing at all
+    const emptyNotice = document.getElementById('emptyShiftsNotice');
+    if (emptyNotice) emptyNotice.style.display = allShifts.length === 0 ? 'block' : 'none';
+
+    // Group by category (preserve insertion order of first occurrence by date)
+    const categoryOrder = [];
+    const byCategory    = {};
+    allShifts
+        .slice()
+        .sort((a, b) => ((a.date || '9999') + parseTimeStart(a.time))
+                        .localeCompare((b.date || '9999') + parseTimeStart(b.time)))
+        .forEach(s => {
+            const cat = (s.category || 'Overige').trim();
+            if (!byCategory[cat]) { byCategory[cat] = []; categoryOrder.push(cat); }
+            byCategory[cat].push(s);
+        });
+
+    // Render into the dynamic sections container
+    const sectionsEl = document.getElementById('dynamicSections');
+    sectionsEl.innerHTML = '';
+
+    categoryOrder.forEach(cat => {
+        const shifts = byCategory[cat];
+
+        // Section label
+        const labelEl = document.createElement('div');
+        labelEl.className = 'wl-section-label';
+        labelEl.innerHTML = `
+            <h3>${cat}</h3>
+            <div class="wl-divider"></div>
+        `;
+        sectionsEl.appendChild(labelEl);
+
+        // Grid of day columns
+        const gridEl = document.createElement('div');
+        gridEl.className = 'wl-category-grid';
+        sectionsEl.appendChild(gridEl);
+
+        renderDayGrid(gridEl, shifts);
+    });
+
+    // Re-attach all card listeners
+    allShifts.forEach(shift => attachCardListeners(shift.id));
+}
+
+// ── Render a grid of day columns ───────────────────────────────────────────────
+function renderDayGrid(gridEl, shifts) {
+    shifts.sort((a, b) => {
+        const ka = (a.date || '9999') + parseTimeStart(a.time);
+        const kb = (b.date || '9999') + parseTimeStart(b.time);
+        return ka.localeCompare(kb);
+    });
+
+    const byDate = {};
+    shifts.forEach(s => {
+        const key = s.date || '__no_date__';
+        if (!byDate[key]) byDate[key] = [];
+        byDate[key].push(s);
+    });
+
+    const colCount = Math.min(Object.keys(byDate).length, 4);
+    gridEl.style.setProperty('--day-cols', colCount);
+    gridEl.querySelectorAll('.wl-day-column').forEach(el => el.remove());
+
+    Object.entries(byDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(([date, dayShifts]) => {
+            dayShifts.sort((a, b) => parseTimeStart(a.time).localeCompare(parseTimeStart(b.time)));
+
+            let dayName = '', dayDate = '';
+            if (date !== '__no_date__') {
+                const d = new Date(date + 'T12:00:00');
+                dayName = capitalize(d.toLocaleDateString('nl-BE', { weekday: 'long' }));
+                dayDate = d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long' });
+            } else {
+                dayName = 'Datum onbekend'; dayDate = '';
+            }
+
+            const safeId = 'day-' + date.replace(/[^a-z0-9]/gi, '');
+            const column = document.createElement('div');
+            column.className = 'wl-day-column';
+            column.innerHTML = `
+                <div class="wl-day-header wl-collapsible" id="hdr-${safeId}">
+                    <div class="wl-day-header-inner">
+                        <div class="day-name">${dayName}</div>
+                        <div class="day-date">${dayDate}</div>
+                    </div>
+                    <span class="wl-collapse-icon">&#9650;</span>
                 </div>
-                <span class="wl-collapse-icon">&#9650;</span>
-            </div>
-            <div class="wl-day-shifts" id="shifts-${day.id}">
-                ${SHIFT_SLOTS.map(slot => {
-                    const id = `${day.id}_${slot.suffix}`;
-                    return `
-                    <div class="wl-shift-card" id="card-${id}">
-                        <div class="wl-shift-time">${slot.time}</div>
-                        <div class="wl-shift-capacity">
-                            <span id="cap-${id}">0/${slot.max}</span>
-                            <div class="wl-cap-bar">
-                                <div class="wl-cap-bar-fill" id="bar-${id}" style="width:0%"></div>
-                            </div>
-                        </div>
-                        <div class="wl-shift-people" id="people-${id}"></div>
-                        <button class="wl-btn btn-sign-in" id="btn-${id}">Aanmelden</button>
-                    </div>`;
-                }).join('')}
-            </div>
-        </div>
-    `).join('');
-
-    // Special grid
-    const sGrid = document.getElementById('specialGrid');
-    sGrid.innerHTML = SPECIAL_SHIFTS.map(s => `
-        <div class="wl-day-column">
-            <div class="wl-day-header">
-                <div class="day-name">${s.label}</div>
-                <div class="day-date">${s.date}</div>
-            </div>
-            <div class="wl-day-shifts">
-                <div class="wl-shift-card" id="card-${s.id}">
-                    <div class="wl-shift-time">${s.time}</div>
-                    <p class="wl-shift-note">${s.note}</p>
-                    <div class="wl-shift-people" id="people-${s.id}"></div>
-                    <button class="wl-btn btn-sign-in" id="btn-${s.id}">Aanmelden</button>
+                <div class="wl-day-shifts" id="shifts-${safeId}">
+                    ${dayShifts.map(shift => renderShiftCard(shift)).join('')}
                 </div>
-            </div>
-        </div>
-    `).join('');
+            `;
 
-    // Attach click listeners to every shift card & button
-    getAllShiftDefs().forEach(({ id }) => {
-        const card = document.getElementById(`card-${id}`);
-        const btn  = document.getElementById(`btn-${id}`);
+            const hdr      = column.querySelector('.wl-day-header');
+            const shiftsEl = column.querySelector('.wl-day-shifts');
+            hdr.addEventListener('click', () => {
+                const collapsed = shiftsEl.classList.toggle('wl-collapsed');
+                hdr.classList.toggle('wl-header-collapsed', collapsed);
+            });
 
-        if (card) card.addEventListener('click', () => handleClick(id));
-        if (btn)  btn.addEventListener('click', (e) => {
-            e.stopPropagation();   // prevent card click firing as well
-            handleClick(id);
+            gridEl.appendChild(column);
         });
-    });
-
-    // Collapse toggle – only meaningful on mobile (CSS hides icon on desktop)
-    FESTIVAL_DAYS.forEach(day => {
-        const hdr    = document.getElementById(`hdr-${day.id}`);
-        const shifts = document.getElementById(`shifts-${day.id}`);
-        if (!hdr || !shifts) return;
-        hdr.addEventListener('click', () => {
-            const collapsed = shifts.classList.toggle('wl-collapsed');
-            hdr.classList.toggle('wl-header-collapsed', collapsed);
-        });
-    });
 }
 
-// Helper – flat list of all shift definitions
-function getAllShiftDefs() {
-    const festival = FESTIVAL_DAYS.flatMap(day =>
-        SHIFT_SLOTS.map(slot => ({ id: `${day.id}_${slot.suffix}`, max: slot.max }))
-    );
-    const special = SPECIAL_SHIFTS.map(s => ({ id: s.id, max: null }));
-    return [...festival, ...special];
-}
-
-// ── Render (called on every Firestore update) ─────────────────────────────────
-
-function renderAll() {
-    FESTIVAL_DAYS.forEach(day => {
-        SHIFT_SLOTS.forEach(slot => {
-            renderCard(`${day.id}_${slot.suffix}`, slot.max);
-        });
-    });
-    SPECIAL_SHIFTS.forEach(s => renderCard(s.id, null));
-}
-
-function renderCard(shiftId, max) {
-    const persons  = shiftsData[shiftId]?.persons || [];
-    const card     = document.getElementById(`card-${shiftId}`);
-    const peopleEl = document.getElementById(`people-${shiftId}`);
-    const btn      = document.getElementById(`btn-${shiftId}`);
-
-    if (!card || !peopleEl || !btn) return;
-
+// ── Render a single shift card (returns HTML string) ──────────────────────────
+function renderShiftCard(shift) {
+    const persons  = shift.persons || [];
+    const max      = shift.max ?? null;
     const isSigned = persons.some(p => p.uid === currentUser?.uid);
     const isFull   = max !== null && persons.length >= max;
 
-    // Card state classes
-    card.className = [
-        'wl-shift-card',
-        isSigned ? 'is-signed' : '',
-        isFull   ? 'is-full'   : '',
-    ].filter(Boolean).join(' ');
+    const capPct     = max ? Math.min((persons.length / max) * 100, 100) : 0;
+    const capFillCls = isFull ? 'wl-cap-bar-fill full' : 'wl-cap-bar-fill';
+    const capText    = max ? `${persons.length}/${max}` : `${persons.length}`;
 
-    // Capacity bar (festival shifts only)
-    const capEl = document.getElementById(`cap-${shiftId}`);
-    const barEl = document.getElementById(`bar-${shiftId}`);
-    if (capEl && barEl && max !== null) {
-        capEl.textContent  = `${persons.length}/${max}`;
-        barEl.style.width  = Math.min(100, (persons.length / max) * 100) + '%';
-        barEl.className    = 'wl-cap-bar-fill' + (isFull ? ' full' : '');
-    }
-
-    // Name list (vertical)
-    peopleEl.innerHTML = persons.map(p => {
-        const isMe = p.uid === currentUser?.uid;
-        const cls  = p.responsible
-            ? 'wl-person chip-responsible'
-            : (isMe ? 'wl-person chip-me' : 'wl-person');
-        return `<div class="${cls}">${p.responsible ? '★ ' : ''}${p.naam}</div>`;
+    const personChips = persons.map(p => {
+        const isMe   = p.uid === currentUser?.uid;
+        const cls    = p.responsible ? 'wl-person chip-responsible'
+                     : isMe          ? 'wl-person chip-me'
+                     :                 'wl-person';
+        const star   = p.responsible ? '★ ' : '';
+        return `<span class="${cls}">${star}${p.naam}</span>`;
     }).join('');
 
-    // Button label & style
-    if (isSigned) {
-        btn.className   = 'wl-btn btn-sign-out';
-        btn.textContent = 'Afmelden';
-    } else {
-        btn.className   = 'wl-btn btn-sign-in';
-        btn.textContent = isFull ? 'Toch aanmelden' : 'Aanmelden';
-        // Remove calendar button if user is no longer signed in
-        removeCalendarButton(shiftId);
-    }
+    const cardCls = ['wl-shift-card', isSigned ? 'is-signed' : '', isFull && !isSigned ? 'is-full' : '']
+        .filter(Boolean).join(' ');
+
+    const btnCls  = isSigned ? 'wl-btn btn-sign-out' : 'wl-btn btn-sign-in';
+    const btnText = isSigned ? 'Afmelden' : 'Aanmelden';
+
+    const capacityBar = max
+        ? `<div class="wl-shift-capacity">
+               <span>${capText}</span>
+               <div class="wl-cap-bar"><div class="${capFillCls}" style="width:${capPct}%"></div></div>
+           </div>`
+        : '';
+
+    const noteHtml = shift.note ? `<p class="wl-shift-note">${shift.note}</p>` : '';
+
+    return `
+        <div class="${cardCls}" id="card-${shift.id}">
+            <div class="wl-shift-time">${shift.time || ''}</div>
+            ${capacityBar}
+            <div class="wl-shift-people" id="people-${shift.id}">${personChips}</div>
+            ${noteHtml}
+            <button class="${btnCls}" id="btn-${shift.id}">${btnText}</button>
+        </div>`;
 }
 
-// ── Interaction ───────────────────────────────────────────────────────────────
+// ── Attach listeners to rendered cards ────────────────────────────────────────
+function attachCardListeners(shiftId) {
+    const card = document.getElementById(`card-${shiftId}`);
+    const btn  = document.getElementById(`btn-${shiftId}`);
+    if (!card || !btn) return;
 
-function isSpecialShift(shiftId) {
-    return SPECIAL_SHIFTS.some(s => s.id === shiftId);
+    card.addEventListener('click', () => handleClick(shiftId));
+    btn.addEventListener('click', (e) => { e.stopPropagation(); handleClick(shiftId); });
 }
 
+// ── Handle sign-in / sign-out click ──────────────────────────────────────────
 function handleClick(shiftId) {
     if (!currentUser) return;
 
@@ -277,12 +276,15 @@ function handleClick(shiftId) {
         return;
     }
 
-    // Special shifts (opbouw/afbouw) never ask about responsible
-    if (isSpecialShift(shiftId)) {
+    const shift = shiftsData[shiftId];
+    const isSpecial = shift?.section === 'special';
+
+    if (isSpecial) {
         addToShift(shiftId, false);
         return;
     }
 
+    // Festival: ask about responsible if none yet
     const hasResponsible = persons.some(p => p.responsible);
     if (hasResponsible) {
         addToShift(shiftId, false);
@@ -297,21 +299,18 @@ async function addToShift(shiftId, asResponsible) {
 
     const naam     = currentUserData.naam || currentUserData.email || 'Vrijwilliger';
     const existing = shiftsData[shiftId]?.persons || [];
-
     if (existing.some(p => p.uid === currentUser.uid)) return;
 
-    const updated = [...existing, {
-        uid:         currentUser.uid,
-        naam:        naam,
-        responsible: asResponsible,
-    }];
+    const updated = [...existing, { uid: currentUser.uid, naam, responsible: asResponsible }];
 
     try {
-        await setDoc(doc(db, 'werchter_shifts', shiftId), { persons: updated }, { merge: true });
+        await setDoc(
+            doc(db, 'werklijsten', activeWerklijst.id, 'shifts', shiftId),
+            { persons: updated },
+            { merge: true }
+        );
         showToast(
-            asResponsible
-                ? '✅ Ingeschreven als verantwoordelijke!'
-                : '✅ Ingeschreven voor shift!',
+            asResponsible ? '✅ Ingeschreven als verantwoordelijke!' : '✅ Ingeschreven voor shift!',
             'success'
         );
         showCalendarButton(shiftId);
@@ -323,122 +322,119 @@ async function addToShift(shiftId, asResponsible) {
 
 async function removeFromShift(shiftId) {
     if (!currentUser) return;
-
     const updated = (shiftsData[shiftId]?.persons || [])
         .filter(p => p.uid !== currentUser.uid);
-
     try {
-        await setDoc(doc(db, 'werchter_shifts', shiftId), { persons: updated }, { merge: true });
+        await setDoc(
+            doc(db, 'werklijsten', activeWerklijst.id, 'shifts', shiftId),
+            { persons: updated },
+            { merge: true }
+        );
         showToast('↩️ Afgemeld voor shift.', 'success');
+        removeCalendarButton(shiftId);
     } catch (e) {
         console.error('removeFromShift error:', e);
         showToast('❌ Fout bij afmelden: ' + e.message, 'error');
     }
 }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
-
+// ── Modal ──────────────────────────────────────────────────────────────────────
 function closeModal() {
     document.getElementById('modalBackdrop').classList.remove('active');
     pendingShiftId = null;
 }
 
 document.getElementById('btnYesResponsible').addEventListener('click', () => {
-    // Capture BEFORE closeModal resets pendingShiftId
-    const shiftId = pendingShiftId;
-    closeModal();
-    if (shiftId) addToShift(shiftId, true);
+    const id = pendingShiftId; closeModal(); if (id) addToShift(id, true);
 });
-
 document.getElementById('btnNoResponsible').addEventListener('click', () => {
-    // Capture BEFORE closeModal resets pendingShiftId
-    const shiftId = pendingShiftId;
-    closeModal();
-    if (shiftId) addToShift(shiftId, false);
+    const id = pendingShiftId; closeModal(); if (id) addToShift(id, false);
 });
-
 document.getElementById('btnModalCancel').addEventListener('click', closeModal);
-
-document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+document.getElementById('modalBackdrop').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeModal();
 });
 
-// ── Calendar ──────────────────────────────────────────────────────────────────
-
+// ── Calendar (.ics) ────────────────────────────────────────────────────────────
 function showCalendarButton(shiftId) {
     const btn = document.getElementById(`btn-${shiftId}`);
-    if (!btn) return;
-
-    // Insert calendar button right after the action button
-    const existing = document.getElementById(`cal-${shiftId}`);
-    if (existing) return; // already shown
+    if (!btn || document.getElementById(`cal-${shiftId}`)) return;
 
     const calBtn = document.createElement('button');
     calBtn.className = 'wl-btn btn-calendar';
     calBtn.id        = `cal-${shiftId}`;
     calBtn.innerHTML = '📅 Toevoegen aan agenda';
-    calBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        downloadICS(shiftId);
-    });
-
+    calBtn.addEventListener('click', (e) => { e.stopPropagation(); downloadICS(shiftId); });
     btn.parentNode.insertBefore(calBtn, btn.nextSibling);
 }
 
 function removeCalendarButton(shiftId) {
-    const calBtn = document.getElementById(`cal-${shiftId}`);
-    if (calBtn) calBtn.remove();
+    document.getElementById(`cal-${shiftId}`)?.remove();
 }
 
-function addDays(dateStr, days) {
-    // dateStr = 'YYYYMMDD', returns 'YYYYMMDD'
-    const y = parseInt(dateStr.slice(0, 4));
-    const m = parseInt(dateStr.slice(4, 6)) - 1;
-    const d = parseInt(dateStr.slice(6, 8));
+function addDays(yyyymmdd, days) {
+    const y = parseInt(yyyymmdd.slice(0, 4), 10);
+    const m = parseInt(yyyymmdd.slice(4, 6), 10) - 1;
+    const d = parseInt(yyyymmdd.slice(6, 8), 10);
     const dt = new Date(y, m, d + days);
     const pad = n => String(n).padStart(2, '0');
     return `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
 }
 
+function parseTimeToHHMMSS(t) {
+    // "08:00" → "080000", "Vanaf 18:00" handled separately
+    if (!t) return null;
+    t = t.replace(/vanaf\s*/i, '').trim();
+    const [h, m] = t.split(':');
+    if (!h) return null;
+    return String(parseInt(h, 10)).padStart(2, '0') + (m || '00') + '00';
+}
+
 function downloadICS(shiftId) {
-    let title, dtStart, dtEnd, description;
-
-    // Festival shift?
-    let found = false;
-    outer: for (const day of FESTIVAL_DAYS) {
-        for (const slot of SHIFT_SLOTS) {
-            const id = `${day.id}_${slot.suffix}`;
-            if (id !== shiftId) continue;
-
-            // The 00:00–06:00 shift: start date is the NEXT calendar day
-            const startDate = slot.startH === '000000'
-                ? addDays(day.calDate, 1)
-                : day.calDate;
-            const endDate = slot.overnightEnd
-                ? addDays(day.calDate, 1)
-                : startDate;
-
-            dtStart     = `${startDate}T${slot.startH}`;
-            dtEnd       = `${endDate}T${slot.endH}`;
-            title       = `VVS Rotselaar – Rock Werchter (${slot.time})`;
-            description = `Shift Rock Werchter – ${day.label} ${day.date}\\nV.V.S Rotselaar`;
-            found = true;
-            break outer;
-        }
+    const shift = shiftsData[shiftId];
+    if (!shift || !shift.date) {
+        showToast('Geen datum gevonden voor deze shift.', 'error');
+        return;
     }
 
-    if (!found) {
-        // Special shift
-        const s = SPECIAL_SHIFTS.find(s => s.id === shiftId);
-        if (!s) return;
-        dtStart     = `${s.calDate}T${s.calStart}`;
-        dtEnd       = `${s.calDate}T${s.calEnd}`;
-        title       = `VVS Rotselaar – ${s.label} Rock Werchter`;
-        description = `${s.label} Rock Werchter – ${s.date}\\nEinduur kan uitlopen.\\nV.V.S Rotselaar`;
+    const [sy, sm, sd] = shift.date.split('-');
+    const baseDateStr  = `${sy}${sm}${sd}`; // "YYYYMMDD"
+
+    const timeStr = shift.time || '';
+    let dtStart, dtEnd;
+
+    const isVanaf = /^vanaf/i.test(timeStr.trim());
+
+    if (isVanaf) {
+        // "Vanaf 18:00" → start at 18:00, end +4h
+        const raw = parseTimeToHHMMSS(timeStr) || '120000';
+        const startH = parseInt(raw.slice(0, 2), 10);
+        const endH   = (startH + 4) % 24;
+        const endHHMMSS = String(endH).padStart(2, '0') + '0000';
+        dtStart = `${baseDateStr}T${raw}`;
+        dtEnd   = `${baseDateStr}T${endHHMMSS}`;
+    } else {
+        // "08:00 – 14:00" or "19:00 – 00:00"
+        const parts  = timeStr.split(/[–—]/).map(t => t.trim());
+        const sRaw   = parseTimeToHHMMSS(parts[0]) || '080000';
+        const eRaw   = parseTimeToHHMMSS(parts[1]) || '140000';
+
+        const startH = parseInt(sRaw.slice(0, 2), 10);
+        const endH   = parseInt(eRaw.slice(0, 2), 10);
+
+        // Overnight: end hour <= start hour (e.g. 19→00 or 00→06)
+        const endDateStr = (endH < startH || eRaw === '000000')
+            ? addDays(baseDateStr, 1)
+            : baseDateStr;
+
+        dtStart = `${baseDateStr}T${sRaw}`;
+        dtEnd   = `${endDateStr}T${eRaw}`;
     }
 
-    const uid  = `werchter-${shiftId}-${Date.now()}@vvsrotselaar.be`;
-    const now  = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    const title       = `VVS Rotselaar – ${shift.label || 'Shift'} (${timeStr})`;
+    const description = `${shift.label || 'Shift'}\\nTijdstip: ${timeStr}\\nV.V.S Rotselaar`;
+    const uid         = `vvs-${shiftId}-${Date.now()}@vvsrotselaar.be`;
+    const now         = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
 
     const ics = [
         'BEGIN:VCALENDAR',
@@ -453,7 +449,7 @@ function downloadICS(shiftId) {
         `DTEND:${dtEnd}`,
         `SUMMARY:${title}`,
         `DESCRIPTION:${description}`,
-        'LOCATION:Rock Werchter\\, Werchter\\, België',
+        'LOCATION:V.V.S Rotselaar',
         'END:VEVENT',
         'END:VCALENDAR',
     ].join('\r\n');
@@ -461,16 +457,14 @@ function downloadICS(shiftId) {
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `werchter-${shiftId}.ics`;
+    a.href = url; a.download = `shift-${shiftId}.ics`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
-
+// ── Toast ──────────────────────────────────────────────────────────────────────
 function showToast(msg, type = '') {
     const t = document.getElementById('wlToast');
     t.textContent = msg;
@@ -479,22 +473,28 @@ function showToast(msg, type = '') {
     toastTimer = setTimeout(() => { t.className = 'wl-toast'; }, 3000);
 }
 
-// ── Hamburger menu ────────────────────────────────────────────────────────────
-
+// ── Hamburger ──────────────────────────────────────────────────────────────────
 const hamburger = document.getElementById('hamburger');
 const navMenu   = document.getElementById('navMenu');
-
 if (hamburger && navMenu) {
     hamburger.addEventListener('click', () => {
         hamburger.classList.toggle('active');
         navMenu.classList.toggle('active');
     });
-    navMenu.querySelectorAll('a').forEach(a => {
-        a.addEventListener('click', () => {
-            hamburger.classList.remove('active');
-            navMenu.classList.remove('active');
-        });
-    });
+    navMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+        hamburger.classList.remove('active');
+        navMenu.classList.remove('active');
+    }));
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function parseTimeStart(t) {
+    if (!t) return '00:00';
+    return t.split(/[–—\-]/)[0].replace(/vanaf\s*/i, '').trim() || '00:00';
+}
+
+function capitalize(str) {
+    return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 }
 
 console.log('Werklijst.js loaded');

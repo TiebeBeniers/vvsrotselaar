@@ -1098,3 +1098,468 @@
     .shift-admin-header { flex-direction: column; align-items: flex-start; }
     .shift-admin-actions-header { width: 100%; justify-content: flex-end; }
 }
+
+
+/* ═══════════════════════════════════════════════════
+   WERKLIJSTEN BEHEER (admin2.html – nieuwe sectie)
+   ═══════════════════════════════════════════════════ */
+
+/* Hint tekst boven de lijst */
+.wl-admin-hint {
+    font-size: 0.88rem;
+    color: var(--text-gray);
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+}
+
+/* ── Werklijsten lijst ── */
+.werklijsten-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.wl-list-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: var(--off-white);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    flex-wrap: wrap;
+}
+
+.wl-list-card:hover {
+    box-shadow: 0 3px 10px var(--shadow);
+    border-color: #CBD5E1;
+}
+
+.wl-list-card.wl-active {
+    border-color: var(--success);
+    background: #F0FDF4;
+}
+
+.wl-list-card-info {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.wl-active-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: var(--success);
+    color: var(--white);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 2px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.wl-list-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wl-list-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+/* Icon buttons for werklijst list */
+.icon-btn.activate-btn {
+    background: var(--success);
+    color: var(--white);
+    font-size: 0.8rem;
+    padding: 0.3rem 0.8rem;
+}
+.icon-btn.activate-btn:hover { background: #218838; }
+
+.icon-btn.rename-btn {
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-dark);
+    font-size: 0.8rem;
+    padding: 0.3rem 0.7rem;
+}
+.icon-btn.rename-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+
+.icon-btn.shifts-btn {
+    background: var(--primary-blue);
+    color: var(--white);
+    font-size: 0.8rem;
+    padding: 0.3rem 0.8rem;
+}
+.icon-btn.shifts-btn:hover { background: var(--dark-blue); }
+
+/* ── Shifts editor view ── */
+.shifts-editor-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.back-btn {
+    background: var(--off-white);
+    border: 2px solid var(--border-color);
+    color: var(--text-dark);
+    padding: 0.45rem 1rem;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+.back-btn:hover {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    background: #EFF6FF;
+}
+
+/* Grid van dag-groepen (horizontaal scrollen op mobiel) */
+.shifts-editor-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+/* Dag-groep */
+.shifts-day-group {
+    border: 1.5px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--white);
+}
+
+.shifts-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+    color: var(--white);
+}
+
+.shifts-day-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.shifts-day-icon { font-size: 1rem; }
+
+.shifts-day-header h4 {
+    font-size: 0.98rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.shifts-day-count {
+    font-size: 0.73rem;
+    background: rgba(255,255,255,0.22);
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Cards binnen een dag: horizontaal naast elkaar */
+.shifts-day-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.9rem;
+    padding: 0.9rem;
+}
+
+/* Admin shift card */
+.shift-admin-card {
+    background: var(--off-white);
+    border-radius: 9px;
+    border: 1.5px solid var(--border-color);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.shift-admin-card:hover { box-shadow: 0 3px 10px var(--shadow); }
+
+.shift-admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0.7rem 0.9rem;
+    background: rgba(0,71,171,0.07);
+    border-bottom: 1.5px solid var(--border-color);
+    gap: 0.5rem;
+}
+
+.shift-admin-header-info { flex: 1; min-width: 0; }
+
+.shift-admin-title {
+    font-weight: 700;
+    font-size: 0.93rem;
+    color: var(--text-dark);
+    line-height: 1.3;
+    margin-bottom: 0.2rem;
+}
+
+.shift-admin-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    flex-wrap: wrap;
+}
+
+.meta-time   { font-weight: 600; color: var(--primary-blue); }
+.meta-sep    { opacity: 0.5; }
+.meta-count  { background: var(--white); border: 1px solid var(--border-color); padding: 1px 6px; border-radius: 10px; }
+
+.shift-admin-note {
+    font-size: 0.73rem;
+    color: var(--text-gray);
+    font-style: italic;
+    margin-top: 0.2rem;
+}
+
+.shift-admin-actions-header {
+    display: flex;
+    gap: 0.3rem;
+    flex-shrink: 0;
+}
+
+/* Edit/delete inside shift card header */
+.shift-admin-actions-header .icon-btn.edit {
+    background: rgba(0,71,171,0.1);
+    color: var(--primary-blue);
+    font-size: 0.82rem;
+    padding: 0.25rem 0.5rem;
+}
+.shift-admin-actions-header .icon-btn.edit:hover {
+    background: var(--primary-blue);
+    color: var(--white);
+}
+.shift-admin-actions-header .icon-btn.delete {
+    background: rgba(220,53,69,0.1);
+    color: var(--danger);
+    font-size: 0.82rem;
+    padding: 0.25rem 0.5rem;
+}
+.shift-admin-actions-header .icon-btn.delete:hover {
+    background: var(--danger);
+    color: var(--white);
+}
+
+.shift-admin-body {
+    padding: 0.75rem 0.9rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Person list */
+.shift-person-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.65rem;
+    flex: 1;
+}
+
+.no-persons-msg {
+    color: var(--text-gray);
+    font-size: 0.82rem;
+    font-style: italic;
+    margin: 0;
+}
+
+.shift-person-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.28rem 0.55rem;
+    border-radius: 5px;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    font-size: 0.82rem;
+    gap: 0.4rem;
+}
+
+.shift-person-row .person-name {
+    font-weight: 600;
+    color: var(--text-dark);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.shift-person-row .person-name.is-responsible { color: var(--danger); }
+.shift-person-row .person-role {
+    font-size: 0.7rem;
+    color: var(--text-gray);
+    margin-left: 0.25rem;
+    font-weight: 400;
+}
+
+.remove-person-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0 0.25rem;
+    border-radius: 4px;
+    transition: background 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.remove-person-btn:hover { background: #FEE2E2; }
+
+/* Add person row */
+.shift-add-person {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    align-items: stretch;
+}
+
+.add-name-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+}
+.add-name-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.add-person-btn {
+    padding: 0.45rem 0.75rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+.add-person-btn:hover { background: var(--dark-blue); }
+
+/* Empty state */
+.werklijst-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-gray);
+    font-style: italic;
+    background: var(--off-white);
+    border-radius: 10px;
+    border: 2px dashed var(--border-color);
+}
+
+/* Section header with back button */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.section-header h3 {
+    font-size: 1.3rem;
+    color: var(--text-dark);
+    margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE – Werklijsten beheer
+   ═══════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+    .wl-list-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .wl-list-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .shifts-day-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .shifts-editor-title-row {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .add-btn { width: 100%; }
+
+    .shift-add-person {
+        flex-wrap: nowrap;
+    }
+
+    .add-name-input { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+    .admin-page { padding: 1rem 0.75rem; }
+    .admin-container { padding: 1.25rem; }
+    .wl-list-actions { gap: 0.3rem; }
+}
+
+/* ── Categorie-tag op shift card ── */
+.shift-cat-tag {
+    display: inline-block;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    padding: 1px 7px;
+    border-radius: 20px;
+    vertical-align: middle;
+    margin-left: 4px;
+    text-transform: uppercase;
+}

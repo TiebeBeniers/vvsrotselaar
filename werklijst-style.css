@@ -514,3 +514,49 @@
     .werklijst-container { padding: 1.25rem 0.85rem; }
     .wl-legend { gap: 0.65rem; font-size: 0.8rem; }
 }
+
+/* ── Aanvullingen voor dynamische werklijst ── */
+
+/* Festival en special grids: auto kolommen */
+.festival-grid,
+.special-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--day-cols, 4), 1fr);
+    gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+    .festival-grid,
+    .special-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 680px) {
+    .festival-grid,
+    .special-grid { grid-template-columns: 1fr; }
+}
+
+/* Geen actieve werklijst / lege werklijst notice */
+.werklijst-empty-notice {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-gray);
+    font-style: italic;
+    background: var(--white);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px var(--shadow);
+    margin: 1rem 0;
+}
+
+/* ── Dynamische categorie-grid ── */
+.wl-category-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--day-cols, 4), 1fr);
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 1024px) {
+    .wl-category-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 680px) {
+    .wl-category-grid { grid-template-columns: 1fr; }
+}

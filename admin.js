@@ -1132,19 +1132,28 @@ async function deleteMatch(match) {
     confirmDelete.onclick = async () => {
         try {
             console.log('Deleting match:', match.id);
-            
-            await deleteDoc(doc(db, 'matches', match.id));
-            console.log('Match deleted');
-            
-            // Delete events
-            const eventsQuery = query(collection(db, 'events'), where('matchId', '==', match.id));
-            const eventsSnapshot = await getDocs(eventsQuery);
-            
+
+            // Delete events subcollection
+            const eventsSnapshot = await getDocs(
+                query(collection(db, 'events'), where('matchId', '==', match.id))
+            );
             console.log('Deleting', eventsSnapshot.size, 'events');
-            
-            const deletePromises = eventsSnapshot.docs.map(docSnap => deleteDoc(docSnap.ref));
-            await Promise.all(deletePromises);
-            
+
+            // Delete availability subcollection
+            const availabilitySnapshot = await getDocs(
+                collection(db, 'matches', match.id, 'availability')
+            );
+            console.log('Deleting', availabilitySnapshot.size, 'availability records');
+
+            // Delete all in parallel, then the match document itself
+            await Promise.all([
+                ...eventsSnapshot.docs.map(d => deleteDoc(d.ref)),
+                ...availabilitySnapshot.docs.map(d => deleteDoc(d.ref))
+            ]);
+
+            await deleteDoc(doc(db, 'matches', match.id));
+            console.log('Match and all related data deleted');
+
             confirmModal.classList.remove('active');
             await loadMatches();
         } catch (error) {

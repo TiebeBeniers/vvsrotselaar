@@ -1208,13 +1208,25 @@ function showAddExtraPlayerModal(matchId) {
         confirmBtn.textContent = 'Bezig…';
 
         try {
-            // Use the player's uid as the document key so duplicates are prevented
             const availabilityRef = doc(db, 'matches', matchId, 'availability', selectedUser.uid);
+
+            // Check if this player is already in the availability list
+            const existing = await getDocs(
+                query(collection(db, 'matches', matchId, 'availability'),
+                      where('displayName', '==', selectedUser.naam))
+            );
+            if (!existing.empty) {
+                alert(`${selectedUser.naam} staat al op de beschikbaarheidslijst.`);
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Toevoegen';
+                return;
+            }
+
             await setDoc(availabilityRef, {
                 available: true,
                 displayName: selectedUser.naam,
                 isExternalPlayer: true,
-                fromTeam: selectedUser.categorie,  // which team they normally play for
+                fromTeam: selectedUser.categorie,
                 addedBy: currentUser.uid,
                 timestamp: new Date().toISOString()
             });
@@ -1276,6 +1288,18 @@ function showManualFallback(modal, matchId, prefillName = '') {
         newConfirm.disabled = true;
         newConfirm.textContent = 'Bezig…';
         try {
+            // Check for duplicate name
+            const existing = await getDocs(
+                query(collection(db, 'matches', matchId, 'availability'),
+                      where('displayName', '==', name))
+            );
+            if (!existing.empty) {
+                alert(`${name} staat al op de beschikbaarheidslijst.`);
+                newConfirm.disabled = false;
+                newConfirm.textContent = 'Toevoegen';
+                return;
+            }
+
             const safeKey = 'manual_' + name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
             await setDoc(doc(db, 'matches', matchId, 'availability', safeKey), {
                 available:        true,
