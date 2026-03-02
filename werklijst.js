@@ -216,9 +216,13 @@ function renderShiftCard(shift) {
     const isSigned = persons.some(p => p.uid === currentUser?.uid);
     const isFull   = max !== null && persons.length >= max;
 
-    const capPct     = max ? Math.min((persons.length / max) * 100, 100) : 0;
-    const capFillCls = isFull ? 'wl-cap-bar-fill full' : 'wl-cap-bar-fill';
-    const capText    = max ? `${persons.length}/${max}` : `${persons.length}`;
+    const capPct  = max ? Math.min((persons.length / max) * 100, 100) : 0;
+    const capText = max ? `${persons.length}/${max}` : `${persons.length}`;
+    // Graduele kleur: geel (hue 55) bij leeg → donkergroen (hue 130) bij vol
+    const capHue  = max ? Math.round(55 + (capPct / 100) * 75) : 55;
+    const capLit  = max ? Math.round(52 - (capPct / 100) * 18) : 52;
+    const capColor = `hsl(${capHue}, 70%, ${capLit}%)`;
+    const capFillCls = 'wl-cap-bar-fill';
 
     const personChips = persons.map(p => {
         const isMe   = p.uid === currentUser?.uid;
@@ -238,7 +242,7 @@ function renderShiftCard(shift) {
     const capacityBar = max
         ? `<div class="wl-shift-capacity">
                <span>${capText}</span>
-               <div class="wl-cap-bar"><div class="${capFillCls}" style="width:${capPct}%"></div></div>
+               <div class="wl-cap-bar"><div class="${capFillCls}" style="width:${capPct}%;background:${capColor}"></div></div>
            </div>`
         : '';
 

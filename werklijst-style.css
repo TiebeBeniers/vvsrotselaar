@@ -165,8 +165,8 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
-.wl-legend-dot.available   { background: var(--success); }
-.wl-legend-dot.full        { background: #CBD5E1; }
+.wl-legend-dot.available   { background: hsl(55, 70%, 52%); }
+.wl-legend-dot.full        { background: hsl(130, 70%, 34%); }
 .wl-legend-dot.signed      { background: var(--accent-blue); }
 .wl-legend-dot.responsible { background: var(--danger); }
 
@@ -268,11 +268,9 @@
 }
 .wl-cap-bar-fill {
     height: 100%;
-    background: var(--success);
     border-radius: 4px;
-    transition: width 0.35s ease;
+    transition: width 0.35s ease, background 0.35s ease;
 }
-.wl-cap-bar-fill.full { background: #CBD5E1; }
 
 /* Name list (vertical, one person per row) */
 .wl-shift-people {
