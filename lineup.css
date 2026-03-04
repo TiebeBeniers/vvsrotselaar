@@ -1,0 +1,105 @@
+/* ===============================================
+   LINEUP MODAL — toevoegen aan styles.css
+   =============================================== */
+
+.lineup-modal-content {
+    max-width: 640px;
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.lineup-subtitle {
+    font-size: 14px;
+    color: var(--text-gray);
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.lineup-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.lineup-col h4 {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-gray);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.lineup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 60px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.starter-list {
+    border: 2px dashed var(--primary-blue);
+    border-radius: 8px;
+    padding: 8px;
+    background: rgba(0, 71, 171, 0.03);
+}
+
+.lineup-player-btn {
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dark);
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+
+.lineup-player-btn:hover {
+    background: #e8f0fe;
+    border-color: var(--primary-blue);
+}
+
+.lineup-player-btn.selected {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+}
+
+.lineup-player-btn.selected:hover {
+    background: var(--dark-blue);
+}
+
+.lineup-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.lineup-actions .modal-btn {
+    min-width: 200px;
+}
+
+@media (max-width: 480px) {
+    .lineup-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.lineup-hint {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-gray);
+    text-align: center;
+    padding: 10px 0 4px;
+}

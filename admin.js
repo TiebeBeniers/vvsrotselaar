@@ -1145,10 +1145,17 @@ async function deleteMatch(match) {
             );
             console.log('Deleting', availabilitySnapshot.size, 'availability records');
 
-            // Delete all in parallel, then the match document itself
+            // Delete playerMinutes subcollection
+            const playerMinutesSnapshot = await getDocs(
+                collection(db, 'matches', match.id, 'playerMinutes')
+            );
+            console.log('Deleting', playerMinutesSnapshot.size, 'playerMinutes records');
+
+            // Delete all subcollection docs in parallel, then the match itself
             await Promise.all([
                 ...eventsSnapshot.docs.map(d => deleteDoc(d.ref)),
-                ...availabilitySnapshot.docs.map(d => deleteDoc(d.ref))
+                ...availabilitySnapshot.docs.map(d => deleteDoc(d.ref)),
+                ...playerMinutesSnapshot.docs.map(d => deleteDoc(d.ref))
             ]);
 
             await deleteDoc(doc(db, 'matches', match.id));

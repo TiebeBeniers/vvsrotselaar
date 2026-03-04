@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.V.S Rotselaar - Spelersprofiel</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="speler.css">
+</head>
+<body class="player-page">
+
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1>V.V.S ROTSELAAR</h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li><a href="evenementen.html">EVENEMENTEN</a></li>
+                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- STATE: Laden -->
+    <div id="stateLoading" class="state-card">
+        <div class="state-icon">&#9203;</div>
+        <h2>Profiel laden...</h2>
+        <p>Even geduld, we halen de spelersdata op.</p>
+    </div>
+
+    <!-- STATE: Niet ingelogd -->
+    <div id="stateNotLoggedIn" class="state-card" style="display:none;">
+        <div class="state-icon">&#128274;</div>
+        <h2>Niet ingelogd</h2>
+        <p>Je moet ingelogd zijn om je spelersprofiel te bekijken.</p>
+        <a href="login.html" class="state-action-btn">Inloggen</a>
+    </div>
+
+    <!-- STATE: Niet gevonden -->
+    <div id="stateNotFound" class="state-card" style="display:none;">
+        <div class="state-icon">&#128269;</div>
+        <h2>Profiel niet gevonden</h2>
+        <p>Er werd geen profiel gevonden voor dit account.</p>
+    </div>
+
+    <!-- SPELERSPROFIEL -->
+    <div id="playerProfile" style="display:none;">
+
+        <!-- Hero Banner -->
+        <div class="player-hero">
+            <div class="player-hero-inner">
+
+                <!-- Avatar met upload -->
+                <div class="player-avatar-wrap">
+                    <div class="player-avatar" id="avatarCircle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Naam -->
+                <div class="player-hero-info">
+                    <div class="player-hero-name" id="heroNaam">—</div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Hoofdinhoud -->
+        <main class="player-content">
+
+            <!-- Seizoensstatistieken -->
+            <div class="section-title">Seizoensstatistieken</div>
+            <div class="stats-grid">
+                <div class="stat-card goals">
+                    <div class="stat-value" id="statGoals">0</div>
+                    <div class="stat-label">Goals</div>
+                </div>
+                <div class="stat-card assists">
+                    <div class="stat-value" id="statAssists">0</div>
+                    <div class="stat-label">Assists</div>
+                </div>
+                <div class="stat-card matches">
+                    <div class="stat-value" id="statMatches">0</div>
+                    <div class="stat-label">Matchen</div>
+                </div>
+                <div class="stat-card minutes">
+                    <div class="stat-value" id="statMinutes">0</div>
+                    <div class="stat-label">Minuten</div>
+                </div>
+                <div class="stat-card yellow">
+                    <div class="stat-value" id="statYellow">0</div>
+                    <div class="stat-label">Geel</div>
+                </div>
+                <div class="stat-card red">
+                    <div class="stat-value" id="statRed">0</div>
+                    <div class="stat-label">Rood</div>
+                </div>
+            </div>
+
+            <!-- Profielinfo -->
+            <div class="section-title">Profielinfo</div>
+            <div class="info-card">
+                <div class="info-row">
+                    <span class="info-key">Naam</span>
+                    <span class="info-val" id="infoNaam">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">E-mail</span>
+                    <span class="info-val" id="infoEmail">—</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-key">Ploeg</span>
+                    <span class="info-val">
+                        <span class="badge-player badge-team-player" id="infoCategorie">—</span>
+                    </span>
+                </div>
+                <div class="info-row uid-info-row">
+                    <span class="info-key">UID</span>
+                    <span class="info-val uid-val" id="infoUid">—<span class="uid-help" id="uidHelp" tabindex="0">?<span class="uid-tooltip">Deel deze code met de beheerder als je problemen hebt met je account. Zo kan hij jou snel terugvinden.</span></span></span>
+                </div>
+            </div>
+
+            <!-- Wedstrijdgeschiedenis -->
+            <div class="section-title">Wedstrijdgeschiedenis</div>
+            <div id="matchHistoryContainer">
+                <div class="coming-soon">
+                    <div class="coming-icon">&#128194;</div>
+                    <p>Wedstrijdgeschiedenis wordt geladen...</p>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; TiebeBeniers</p>
+    </footer>
+
+    <script type="module" src="firebase-config.js"></script>
+    <script type="module" src="speler.js"></script>
+</body>
+</html>

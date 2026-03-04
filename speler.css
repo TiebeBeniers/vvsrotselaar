@@ -1,0 +1,563 @@
+/* ===============================================
+   SPELERSPROFIEL - Pagina-specifieke stijlen
+   V.V.S Rotselaar
+   Importeert de algemene stijlen via styles.css
+   =============================================== */
+
+/* ── Fonts ─────────────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* ── Barlow enkel op pagina-inhoud, NIET op de header ─────────────────────── */
+.player-page main,
+.player-page .player-hero,
+.player-page .state-card {
+    font-family: 'Barlow', 'Segoe UI', sans-serif;
+}
+
+/* ════════════════════════════════════════════════
+   STATES (laden / niet gevonden / niet ingelogd)
+   ════════════════════════════════════════════════ */
+
+.state-card {
+    max-width: 960px;
+    margin: 80px auto;
+    padding: 60px 24px;
+    text-align: center;
+}
+
+.state-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.state-card h2 {
+    margin-bottom: 8px;
+    color: var(--primary-blue);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 2px;
+}
+
+.state-card p {
+    color: var(--text-gray);
+}
+
+.state-card .state-action-btn {
+    display: inline-block;
+    margin-top: 24px;
+    background: var(--primary-blue);
+    color: white;
+    padding: 12px 32px;
+    border-radius: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: background 0.2s;
+}
+
+.state-card .state-action-btn:hover {
+    background: var(--dark-blue);
+}
+
+/* ════════════════════════════════════════════════
+   HERO BANNER
+   ════════════════════════════════════════════════ */
+
+.player-hero {
+    background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 55%, var(--accent-blue) 100%);
+    padding: 0 24px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Diagonaal ruitpatroon als textuur */
+.player-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 44px,
+        rgba(255, 255, 255, 0.04) 44px,
+        rgba(255, 255, 255, 0.04) 88px
+    );
+    pointer-events: none;
+}
+
+.player-hero-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    position: relative;
+    padding: 32px 0;
+}
+
+/* ── Avatar ─────────────────────────────────────── */
+
+.player-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.player-avatar {
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.12);
+    border: 3px solid rgba(255, 255, 255, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    backdrop-filter: blur(6px);
+}
+
+.player-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.player-avatar svg {
+    width: 56px;
+    height: 56px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Camera-overlay knop bij hover */
+.avatar-upload-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    gap: 4px;
+}
+
+.player-avatar-wrap:hover .avatar-upload-overlay {
+    opacity: 1;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.avatar-upload-overlay svg {
+    width: 24px;
+    height: 24px;
+    color: white;
+}
+
+.avatar-upload-overlay span {
+    font-size: 10px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Upload spinner */
+.avatar-uploading {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0, 47, 120, 0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.avatar-uploading.active {
+    display: flex;
+}
+
+.avatar-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Hero tekst ─────────────────────────────────── */
+
+.player-hero-info {
+    color: white;
+}
+
+.player-hero-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2rem, 7vw, 3.6rem);
+    letter-spacing: 3px;
+    line-height: 1;
+    margin-bottom: 8px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* ════════════════════════════════════════════════
+   MAIN CONTENT
+   ════════════════════════════════════════════════ */
+
+.player-content {
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 0 24px;
+}
+
+/* ── Sectietitels ─────────────────────────────── */
+
+.section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.45rem;
+    letter-spacing: 2.5px;
+    color: var(--dark-blue);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title::after {
+    content: '';
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, transparent 100%);
+    border-radius: 2px;
+}
+
+/* ── Stat-kaarten ─────────────────────────────── */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+    margin-bottom: 44px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 14px;
+    text-align: center;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07);
+    border-top: 3px solid var(--primary-blue);
+    transition: transform 0.18s, box-shadow 0.18s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 71, 171, 0.13);
+}
+
+.stat-card.goals   { border-color: var(--success); }
+.stat-card.assists { border-color: var(--accent-blue); }
+.stat-card.minutes { border-color: var(--primary-blue); }
+.stat-card.matches { border-color: var(--dark-blue); }
+.stat-card.yellow  { border-color: var(--warning); }
+.stat-card.red     { border-color: var(--danger); }
+
+.stat-icon {
+    font-size: 1.3rem;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.8rem;
+    line-height: 1;
+    color: var(--text-dark);
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-gray);
+}
+
+/* ── Profielinfo kaart ───────────────────────── */
+
+.info-card {
+    background: white;
+    border-radius: 12px;
+    padding: 8px 24px;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07);
+    margin-bottom: 44px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.info-key {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-gray);
+}
+
+.info-val {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+/* Badge stijlen */
+.badge-player {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.badge-team-player {
+    background: var(--primary-blue);
+    color: white;
+}
+
+
+
+/* UID — monospace, gedimpt */
+.uid-val {
+    font-size: 12px;
+    font-family: monospace;
+    color: #aaa;
+}
+
+/* ── Wedstrijdgeschiedenis kaarten ──────────── */
+
+.match-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 44px;
+}
+
+.match-history-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-left: 4px solid var(--primary-blue);
+    transition: transform 0.15s;
+}
+
+.match-history-card:hover {
+    transform: translateX(3px);
+}
+
+.match-history-card.win   { border-color: var(--success); }
+.match-history-card.loss  { border-color: var(--danger); }
+.match-history-card.draw  { border-color: var(--warning); }
+
+.match-result-badge {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: white;
+    letter-spacing: 1px;
+}
+
+.match-result-badge.win  { background: var(--success); }
+.match-result-badge.loss { background: var(--danger); }
+.match-result-badge.draw { background: var(--warning); color: #333; }
+
+.match-history-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.match-history-teams {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-history-meta {
+    font-size: 12px;
+    color: var(--text-gray);
+    margin-top: 2px;
+}
+
+.match-history-score {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+    color: var(--text-dark);
+    flex-shrink: 0;
+}
+
+/* ── Coming soon placeholder ────────────────── */
+
+.coming-soon {
+    background: white;
+    border-radius: 12px;
+    padding: 36px;
+    text-align: center;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+    border: 2px dashed var(--border-color);
+    margin-bottom: 44px;
+}
+
+.coming-soon .coming-icon {
+    font-size: 2rem;
+    margin-bottom: 10px;
+}
+
+.coming-soon p {
+    color: var(--text-gray);
+    font-size: 14px;
+}
+
+
+/* ── UID tooltip ─────────────────────────────── */
+
+.uid-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--border-color);
+    color: var(--text-gray);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-left: 6px;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+    transition: background 0.15s;
+    vertical-align: middle;
+}
+
+.uid-help:hover,
+.uid-help.active {
+    background: var(--primary-blue);
+    color: white;
+}
+
+.uid-tooltip {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    width: 220px;
+    background: var(--text-dark);
+    color: white;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+    padding: 10px 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    z-index: 100;
+    pointer-events: none;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.uid-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    right: 4px;
+    border: 6px solid transparent;
+    border-top-color: var(--text-dark);
+}
+
+.uid-help:hover .uid-tooltip,
+.uid-help.active .uid-tooltip {
+    display: block;
+}
+
+.uid-info-row {
+    align-items: center;
+}
+/* ════════════════════════════════════════════════
+   UPLOAD INPUT (verborgen)
+   ════════════════════════════════════════════════ */
+
+#avatarFileInput {
+    display: none;
+}
+
+/* ════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════ */
+
+@media (max-width: 600px) {
+    .player-hero-inner {
+        flex-direction: row;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .player-avatar {
+        width: 80px;
+        height: 80px;
+    }
+
+    .player-avatar svg {
+        width: 40px;
+        height: 40px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .match-history-score {
+        font-size: 1.3rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
