@@ -8,7 +8,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 
 console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
@@ -1631,300 +1631,364 @@ async function deleteMessage(berichtId) {
 }
 
 // ===============================================
-// RANKING MANAGEMENT
+// RANKING MANAGEMENT — Firebase versie
+// Firestore structuur: ranking/{team} → { teams: [...], updatedAt }
 // ===============================================
 
-let processedRankingData = null;
-let currentRankingData = null;
+// ── Sub-tab switching ──────────────────────────────────────────────────────────
+document.querySelectorAll('.ranking-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.ranking-subtab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.ranking-subtab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.subtab).classList.add('active');
 
-// File upload handler
-const rankingFileUpload = document.getElementById('rankingFileUpload');
-if (rankingFileUpload) {
-    rankingFileUpload.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                currentRankingData = JSON.parse(event.target.result);
-                console.log('Ranking file loaded:', currentRankingData);
-                
-                // Show file info
-                document.getElementById('currentFileName').textContent = file.name;
-                document.getElementById('currentFileInfo').style.display = 'block';
-                
-                showRankingStatus('success', `✅ Bestand "${file.name}" succesvol geladen!`);
-            } catch (error) {
-                console.error('Error parsing JSON:', error);
-                showRankingStatus('error', 'Fout bij laden bestand. Controleer of het een geldig JSON bestand is.');
-                currentRankingData = null;
-            }
-        };
-        reader.readAsText(file);
+        // Laad huidig klassement wanneer die tab opengaat
+        if (btn.dataset.subtab === 'currentTab') {
+            loadCurrentRankingView();
+        }
     });
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function showRankingStatus(elId, type, message) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.className = `ranking-status ${type}`;
+    el.textContent = message;
+    el.style.display = 'block';
+    if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
-// Clear button
-const clearRankingBtn = document.getElementById('clearRankingBtn');
-if (clearRankingBtn) {
-    clearRankingBtn.addEventListener('click', () => {
-        // Clear all fields
-        document.getElementById('rankingTeam').value = '';
-        document.getElementById('rankingInput').value = '';
-        document.getElementById('rankingFileUpload').value = '';
-        document.getElementById('currentFileInfo').style.display = 'none';
-        document.getElementById('rankingPreview').style.display = 'none';
-        document.getElementById('downloadRankingBtn').style.display = 'none';
-        
-        // Reset data
-        currentRankingData = null;
-        processedRankingData = null;
-        
-        showRankingStatus('success', 'Formulier gewist');
-    });
-}
-
-// Load current ranking data (fallback als er geen file geupload is)
-async function loadCurrentRanking() {
-    // If file already uploaded, use that
-    if (currentRankingData) {
-        console.log('Using uploaded ranking data');
-        return currentRankingData;
-    }
-    
-    // Otherwise create empty structure
-    console.log('No file uploaded, creating empty structure');
-    currentRankingData = {
-        "veteranen": [],
-        "zaterdag": [],
-        "zondag": []
-    };
-    return currentRankingData;
-}
-
-// Parse ranking input - handles tab-separated format from RBFA
-function parseRankingInput(input, team) {
+// ── Parse ranking input (hergebruikt van oud systeem) ──────────────────────────
+function parseRankingInput(input) {
     const lines = input.trim().split('\n');
     const rankingArray = [];
-    
-    console.log('Parsing ranking input for team:', team);
-    console.log('Number of lines:', lines.length);
-    
+
     for (const line of lines) {
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
-        
-        // Split by tabs first (RBFA standard format)
+
         let parts = trimmedLine.split('\t').filter(p => p.trim());
-        
-        console.log('Line parts (tab-split):', parts);
-        
-        // If tab split gives us exactly 10 parts, use it
-        // Otherwise try space split as fallback
-        if (parts.length !== 10) {
-            parts = trimmedLine.split(/\s+/);
-            console.log('Line parts (space-split):', parts);
-        }
-        
-        // We need exactly 10 parts:
-        // 0: Positie
-        // 1: Logo + Naam (dubbel)
-        // 2: Gespeeld
-        // 3: Gewonnen
-        // 4: Verloren (LET OP: komt VOOR gelijk!)
-        // 5: Gelijk (LET OP: komt NA verloren!)
-        // 6: Goals Voor
-        // 7: Goals Tegen
-        // 8: Saldo
-        // 9: Punten
-        if (parts.length !== 10) {
-            console.warn('Skipping line - expected 10 parts, got', parts.length, ':', trimmedLine);
-            continue;
-        }
-        
+        if (parts.length !== 10) parts = trimmedLine.split(/\s+/);
+        if (parts.length !== 10) continue;
+
         try {
-            // Parse position
             const pos = parseInt(parts[0]);
-            if (isNaN(pos)) {
-                console.warn('Invalid position:', parts[0]);
-                continue;
-            }
-            
-            // Parse team name (parts[1])
-            // Example: "Logo KORBEEK SPORTKORBEEK SPORT" -> "KORBEEK SPORT"
-            let teamName = parts[1];
-            
-            // Remove "Logo" prefix (case insensitive)
-            teamName = teamName.replace(/^Logo\s*/i, '');
-            
-            // Fix doubled names
-            // Split into words and check if first half equals second half
-            const words = teamName.split(/\s+/).filter(w => w.trim());
-            const halfLength = Math.floor(words.length / 2);
-            
-            if (words.length > 0 && words.length % 2 === 0 && halfLength > 0) {
-                const firstHalf = words.slice(0, halfLength).join(' ');
-                const secondHalf = words.slice(halfLength).join(' ');
-                
-                if (firstHalf === secondHalf) {
-                    teamName = firstHalf;
-                    console.log('Fixed doubled name:', parts[1], '->', teamName);
+            if (isNaN(pos)) continue;
+
+            let teamName = parts[1].replace(/^Logo\s*/i, '').trim();
+
+            // RBFA plakt de naam dubbel aan elkaar (logo-tekst + zichtbare tekst),
+            // soms zonder spatie: "VC TORENPLOEGVC TORENPLOEG"
+            // soms met spatie:    "VC TORENPLOEG VC TORENPLOEG"
+            // Oplossing 1: regex die een aaneengeplakte herhaling vangt
+            const concatMatch = teamName.match(/^(.+)\1$/);
+            if (concatMatch) {
+                teamName = concatMatch[1].trim();
+            } else {
+                // Oplossing 2: spatie-gescheiden herhaling (oude fallback)
+                const words = teamName.split(/\s+/).filter(w => w.trim());
+                const half  = Math.floor(words.length / 2);
+                if (words.length > 0 && words.length % 2 === 0 && half > 0) {
+                    const a = words.slice(0, half).join(' ');
+                    const b = words.slice(half).join(' ');
+                    if (a === b) teamName = a;
                 }
             }
-            
-            // Parse statistics (parts[2] through parts[9])
-            // Volgorde volgens RBFA: Gespeeld, Gewonnen, VERLOREN, GELIJK, Voor, Tegen, Saldo, Punten
-            const played = parseInt(parts[2]);     // Matchen gespeeld
-            const won = parseInt(parts[3]);        // Matchen gewonnen  
-            const lost = parseInt(parts[4]);       // Matchen verloren (LET OP: komt VOOR gelijk!)
-            const draw = parseInt(parts[5]);       // Matchen gelijk (LET OP: komt NA verloren!)
-            const goalsFor = parseInt(parts[6]);   // Goals voor
-            const goalsAgainst = parseInt(parts[7]); // Goals tegen
-            const saldo = parseInt(parts[8]);      // Saldo
-            const pnt = parseInt(parts[9]);        // Punten
-            
-            // Validate all numbers
-            if ([played, won, draw, lost, goalsFor, goalsAgainst, saldo, pnt].some(isNaN)) {
-                console.warn('Invalid numbers in line:', parts);
-                continue;
-            }
-            
-            const teamData = {
-                pos,
-                team: teamName.trim(),
-                pnt,
-                played,
-                won,
-                draw,
-                lost,
-                goals_for: goalsFor,
-                goals_against: goalsAgainst,
-                saldo
-            };
-            
-            console.log('Parsed team:', teamData);
-            rankingArray.push(teamData);
-            
-        } catch (error) {
-            console.error('Error parsing line:', trimmedLine, error);
-            continue;
-        }
+
+            const played      = parseInt(parts[2]);
+            const won         = parseInt(parts[3]);
+            const lost        = parseInt(parts[4]);
+            const draw        = parseInt(parts[5]);
+            const goalsFor    = parseInt(parts[6]);
+            const goalsAgainst = parseInt(parts[7]);
+            const saldo       = parseInt(parts[8]);
+            const pnt         = parseInt(parts[9]);
+
+            if ([played, won, draw, lost, goalsFor, goalsAgainst, saldo, pnt].some(isNaN)) continue;
+
+            rankingArray.push({ pos, team: teamName.trim(), pnt, played, won, draw, lost,
+                goals_for: goalsFor, goals_against: goalsAgainst, saldo });
+        } catch (_) { continue; }
     }
-    
-    console.log('Total teams parsed:', rankingArray.length);
-    console.log('Final ranking array:', rankingArray);
-    
     return rankingArray;
 }
 
-// Show ranking status message
-function showRankingStatus(type, message) {
-    const statusEl = document.getElementById('rankingStatus');
-    statusEl.className = `ranking-status ${type}`;
-    statusEl.textContent = message;
-    statusEl.style.display = 'block';
-    
-    if (type === 'success') {
-        setTimeout(() => {
-            statusEl.style.display = 'none';
-        }, 5000);
-    }
-}
-
-// Process ranking button
+// ── SUBTAB 1: Verwerken & Opslaan in Firebase ──────────────────────────────────
 const processRankingBtn = document.getElementById('processRankingBtn');
 if (processRankingBtn) {
     processRankingBtn.addEventListener('click', async () => {
-        const team = document.getElementById('rankingTeam').value;
+        const team  = document.getElementById('rankingTeam').value;
         const input = document.getElementById('rankingInput').value;
-        
-        if (!team) {
-            showRankingStatus('error', 'Selecteer eerst een team!');
-            return;
-        }
-        
-        if (!input.trim()) {
-            showRankingStatus('error', 'Voer rangschikking data in!');
-            return;
-        }
-        
+
+        if (!team)        { showRankingStatus('rankingStatus', 'error', 'Selecteer eerst een team!'); return; }
+        if (!input.trim()) { showRankingStatus('rankingStatus', 'error', 'Voer rangschikking data in!'); return; }
+
         processRankingBtn.disabled = true;
-        processRankingBtn.textContent = 'Bezig met verwerken...';
-        
+        processRankingBtn.textContent = 'Bezig…';
+
         try {
-            // Load current ranking if not already loaded
-            if (!currentRankingData) {
-                await loadCurrentRanking();
-                if (!currentRankingData) {
-                    processRankingBtn.disabled = false;
-                    processRankingBtn.textContent = '🔄 Verwerken';
-                    return;
-                }
-            }
-            
-            // Parse the input
-            const parsedData = parseRankingInput(input, team);
-            
-            if (parsedData.length === 0) {
-                showRankingStatus('error', 'Geen geldige data gevonden. Controleer het formaat!');
-                processRankingBtn.disabled = false;
-                processRankingBtn.textContent = '🔄 Verwerken';
+            const parsed = parseRankingInput(input);
+            if (parsed.length === 0) {
+                showRankingStatus('rankingStatus', 'error', 'Geen geldige data gevonden. Controleer het formaat!');
                 return;
             }
-            
-            // Update the ranking data
-            processedRankingData = { ...currentRankingData };
-            processedRankingData[team] = parsedData;
-            
-            // Show preview with team name
-            const previewEl = document.getElementById('rankingPreview');
-            const previewContent = document.getElementById('rankingPreviewContent');
-            const previewTeamName = document.getElementById('previewTeamName');
-            
-            previewTeamName.textContent = team.charAt(0).toUpperCase() + team.slice(1);
-            previewContent.textContent = JSON.stringify(processedRankingData[team], null, 2);
-            previewEl.style.display = 'block';
-            
-            // Show download button
-            document.getElementById('downloadRankingBtn').style.display = 'inline-block';
-            
-            showRankingStatus('success', `✅ Rangschikking voor ${team} succesvol verwerkt! ${parsedData.length} teams gevonden.`);
-            
-        } catch (error) {
-            console.error('Error processing ranking:', error);
-            showRankingStatus('error', 'Fout bij verwerken: ' + error.message);
+
+            // Opslaan in Firestore: ranking/{team}
+            await setDoc(doc(db, 'ranking', team), {
+                teams: parsed,
+                updatedAt: serverTimestamp()
+            });
+
+            // Preview tonen
+            document.getElementById('previewTeamName').textContent =
+                team.charAt(0).toUpperCase() + team.slice(1);
+            document.getElementById('rankingPreviewContent').textContent =
+                JSON.stringify(parsed, null, 2);
+            document.getElementById('rankingPreview').style.display = 'block';
+
+            showRankingStatus('rankingStatus', 'success',
+                `✅ ${parsed.length} ploegen opgeslagen voor ${team}!`);
+
+            // Invalideer localStorage cache op team-pagina
+            localStorage.removeItem(`vvs_ranking_${team}`);
+
+        } catch (err) {
+            console.error('processRanking error:', err);
+            showRankingStatus('rankingStatus', 'error', 'Fout bij opslaan: ' + err.message);
         } finally {
             processRankingBtn.disabled = false;
-            processRankingBtn.textContent = '🔄 Verwerken';
+            processRankingBtn.textContent = '🔄 Verwerken & Opslaan in Firebase';
         }
     });
 }
 
-// Download ranking button
-const downloadRankingBtn = document.getElementById('downloadRankingBtn');
-if (downloadRankingBtn) {
-    downloadRankingBtn.addEventListener('click', () => {
-        if (!processedRankingData) {
-            showRankingStatus('error', 'Verwerk eerst de rangschikking data!');
+const clearRankingBtn = document.getElementById('clearRankingBtn');
+if (clearRankingBtn) {
+    clearRankingBtn.addEventListener('click', () => {
+        document.getElementById('rankingTeam').value = '';
+        document.getElementById('rankingInput').value = '';
+        document.getElementById('rankingPreview').style.display = 'none';
+        showRankingStatus('rankingStatus', 'success', 'Gewist.');
+    });
+}
+
+// ── SUBTAB 2: Matchresultaat ───────────────────────────────────────────────────
+const matchResultTeamSel = document.getElementById('matchResultTeam');
+if (matchResultTeamSel) {
+    matchResultTeamSel.addEventListener('change', async () => {
+        const team = matchResultTeamSel.value;
+        document.getElementById('matchTeamSelects').style.display  = 'none';
+        document.getElementById('matchScoreRow').style.display     = 'none';
+        document.getElementById('matchResultActions').style.display = 'none';
+        document.getElementById('matchResultPreview').style.display = 'none';
+        document.getElementById('matchResultStatus').style.display  = 'none';
+
+        if (!team) return;
+
+        showRankingStatus('matchResultStatus', '', 'Ploegen laden…');
+        try {
+            const snap = await getDoc(doc(db, 'ranking', team));
+
+            if (!snap.exists()) {
+                showRankingStatus('matchResultStatus', 'error',
+                    'Geen klassement gevonden voor ' + team + '. Upload het eerst via "Volledig Plakken".');
+                return;
+            }
+
+            const teams = snap.data().teams || [];
+            const home  = document.getElementById('matchHomeTeam');
+            const away  = document.getElementById('matchAwayTeam');
+            [home, away].forEach(sel => {
+                sel.innerHTML = '<option value="">Kies ploeg…</option>';
+                teams.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.team;
+                    opt.textContent = t.team;
+                    sel.appendChild(opt);
+                });
+            });
+
+            document.getElementById('matchTeamSelects').style.display  = '';
+            document.getElementById('matchScoreRow').style.display     = '';
+            document.getElementById('matchResultActions').style.display = '';
+            document.getElementById('matchResultStatus').style.display  = 'none';
+
+        } catch (err) {
+            showRankingStatus('matchResultStatus', 'error', 'Fout: ' + err.message);
+        }
+    });
+}
+
+const applyMatchResultBtn = document.getElementById('applyMatchResultBtn');
+if (applyMatchResultBtn) {
+    applyMatchResultBtn.addEventListener('click', async () => {
+        const team      = document.getElementById('matchResultTeam').value;
+        const homeName  = document.getElementById('matchHomeTeam').value;
+        const awayName  = document.getElementById('matchAwayTeam').value;
+        const homeScore = parseInt(document.getElementById('matchHomeScore').value);
+        const awayScore = parseInt(document.getElementById('matchAwayScore').value);
+
+        if (!team || !homeName || !awayName) {
+            showRankingStatus('matchResultStatus', 'error', 'Selecteer reeks en beide ploegen.');
             return;
         }
-        
-        // Create download link
-        const dataStr = JSON.stringify(processedRankingData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'ranking.json';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        showRankingStatus('success', '💾 ranking.json gedownload! Upload dit bestand naar je website.');
+        if (homeName === awayName) {
+            showRankingStatus('matchResultStatus', 'error', 'Kies twee verschillende ploegen.');
+            return;
+        }
+        if (isNaN(homeScore) || isNaN(awayScore) || homeScore < 0 || awayScore < 0) {
+            showRankingStatus('matchResultStatus', 'error', 'Voer geldige scores in (0 of meer).');
+            return;
+        }
+
+        applyMatchResultBtn.disabled = true;
+        applyMatchResultBtn.textContent = 'Bezig…';
+
+        try {
+            const snap  = await getDoc(doc(db, 'ranking', team));
+            if (!snap.exists()) throw new Error('Klassement niet gevonden.');
+            const teams = snap.data().teams.map(t => ({ ...t }));
+
+            const homeTeam = teams.find(t => t.team === homeName);
+            const awayTeam = teams.find(t => t.team === awayName);
+            if (!homeTeam || !awayTeam) throw new Error('Ploeg niet gevonden in klassement.');
+
+            // Update statistieken
+            function applyResult(t, goalsFor, goalsAgainst) {
+                t.played = (t.played || 0) + 1;
+                t.goals_for     = (t.goals_for     || 0) + goalsFor;
+                t.goals_against = (t.goals_against || 0) + goalsAgainst;
+                t.saldo = t.goals_for - t.goals_against;
+                if (goalsFor > goalsAgainst) {
+                    t.won  = (t.won  || 0) + 1;
+                    t.pnt  = (t.pnt  || 0) + 3;
+                } else if (goalsFor < goalsAgainst) {
+                    t.lost = (t.lost || 0) + 1;
+                } else {
+                    t.draw = (t.draw || 0) + 1;
+                    t.pnt  = (t.pnt  || 0) + 1;
+                }
+            }
+            applyResult(homeTeam, homeScore, awayScore);
+            applyResult(awayTeam, awayScore, homeScore);
+
+            // Herbereken posities op basis van punten → saldo → goals_for
+            teams.sort((a, b) =>
+                b.pnt - a.pnt || b.saldo - a.saldo || b.goals_for - a.goals_for
+            );
+            let pos = 1;
+            teams.forEach((t, i) => {
+                if (i > 0 &&
+                    t.pnt    === teams[i-1].pnt &&
+                    t.saldo  === teams[i-1].saldo &&
+                    t.goals_for === teams[i-1].goals_for) {
+                    t.pos = teams[i-1].pos;
+                } else {
+                    t.pos = pos;
+                }
+                pos++;
+            });
+
+            // Opslaan
+            await setDoc(doc(db, 'ranking', team), { teams, updatedAt: serverTimestamp() });
+            localStorage.removeItem(`vvs_ranking_${team}`);
+
+            // Preview
+            const result = homeScore > awayScore ? `${homeName} wint`
+                         : homeScore < awayScore ? `${awayName} wint`
+                         : 'Gelijkspel';
+
+            document.getElementById('matchResultPreviewContent').textContent =
+                `${homeName} ${homeScore} – ${awayScore} ${awayName}\n${result}\n\n` +
+                `${homeName}: ${homeTeam.pnt} pnt, ${homeTeam.played} gespeeld\n` +
+                `${awayName}: ${awayTeam.pnt} pnt, ${awayTeam.played} gespeeld`;
+            document.getElementById('matchResultPreview').style.display = 'block';
+
+            showRankingStatus('matchResultStatus', 'success',
+                `✅ Klassement bijgewerkt: ${homeName} ${homeScore}–${awayScore} ${awayName}`);
+
+        } catch (err) {
+            console.error('applyMatchResult error:', err);
+            showRankingStatus('matchResultStatus', 'error', 'Fout: ' + err.message);
+        } finally {
+            applyMatchResultBtn.disabled = false;
+            applyMatchResultBtn.textContent = '⚽ Resultaat Verwerken & Opslaan';
+        }
     });
+}
+
+// ── SUBTAB 3: Huidig klassement bekijken ──────────────────────────────────────
+const viewRankingTeamSel = document.getElementById('viewRankingTeam');
+if (viewRankingTeamSel) {
+    viewRankingTeamSel.addEventListener('change', loadCurrentRankingView);
+}
+
+async function loadCurrentRankingView() {
+    const team = document.getElementById('viewRankingTeam')?.value;
+    const container = document.getElementById('currentRankingTable');
+    if (!team || !container) return;
+
+    container.innerHTML = '<div class="loading">Laden…</div>';
+    try {
+        const snap = await getDoc(doc(db, 'ranking', team));
+
+        if (!snap.exists() || !(snap.data().teams?.length)) {
+            container.innerHTML = '<p style="color:#666;margin-top:1rem;">Geen data gevonden. Upload via "Volledig Plakken".</p>';
+            return;
+        }
+
+        const teams = snap.data().teams;
+        const updated = snap.data().updatedAt?.toDate?.()?.toLocaleDateString('nl-BE') || '?';
+
+        container.innerHTML = `
+            <p style="font-size:0.82rem;color:#888;margin-bottom:0.75rem;">
+                Laatste update: ${updated} · ${teams.length} ploegen
+            </p>
+            <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead>
+                    <tr style="background:var(--primary-blue);color:white;">
+                        <th style="padding:0.5rem 0.6rem;text-align:center;">#</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:left;">Ploeg</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Punten">Pnt</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gespeeld">Sp</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gewonnen">W</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gelijk">G</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Verlies">V</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;">Voor</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;">Tgn</th>
+                        <th style="padding:0.5rem 0.6rem;text-align:center;">Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${teams.map((t, i) => {
+                        const isVVS = t.team.includes('V.V.S');
+                        const bg = isVVS ? 'background:#fff3cd;font-weight:600;'
+                                        : i % 2 === 0 ? '' : 'background:#f8fafc;';
+                        return `<tr style="${bg}">
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.pos}</td>
+                            <td style="padding:0.4rem 0.6rem;">${t.team}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;font-weight:700;">${t.pnt}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.played}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.won}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.draw}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.lost}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.goals_for}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.goals_against}</td>
+                            <td style="padding:0.4rem 0.6rem;text-align:center;color:${t.saldo >= 0 ? 'green' : 'red'};">
+                                ${t.saldo >= 0 ? '+' : ''}${t.saldo}
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+            </div>`;
+
+    } catch (err) {
+        container.innerHTML = `<p style="color:red;">Fout: ${err.message}</p>`;
+    }
 }
 
 console.log('Admin.js (FINAL FIX) initialization complete');

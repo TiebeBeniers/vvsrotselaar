@@ -656,7 +656,7 @@ function getModalValue(selectId, manualId, isOpponent = false) {
     if (sel && sel.value) return sel.value;
     if (man && man.value.trim()) {
         const val = man.value.trim();
-        if (isOpponent && /^\d+$/.test(val)) return `Nummer ${val}`;
+        if (isOpponent && /^\d+$/.test(val)) return `Nr. ${val}`;
         return val;
     }
     return '';

@@ -88,77 +88,125 @@
                     <h3>Rangschikking Beheren</h3>
                 </div>
 
-                <!-- Mobile message -->
-                <div class="ranking-mobile-msg">
-                    <p>🖥️</p>
-                    <p>Open deze categorie op een computer.</p>
+                <!-- Sub-tabs -->
+                <div class="ranking-subtabs">
+                    <button class="ranking-subtab active" data-subtab="pasteTab">📋 Volledig Plakken</button>
+                    <button class="ranking-subtab" data-subtab="matchTab">⚽ Matchresultaat</button>
+                    <button class="ranking-subtab" data-subtab="currentTab">👁️ Huidig Klassement</button>
                 </div>
 
-                <!-- Desktop content -->
-                <div class="ranking-manager">
-                    <div class="ranking-instructions">
-                        <h4>📋 Instructies</h4>
-                        <ol>
-                            <li>Upload je huidige <code>ranking.json</code> bestand (of begin met een leeg bestand)</li>
-                            <li>Selecteer voor welk team de data is (veteranen/zaterdag/zondag)</li>
-                            <li>Plak de rangschikking data vanuit <strong><a href="https://www.rbfa.be/nl/club/7532/ploegen" target="_blank">RBFA</a></strong></li>
-                            <li>Klik op "Verwerken" voor een preview</li>
-                            <li>Download het bijgewerkte <code>ranking.json</code> bestand</li>
-                        </ol>
-                        <p style="margin-top:1rem;"><strong>Data moet exact 10 kolommen hebben (TAB-separated):</strong></p>
-                        <table style="font-size:0.85rem;margin-top:0.5rem;border-collapse:collapse;width:100%;">
-                            <tr style="background:white;">
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>1.</strong> Positie</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>2.</strong> Logo+Naam</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>3.</strong> Gespeeld</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>4.</strong> Gewonnen</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>5.</strong> Verloren</td>
-                            </tr>
-                            <tr style="background:white;">
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>6.</strong> Gelijk</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>7.</strong> Voor</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>8.</strong> Tegen</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>9.</strong> Saldo</td>
-                                <td style="padding:0.25rem 0.5rem;border:1px solid #ddd;"><strong>10.</strong> Punten</td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <div class="ranking-form">
-                        <div class="form-group">
-                            <label for="rankingFileUpload">1. Upload Huidig ranking.json Bestand (optioneel)</label>
-                            <input type="file" id="rankingFileUpload" accept=".json" class="ranking-file-input">
-                            <small>Als je geen bestand upload, wordt een nieuw leeg bestand aangemaakt</small>
-                            <div id="currentFileInfo" style="display:none;margin-top:0.5rem;padding:0.5rem;background:#e8f4f8;border-radius:4px;">
-                                <strong>Geladen bestand:</strong> <span id="currentFileName"></span>
-                            </div>
+                <!-- ── SUBTAB 1: Volledig plakken van RBFA ── -->
+                <div class="ranking-subtab-content active" id="pasteTab">
+                    <div class="ranking-manager">
+                        <div class="ranking-instructions">
+                            <h4>📋 Instructies</h4>
+                            <ol>
+                                <li>Selecteer voor welk team de data is</li>
+                                <li>Ga naar <strong><a href="https://www.rbfa.be/nl/club/7532/ploegen" target="_blank">RBFA</a></strong>, kopieer de volledige rangschikking tabel en plak ze hieronder</li>
+                                <li>Klik "Verwerken &amp; Opslaan" — data wordt direct in Firebase opgeslagen</li>
+                            </ol>
+                            <p style="margin-top:0.75rem;font-size:0.85rem;color:#666;">Kolommen (TAB-separated): Positie · Logo+Naam · Gespeeld · Gewonnen · Verloren · Gelijk · Voor · Tegen · Saldo · Punten</p>
                         </div>
-                        <div class="form-group">
-                            <label for="rankingTeam">2. Selecteer Team *</label>
-                            <select id="rankingTeam" class="ranking-select">
-                                <option value="">Kies een team...</option>
+                        <div class="ranking-form">
+                            <div class="form-group">
+                                <label for="rankingTeam">Team *</label>
+                                <select id="rankingTeam" class="ranking-select">
+                                    <option value="">Kies een team...</option>
+                                    <option value="veteranen">Veteranen</option>
+                                    <option value="zaterdag">Zaterdag</option>
+                                    <option value="zondag">Zondag</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="rankingInput">Rangschikking Data (geplakt van RBFA) *</label>
+                                <textarea id="rankingInput" class="ranking-textarea" rows="15"
+                                    placeholder="Plak hier de rangschikking data van rbfa.be..."></textarea>
+                            </div>
+                            <div class="ranking-actions">
+                                <button class="add-btn" id="processRankingBtn">🔄 Verwerken &amp; Opslaan in Firebase</button>
+                                <button class="btn-secondary" id="clearRankingBtn">🗑️ Wissen</button>
+                            </div>
+                            <div class="ranking-preview" id="rankingPreview" style="display:none;">
+                                <h4>✅ Opgeslagen voor "<span id="previewTeamName"></span>"</h4>
+                                <pre id="rankingPreviewContent"></pre>
+                            </div>
+                            <div class="ranking-status" id="rankingStatus"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── SUBTAB 2: Matchresultaat invoeren ── -->
+                <div class="ranking-subtab-content" id="matchTab">
+                    <div class="ranking-manager">
+                        <div class="ranking-instructions">
+                            <h4>⚽ Matchresultaat Invoeren</h4>
+                            <p>Voer het resultaat in van één match. Het klassement van de twee betrokken ploegen wordt automatisch herberekend.</p>
+                            <p style="margin-top:0.5rem;font-size:0.85rem;color:#666;">Dit werkt voor elke wedstrijd in de reeks, niet enkel wedstrijden van V.V.S Rotselaar.</p>
+                        </div>
+                        <div class="ranking-form">
+                            <div class="form-group">
+                                <label for="matchResultTeam">Reeks *</label>
+                                <select id="matchResultTeam">
+                                    <option value="">Kies een reeks...</option>
+                                    <option value="veteranen">Veteranen</option>
+                                    <option value="zaterdag">Zaterdag</option>
+                                    <option value="zondag">Zondag</option>
+                                </select>
+                            </div>
+                            <div class="form-row" id="matchTeamSelects" style="display:none;">
+                                <div class="form-group">
+                                    <label for="matchHomeTeam">Thuisploeg *</label>
+                                    <select id="matchHomeTeam">
+                                        <option value="">Kies thuisploeg...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="matchAwayTeam">Uitploeg *</label>
+                                    <select id="matchAwayTeam">
+                                        <option value="">Kies uitploeg...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row" id="matchScoreRow" style="display:none;">
+                                <div class="form-group">
+                                    <label for="matchHomeScore">Goals Thuis *</label>
+                                    <input type="number" id="matchHomeScore" min="0" placeholder="0">
+                                </div>
+                                <div class="form-group">
+                                    <label for="matchAwayScore">Goals Uit *</label>
+                                    <input type="number" id="matchAwayScore" min="0" placeholder="0">
+                                </div>
+                            </div>
+                            <div class="ranking-actions" id="matchResultActions" style="display:none;">
+                                <button class="add-btn" id="applyMatchResultBtn">⚽ Resultaat Verwerken &amp; Opslaan</button>
+                            </div>
+                            <div class="ranking-preview" id="matchResultPreview" style="display:none;">
+                                <h4>✅ Klassement bijgewerkt</h4>
+                                <pre id="matchResultPreviewContent"></pre>
+                            </div>
+                            <div class="ranking-status" id="matchResultStatus"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── SUBTAB 3: Huidig klassement bekijken ── -->
+                <div class="ranking-subtab-content" id="currentTab">
+                    <div class="ranking-form" style="max-width:100%;">
+                        <div class="form-group" style="max-width:300px;">
+                            <label for="viewRankingTeam">Team</label>
+                            <select id="viewRankingTeam">
                                 <option value="veteranen">Veteranen</option>
                                 <option value="zaterdag">Zaterdag</option>
                                 <option value="zondag">Zondag</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="rankingInput">3. Rangschikking Data *</label>
-                            <textarea id="rankingInput" class="ranking-textarea" rows="15"
-                                placeholder="Plak hier de rangschikking data..."></textarea>
+                        <div id="currentRankingTable">
+                            <div class="loading">Laden...</div>
                         </div>
-                        <div class="ranking-actions">
-                            <button class="add-btn" id="processRankingBtn">🔄 Verwerken</button>
-                            <button class="btn-secondary" id="downloadRankingBtn" style="display:none;">💾 Download ranking.json</button>
-                            <button class="btn-secondary" id="clearRankingBtn">🗑️ Wissen</button>
-                        </div>
-                        <div class="ranking-preview" id="rankingPreview" style="display:none;">
-                            <h4>✅ Preview van Verwerkte Data voor "<span id="previewTeamName"></span>"</h4>
-                            <pre id="rankingPreviewContent"></pre>
-                        </div>
-                        <div class="ranking-status" id="rankingStatus"></div>
+                        <div class="ranking-status" id="currentRankingStatus"></div>
                     </div>
                 </div>
+
             </div>
 
             <!-- ── Evenementen Tab ── -->

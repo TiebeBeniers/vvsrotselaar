@@ -16,9 +16,9 @@ console.log('Team.js loaded');
 //   next_match_{team}       10 min  — komende wedstrijd wijzigt zelden door de week
 //   team_stats_{team}       60 min  — doelpunten/assists veranderen alleen na wedstrijd
 //   timeline_{matchId}      permanent (wedstrijden zijn immutable na 'finished')
+//   ranking_{team}          30 min  — opgeslagen in Firestore, admin invalideert bij update
 //
 // Availability wordt NIET gecached — dat is real-time via onSnapshot.
-// Ranking wordt NIET gecached — komt uit ranking.json (eigen HTTP-cache).
 //
 const CACHE_TTL = {
     recentMatches: 30 * 60 * 1000,
@@ -464,81 +464,96 @@ function stopLiveUpdate() {
 async function loadRanking() {
     console.log('Loading ranking for', TEAM_TYPE);
     const tbody = document.getElementById('rankingBody');
-    
-    if (!tbody) {
-        console.error('Ranking body element not found');
+    if (!tbody) { console.error('Ranking body element not found'); return; }
+
+    // Check cache eerst (30 min TTL) — cache slaat ook updatedAt op
+    const cached = tcGet(`ranking_${TEAM_TYPE}`, 30 * 60 * 1000);
+    if (cached) {
+        console.log('[cache] ranking hit for', TEAM_TYPE);
+        renderRankingTable(tbody, cached.teams, cached.updatedAt);
         return;
     }
-    
+
     try {
-        console.log('Fetching ranking.json...');
-        const response = await fetch('ranking.json');
-        
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const rankingData = await response.json();
-        console.log('Ranking data loaded successfully');
-        console.log('Available teams in ranking:', Object.keys(rankingData));
-        
-        const teamRanking = rankingData[TEAM_TYPE];
-        
-        if (!teamRanking) {
-            console.error('No ranking data for team:', TEAM_TYPE);
-            tbody.innerHTML = `<tr><td colspan="10" class="error">Geen ranking beschikbaar voor ${TEAM_TYPE}.</td></tr>`;
-            return;
-        }
-        
-        if (teamRanking.length === 0) {
-            console.log('Ranking array is empty for', TEAM_TYPE);
+        console.log('[firestore] ranking fetch for', TEAM_TYPE);
+        const snap = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js')
+            .then(m => m.getDoc(m.doc(db, 'ranking', TEAM_TYPE)));
+
+        if (!snap.exists() || !snap.data().teams?.length) {
+            console.warn('No ranking in Firestore for', TEAM_TYPE);
             tbody.innerHTML = '<tr><td colspan="10">Geen ranking beschikbaar.</td></tr>';
             return;
         }
-        
-        console.log('Found', teamRanking.length, 'teams in ranking');
-        tbody.innerHTML = '';
-        
-        teamRanking.forEach((team, index) => {
-            const row = document.createElement('tr');
-            const isVVS = team.team.includes('V.V.S ROTSELAAR');
-            
-            if (isVVS) {
-                row.classList.add('vvs-row');
-                console.log('Found VVS row at position', team.pos);
-            } else {
-                row.classList.add(index % 2 === 0 ? 'even-row' : 'odd-row');
-            }
-            
-            // Clean up team name (remove duplicates)
-            const teamName = team.team.replace(/(.+)\1+/, '$1');
-            
-            // Calculate played games
-            const played = team.won + team.draw + team.lost;
-            
-            row.innerHTML = `
-                <td class="pos-col">${team.pos}</td>
-                <td class="team-col">${teamName}</td>
-                <td class="pnt-col"><strong>${team.pnt}</strong></td>
-                <td class="stat-col">${played}</td>
-                <td class="stat-col">${team.won}</td>
-                <td class="stat-col">${team.draw}</td>
-                <td class="stat-col">${team.lost}</td>
-                <td class="goals-col">${team.goals_for}</td>
-                <td class="goals-col">${team.goals_against}</td>
-                <td class="saldo-col ${team.saldo >= 0 ? 'positive' : 'negative'}">${team.saldo >= 0 ? '+' : ''}${team.saldo}</td>
-            `;
-            
-            tbody.appendChild(row);
-        });
-        
-        console.log('Ranking table populated successfully');
-        
+
+        const teams     = snap.data().teams;
+        const updatedAt = snap.data().updatedAt?.toDate?.()?.toLocaleDateString('nl-BE') || null;
+
+        tcSet(`ranking_${TEAM_TYPE}`, { teams, updatedAt });
+        renderRankingTable(tbody, teams, updatedAt);
+
     } catch (error) {
         console.error('Error loading ranking:', error);
-        console.error('Error details:', error.message);
         tbody.innerHTML = `<tr><td colspan="10" class="error">Fout bij laden van ranking: ${error.message}</td></tr>`;
     }
+}
+
+function cleanTeamName(name) {
+    // Verwijder aaneengeplakte herhaling: "VC TORENPLOEGVC TORENPLOEG" → "VC TORENPLOEG"
+    const concatMatch = name.match(/^(.+)\1$/);
+    if (concatMatch) return concatMatch[1].trim();
+    // Spatie-gescheiden herhaling: "VC TORENPLOEG VC TORENPLOEG" → "VC TORENPLOEG"
+    const words = name.split(/\s+/).filter(w => w);
+    const half  = Math.floor(words.length / 2);
+    if (words.length > 0 && words.length % 2 === 0 && half > 0) {
+        const a = words.slice(0, half).join(' ');
+        const b = words.slice(half).join(' ');
+        if (a === b) return a;
+    }
+    return name;
+}
+
+function renderRankingTable(tbody, teamRanking, updatedAt = null) {
+    tbody.innerHTML = '';
+    teamRanking.forEach((team, index) => {
+        const row = document.createElement('tr');
+        const isVVS = team.team.includes('V.V.S');
+        if (isVVS) {
+            row.classList.add('vvs-row');
+        } else {
+            row.classList.add(index % 2 === 0 ? 'even-row' : 'odd-row');
+        }
+
+        const teamName = cleanTeamName(team.team);
+        const played   = team.played ?? (team.won + team.draw + team.lost);
+
+        row.innerHTML = `
+            <td class="pos-col">${team.pos}</td>
+            <td class="team-col">${teamName}</td>
+            <td class="pnt-col"><strong>${team.pnt}</strong></td>
+            <td class="stat-col">${played}</td>
+            <td class="stat-col">${team.won}</td>
+            <td class="stat-col">${team.draw}</td>
+            <td class="stat-col">${team.lost}</td>
+            <td class="goals-col">${team.goals_for}</td>
+            <td class="goals-col">${team.goals_against}</td>
+            <td class="saldo-col ${team.saldo >= 0 ? 'positive' : 'negative'}">${team.saldo >= 0 ? '+' : ''}${team.saldo}</td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    // Toon "laatste update" onder de tabel (buiten de table-container, binnen de section)
+    if (updatedAt) {
+        const existing = document.getElementById('rankingUpdatedAt');
+        if (existing) existing.remove();
+        const note = document.createElement('p');
+        note.id = 'rankingUpdatedAt';
+        note.style.cssText = 'font-size:0.78rem;color:#aaa;margin-top:0.5rem;text-align:right;';
+        note.textContent = `Laatste update: ${updatedAt}`;
+        const container = tbody.closest('.ranking-table-container');
+        container?.parentNode?.insertBefore(note, container.nextSibling);
+    }
+
+    console.log('Ranking table populated successfully');
 }
 
 // ===============================================

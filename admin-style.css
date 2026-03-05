@@ -1663,3 +1663,35 @@
 }
 .shift-opt-badge.badge-on  { background: #d1fae5; color: #065f46; }
 .shift-opt-badge.badge-off { background: #f1f5f9; color: #94a3b8; }
+
+/* ═══════════════════════════════════════════
+   Ranking sub-tabs
+   ═══════════════════════════════════════════ */
+.ranking-subtabs {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border-color, #e2e8f0);
+    padding-bottom: 0;
+}
+.ranking-subtab {
+    padding: 0.65rem 1.2rem;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-gray, #718096);
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    margin-bottom: -2px;
+}
+.ranking-subtab:hover { color: var(--primary-blue, #0047AB); }
+.ranking-subtab.active {
+    color: var(--primary-blue, #0047AB);
+    border-bottom-color: var(--primary-blue, #0047AB);
+}
+.ranking-subtab-content { display: none; }
+.ranking-subtab-content.active { display: block; }
