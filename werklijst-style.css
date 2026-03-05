@@ -558,3 +558,15 @@
 @media (max-width: 680px) {
     .wl-category-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Shift label (zichtbaar als showLabel aan staat) ── */
+.wl-shift-label {
+    font-weight: 750;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

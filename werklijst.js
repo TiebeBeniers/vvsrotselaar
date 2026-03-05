@@ -248,8 +248,13 @@ function renderShiftCard(shift) {
 
     const noteHtml = shift.note ? `<p class="wl-shift-note">${shift.note}</p>` : '';
 
+    const labelHtml = (shift.showLabel ?? false)
+        ? `<div class="wl-shift-label">${shift.label || ''}</div>`
+        : '';
+
     return `
         <div class="${cardCls}" id="card-${shift.id}">
+            ${labelHtml}
             <div class="wl-shift-time">${shift.time || ''}</div>
             ${capacityBar}
             <div class="wl-shift-people" id="people-${shift.id}">${personChips}</div>
@@ -288,9 +293,11 @@ function handleClick(shiftId) {
         return;
     }
 
-    // Festival: ask about responsible if none yet
-    const hasResponsible = persons.some(p => p.responsible);
-    if (hasResponsible) {
+    // Festival: ask about responsible if none yet AND shift requires it
+    const hasResponsible    = persons.some(p => p.responsible);
+    const requireResponsible = shift?.requireResponsible ?? true;
+
+    if (hasResponsible || !requireResponsible) {
         addToShift(shiftId, false);
     } else {
         pendingShiftId = shiftId;

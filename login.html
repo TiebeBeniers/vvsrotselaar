@@ -114,10 +114,20 @@
                             </select>
                         </div>
                         
+                        <div class="form-group" style="margin-top:0.5rem;">
+                            <label style="display:flex;align-items:flex-start;gap:0.65rem;cursor:pointer;font-weight:normal;font-size:0.9rem;line-height:1.5;">
+                                <input type="checkbox" id="acceptTerms" style="margin-top:0.2rem;flex-shrink:0;width:16px;height:16px;cursor:pointer;">
+                                <span>Ik heb de
+                                    <a href="#" id="showTermsBtn" style="color:#1a73e8;text-decoration:underline;">algemene voorwaarden</a>
+                                    gelezen en ga hiermee akkoord.
+                                </span>
+                            </label>
+                        </div>
+
                         <div class="success-message" id="requestSuccessMessage" style="display: none;"></div>
                         <div class="error-message" id="requestErrorMessage" style="display: none;"></div>
-                        
-                        <button type="submit" class="login-btn">AANVRAAG INDIENEN</button>
+
+                        <button type="submit" class="login-btn" id="submitRequestBtn" disabled style="opacity:0.5;cursor:not-allowed;">AANVRAAG INDIENEN</button>
                         
                         <p class="back-to-login">
                             <a href="#" id="backToLogin">Terug naar inloggen</a>
@@ -175,6 +185,47 @@
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
 
+    <!-- Algemene Voorwaarden Modal -->
+    <div id="termsModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.55);overflow-y:auto;padding:1.5rem 1rem;">
+        <div style="background:#fff;border-radius:10px;max-width:620px;margin:2rem auto;padding:2rem 2rem 1.5rem;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+            <button id="closeTermsBtn" aria-label="Sluiten" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.6rem;cursor:pointer;color:#555;line-height:1;">&times;</button>
+
+            <h3 style="margin:0 0 0.2rem;">Algemene Voorwaarden</h3>
+            <p style="color:#888;font-size:0.85rem;margin-bottom:1.5rem;">V.V.S Rotselaar &mdash; versie maart 2026</p>
+
+            <h4 style="margin:0 0 0.4rem;">1. Opslag van persoonsgegevens</h4>
+            <p style="font-size:0.9rem;line-height:1.75;margin-bottom:1.25rem;">
+                Door een account aan te vragen geef je V.V.S Rotselaar toestemming om je
+                persoonsgegevens (naam, e-mailadres, ploeg en wedstrijdstatistieken) op te
+                slaan en te verwerken. Deze gegevens worden uitsluitend gebruikt voor het
+                beheer van de ledenzone van <strong>vvsrotselaar.be</strong> en worden nooit
+                verkocht aan of gedeeld met derden voor commerciële doeleinden. Je gegevens
+                worden bewaard zolang je actief lid bent van de club en worden op verzoek
+                verwijderd binnen 30 dagen. Meer info vind je in onze
+                <a href="privacy.html" target="_blank" style="color:#1a73e8;text-decoration:underline;">privacyverklaring</a>.
+            </p>
+
+            <h4 style="margin:0 0 0.4rem;">2. Gebruik van foto's</h4>
+            <p style="font-size:0.9rem;line-height:1.75;margin-bottom:1.5rem;">
+                Door een account aan te vragen geef je V.V.S Rotselaar toestemming om
+                foto's waarop jij zichtbaar bent te gebruiken op de clubwebsite
+                (<strong>vvsrotselaar.be</strong>) en de bijhorende galerij. Dit betreft
+                uitsluitend foto's genomen in een clubcontext (wedstrijden, trainingen,
+                clubactiviteiten). Foto's worden nooit gebruikt voor commerciële of
+                advertentiedoeleinden. Je kan jouw toestemming op elk moment intrekken
+                door een e-mail te sturen naar
+                <a href="mailto:info@vvsrotselaar.be" style="color:#1a73e8;text-decoration:underline;">info@vvsrotselaar.be</a>,
+                waarna de betreffende foto's worden verwijderd.
+            </p>
+
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #eee;padding-top:1rem;">
+                <button id="declineTermsBtn" style="padding:0.6rem 1.2rem;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-size:0.9rem;color:#333;">Weigeren</button>
+                <button id="acceptTermsBtn" style="padding:0.6rem 1.4rem;border:none;border-radius:5px;background:#1a73e8;color:#fff;cursor:pointer;font-size:0.9rem;font-weight:600;">Accepteren</button>
+            </div>
+        </div>
+    </div>
+
+    <script data-cfasync="false" src="/cdn-cgi/l/email-protection#91f8fff7fed1e7e7e2e3fee5e2f4fdf0f0e3bff3f4"></script>
     <script type="module" src="firebase-config.js"></script>
     <script type="module" src="auth.js"></script>
 </body>

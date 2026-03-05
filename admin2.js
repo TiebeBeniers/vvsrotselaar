@@ -247,6 +247,15 @@ function createShiftCard(shift) {
     const maxLabel = shift.max ? `${persons.length} / ${shift.max}` : `${persons.length} / ∞`;
     const catTag = shift.category ? `<span class="shift-cat-tag">${shift.category}</span>` : '';
 
+    const reqResp  = shift.requireResponsible ?? true;
+    const showLbl  = shift.showLabel ?? false;
+    const respBadge  = reqResp
+        ? `<span class="shift-opt-badge badge-on"  title="Verantwoordelijke vereist">★ Verantw.</span>`
+        : `<span class="shift-opt-badge badge-off" title="Geen verantwoordelijke">★ Uit</span>`;
+    const labelBadge = showLbl
+        ? `<span class="shift-opt-badge badge-on"  title="Label zichtbaar">🏷️ Label</span>`
+        : `<span class="shift-opt-badge badge-off" title="Label verborgen">🏷️ Verborgen</span>`;
+
     const card = document.createElement('div');
     card.className = 'shift-admin-card';
     card.dataset.id = shift.id;
@@ -259,6 +268,8 @@ function createShiftCard(shift) {
                     <span class="meta-time">${shift.time || ''}</span>
                     <span class="meta-sep">·</span>
                     <span class="meta-count">${maxLabel} pers.</span>
+                    <span class="meta-sep">·</span>
+                    ${respBadge}${labelBadge}
                 </div>
                 ${shift.note ? `<div class="shift-admin-note">${shift.note}</div>` : ''}
             </div>
@@ -411,6 +422,12 @@ function openShiftModal(shift = null) {
     document.getElementById('shiftNote').value      = shift ? (shift.note     || '') : '';
     document.getElementById('shiftCategory').value  = shift ? (shift.category || '') : '';
 
+    // Toggles – requireResponsible standaard AAN, showLabel standaard UIT
+    const rrEl = document.getElementById('shiftRequireResponsible');
+    const slEl = document.getElementById('shiftShowLabel');
+    if (rrEl) rrEl.checked = shift ? (shift.requireResponsible ?? true)  : true;
+    if (slEl) slEl.checked = shift ? (shift.showLabel          ?? false) : false;
+
     // Vul de datalist met bestaande categorieën voor autocomplete
     const categories = [...new Set(
         Object.values(shiftsCache).map(s => s.category).filter(Boolean)
@@ -437,6 +454,8 @@ shiftForm?.addEventListener('submit', async (e) => {
     const max      = maxRaw ? parseInt(maxRaw, 10) : null;
     const note     = document.getElementById('shiftNote').value.trim();
     const category = document.getElementById('shiftCategory').value.trim();
+    const requireResponsible = document.getElementById('shiftRequireResponsible')?.checked ?? true;
+    const showLabel          = document.getElementById('shiftShowLabel')?.checked ?? false;
 
     const shiftId = id || slugify(`${label}_${date}`);
 
@@ -447,7 +466,7 @@ shiftForm?.addEventListener('submit', async (e) => {
         const existing = shiftsCache[shiftId] || {};
         await setDoc(
             doc(db, 'werklijsten', editingWerklijstId, 'shifts', shiftId),
-            { label, date, time, max, note, category, persons: existing.persons || [] }
+            { label, date, time, max, note, category, requireResponsible, showLabel, persons: existing.persons || [] }
         );
         showToast('✅ Shift opgeslagen!', 'success');
         shiftModal.classList.remove('active');
