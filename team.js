@@ -9,6 +9,47 @@ import { collection, query, where, getDocs, orderBy, limit, onSnapshot, doc, set
 
 console.log('Team.js loaded');
 
+// ── Cache ─────────────────────────────────────────────────────────────────────
+//
+// Wat wordt gecached en hoe lang:
+//   recent_matches_{team}   30 min  — verandert alleen na een wedstrijd
+//   next_match_{team}       10 min  — komende wedstrijd wijzigt zelden door de week
+//   team_stats_{team}       60 min  — doelpunten/assists veranderen alleen na wedstrijd
+//   timeline_{matchId}      permanent (wedstrijden zijn immutable na 'finished')
+//
+// Availability wordt NIET gecached — dat is real-time via onSnapshot.
+// Ranking wordt NIET gecached — komt uit ranking.json (eigen HTTP-cache).
+//
+const CACHE_TTL = {
+    recentMatches: 30 * 60 * 1000,
+    nextMatch:     10 * 60 * 1000,
+    teamStats:     60 * 60 * 1000,
+    timeline:      7 * 24 * 60 * 60 * 1000,   // 1 week — afgelopen wedstrijden veranderen niet
+};
+
+function tcGet(key, ttl) {
+    try {
+        const raw = localStorage.getItem(`vvs_${key}`);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (ttl !== Infinity && Date.now() - ts > ttl) {
+            localStorage.removeItem(`vvs_${key}`);
+            return null;
+        }
+        return data;
+    } catch (_) { return null; }
+}
+
+function tcSet(key, data) {
+    try {
+        localStorage.setItem(`vvs_${key}`, JSON.stringify({ ts: Date.now(), data }));
+    } catch (_) { /* quota vol — geen probleem, gewoon doorgaan */ }
+}
+
+function tcDel(key) {
+    try { localStorage.removeItem(`vvs_${key}`); } catch (_) {}
+}
+
 // Get team type from URL (e.g., veteranen.html -> veteranen)
 function getTeamTypeFromURL() {
     const path = window.location.pathname;
@@ -131,7 +172,16 @@ async function loadNextMatch() {
 
 async function loadPlannedMatch(container) {
     console.log('Loading planned match for team:', TEAM_TYPE);
-    
+
+    // ── Cache check ──────────────────────────────────────────────────────────
+    const cacheKey = `next_match_${TEAM_TYPE}`;
+    const cached = tcGet(cacheKey, CACHE_TTL.nextMatch);
+    if (cached) {
+        console.log('[cache] next match geladen');
+        displayPlannedMatch(cached, container);
+        return;
+    }
+
     try {
         // First, try without date filter to see if there are ANY planned matches
         const plannedQuery = query(
@@ -176,10 +226,12 @@ async function loadPlannedMatch(container) {
             // Show most recent match even if in the past
             console.log('No future matches, showing most recent');
             const nextMatch = matches[matches.length - 1];
+            tcSet(cacheKey, nextMatch);
             displayPlannedMatch(nextMatch, container);
         } else {
             console.log('Showing next future match');
             const nextMatch = futureMatches[0];
+            tcSet(cacheKey, nextMatch);
             displayPlannedMatch(nextMatch, container);
         }
         
@@ -536,10 +588,48 @@ function renderFormBar(matches) {
     return circles.join('');
 }
 
+// Aparte functie zodat zowel Firestore- als cache-pad hem kunnen aanroepen
+function renderFormBarFromMatches() {
+    const container = document.getElementById('recentMatchesList');
+    if (!container || allRecentMatches.length === 0) return;
+    const section = container.closest('section');
+    if (!section) return;
+    let header = section.querySelector('.recent-matches-header');
+    if (!header) {
+        const h2 = section.querySelector('h2');
+        if (h2) {
+            header = document.createElement('div');
+            header.className = 'recent-matches-header';
+            h2.parentNode.insertBefore(header, h2);
+            header.appendChild(h2);
+        }
+    }
+    if (header) {
+        const old = header.querySelector('.form-bar');
+        if (old) old.remove();
+        const formBar = document.createElement('div');
+        formBar.className = 'form-bar';
+        formBar.innerHTML = `<div class="form-circles">${renderFormBar(allRecentMatches)}</div>`;
+        header.appendChild(formBar);
+    }
+}
+
 async function loadRecentMatches() {
     console.log('Loading recent matches for', TEAM_TYPE);
     const container = document.getElementById('recentMatchesList');
     if (!container) return;
+
+    // ── Cache check ──────────────────────────────────────────────────────────
+    const cacheKey = `recent_matches_${TEAM_TYPE}`;
+    const cached = tcGet(cacheKey, CACHE_TTL.recentMatches);
+    if (cached) {
+        console.log('[cache] recent matches geladen:', cached.length);
+        allRecentMatches = cached;
+        currentlyShowing = INITIAL_SHOW;
+        renderRecentMatches(container);
+        renderFormBarFromMatches();
+        return;
+    }
 
     try {
         const recentQuery = query(
@@ -567,34 +657,12 @@ async function loadRecentMatches() {
             return dateB - dateA; // meest recent eerst
         });
 
+        // Cache opslaan
+        tcSet(cacheKey, allRecentMatches);
+
         currentlyShowing = INITIAL_SHOW;
         renderRecentMatches(container);
-
-        // Vorm cirkels naast de h2 plaatsen
-        const section = container.closest('section');
-        if (section && allRecentMatches.length > 0) {
-            // Zoek bestaande header wrapper of maak aan
-            let header = section.querySelector('.recent-matches-header');
-            if (!header) {
-                const h2 = section.querySelector('h2');
-                if (h2) {
-                    header = document.createElement('div');
-                    header.className = 'recent-matches-header';
-                    h2.parentNode.insertBefore(header, h2);
-                    header.appendChild(h2);
-                }
-            }
-            if (header) {
-                // Verwijder oude form-bar als die er al is
-                const old = header.querySelector('.form-bar');
-                if (old) old.remove();
-
-                const formBar = document.createElement('div');
-                formBar.className = 'form-bar';
-                formBar.innerHTML = `<div class="form-circles">${renderFormBar(allRecentMatches)}</div>`;
-                header.appendChild(formBar);
-            }
-        }
+        renderFormBarFromMatches();
 
     } catch (error) {
         console.error('Error loading recent matches:', error);
@@ -689,6 +757,20 @@ async function showMatchTimeline(match) {
     modal.classList.add('active');
     modalTimeline.innerHTML = '<div class="loading">Laden...</div>';
 
+    // ── Timeline cache — wedstrijdevents veranderen niet meer na 'finished' ──
+    const tlKey = `timeline_${match.id}`;
+    const cachedEvents = tcGet(tlKey, CACHE_TTL.timeline);
+    if (cachedEvents) {
+        console.log('[cache] timeline geladen voor', match.id);
+        if (cachedEvents.length === 0) {
+            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
+        } else {
+            modalTimeline.innerHTML = '';
+            renderTimelineTeam(cachedEvents, modalTimeline);
+        }
+        return;
+    }
+
     try {
         const eventsSnapshot = await getDocs(query(
             collection(db, 'events'),
@@ -702,6 +784,13 @@ async function showMatchTimeline(match) {
 
         const events = [];
         eventsSnapshot.forEach(d => events.push({ id: d.id, ...d.data() }));
+
+        // Sla op in cache — Timestamp objecten zijn niet serialiseerbaar, zet om naar ms
+        const serializableEvents = events.map(e => ({
+            ...e,
+            timestamp: e.timestamp?.toMillis ? e.timestamp.toMillis() : e.timestamp
+        }));
+        tcSet(tlKey, serializableEvents);
 
         modalTimeline.innerHTML = '';
         renderTimelineTeam(events, modalTimeline);
@@ -864,65 +953,97 @@ if (timelineModal) {
 }
 
 // ===============================================
-// LOAD STATISTICS
+// LOAD STATISTICS (live vanuit Firebase, met cache)
 // ===============================================
 
-function loadStatistics() {
+async function loadStatistics() {
+    // Alleen zondag heeft een statistieken-sectie in de HTML
+    if (TEAM_TYPE !== 'zondag') return;
+
+    const topScorersEl  = document.getElementById('topScorers');
+    const topAssistsEl  = document.getElementById('topAssists');
+    if (!topScorersEl && !topAssistsEl) return;
+
     console.log('Loading statistics for', TEAM_TYPE);
-    
-    // Placeholder data - in de toekomst kan dit uit Firestore komen
-    const statisticsData = {
-        zondag: {
-            topScorers: [
-                { name: 'Roel Wouters', goals: 12 },
-                { name: 'Dries Moermans', goals: 6 },
-                { name: 'Ruben Staal', goals: 6 }
-            ],
-            topAssists: [
-                { name: 'Dries Moermans', assists: 11 },
-                { name: 'Jesse Janssens', assists: 5 },
-                { name: 'Nand Wallays', assists: 5 }
-            ]
-        }
-    };
-    
-    const teamStats = statisticsData[TEAM_TYPE];
-    
-    if (!teamStats) {
-        console.log('No statistics available for', TEAM_TYPE);
+
+    // ── Cache check ──────────────────────────────────────────────────────────
+    const cacheKey = `team_stats_${TEAM_TYPE}`;
+    const cached = tcGet(cacheKey, CACHE_TTL.teamStats);
+    if (cached) {
+        console.log('[cache] stats geladen');
+        renderStatistics(cached.topScorers, cached.topAssists);
         return;
     }
-    
-    // Update top scorers
-    const topScorersContainer = document.getElementById('topScorers');
-    if (topScorersContainer && teamStats.topScorers) {
-        topScorersContainer.innerHTML = '';
-        teamStats.topScorers.forEach((scorer, index) => {
-            const item = document.createElement('div');
-            item.className = 'stat-item';
-            item.innerHTML = `
-                <span class="stat-rank">${index + 1}</span>
-                <span class="stat-player">${scorer.name}</span>
-                <span class="stat-value">${scorer.goals}</span>
-            `;
-            topScorersContainer.appendChild(item);
+
+    try {
+        // Haal alle spelers op van de zondagploeg
+        const usersSnap = await getDocs(
+            query(collection(db, 'users'), where('categorie', '==', 'zondag'))
+        );
+
+        if (usersSnap.empty) {
+            renderStatistics([], []);
+            return;
+        }
+
+        const players = [];
+        usersSnap.forEach(d => {
+            const u = d.data();
+            if (u.naam) players.push({
+                name:    u.naam,
+                goals:   u.goals   || 0,
+                assists: u.assists || 0,
+            });
         });
+
+        // Top 3 doelpuntenmakers (min. 1 goal)
+        const topScorers = [...players]
+            .filter(p => p.goals > 0)
+            .sort((a, b) => b.goals - a.goals)
+            .slice(0, 3);
+
+        // Top 3 assistgevers (min. 1 assist)
+        const topAssists = [...players]
+            .filter(p => p.assists > 0)
+            .sort((a, b) => b.assists - a.assists)
+            .slice(0, 3);
+
+        tcSet(cacheKey, { topScorers, topAssists });
+        renderStatistics(topScorers, topAssists);
+
+    } catch (error) {
+        console.error('Error loading statistics:', error);
     }
-    
-    // Update top assists
-    const topAssistsContainer = document.getElementById('topAssists');
-    if (topAssistsContainer && teamStats.topAssists) {
-        topAssistsContainer.innerHTML = '';
-        teamStats.topAssists.forEach((assister, index) => {
-            const item = document.createElement('div');
-            item.className = 'stat-item';
-            item.innerHTML = `
-                <span class="stat-rank">${index + 1}</span>
-                <span class="stat-player">${assister.name}</span>
-                <span class="stat-value">${assister.assists}</span>
-            `;
-            topAssistsContainer.appendChild(item);
-        });
+}
+
+function renderStatistics(topScorers, topAssists) {
+    const topScorersEl = document.getElementById('topScorers');
+    const topAssistsEl = document.getElementById('topAssists');
+
+    if (topScorersEl) {
+        if (topScorers.length === 0) {
+            topScorersEl.innerHTML = '<div class="stat-item"><span class="stat-player">Nog geen data</span></div>';
+        } else {
+            topScorersEl.innerHTML = topScorers.map((p, i) => `
+                <div class="stat-item">
+                    <span class="stat-rank">${i + 1}</span>
+                    <span class="stat-player">${p.name}</span>
+                    <span class="stat-value-team">${p.goals}</span>
+                </div>`).join('');
+        }
+    }
+
+    if (topAssistsEl) {
+        if (topAssists.length === 0) {
+            topAssistsEl.innerHTML = '<div class="stat-item"><span class="stat-player">Nog geen data</span></div>';
+        } else {
+            topAssistsEl.innerHTML = topAssists.map((p, i) => `
+                <div class="stat-item">
+                    <span class="stat-rank">${i + 1}</span>
+                    <span class="stat-player">${p.name}</span>
+                    <span class="stat-value-team">${p.assists}</span>
+                </div>`).join('');
+        }
     }
 }
 
@@ -957,15 +1078,28 @@ async function loadAvailability(matchId, matchData = {}) {
     }
     
     try {
-        const userQuery = query(collection(db, 'users'), where('uid', '==', currentUser.uid));
-        const userSnapshot = await getDocs(userQuery);
-        
-        if (userSnapshot.empty) {
-            contentDiv.innerHTML = '';
-            return;
+        // Gebruik dezelfde authuser-cache als auth.js (30 min TTL)
+        let userData = null;
+        try {
+            const raw = localStorage.getItem(`vvs_authuser_${currentUser.uid}`);
+            if (raw) {
+                const { ts, data } = JSON.parse(raw);
+                if (Date.now() - ts < 30 * 60 * 1000) userData = data;
+            }
+        } catch (_) {}
+
+        if (!userData) {
+            const userSnapshot = await getDocs(
+                query(collection(db, 'users'), where('uid', '==', currentUser.uid))
+            );
+            if (userSnapshot.empty) { contentDiv.innerHTML = ''; return; }
+            userData = userSnapshot.docs[0].data();
+            try {
+                localStorage.setItem(`vvs_authuser_${currentUser.uid}`,
+                    JSON.stringify({ ts: Date.now(), data: userData }));
+            } catch (_) {}
         }
-        
-        const userData = userSnapshot.docs[0].data();
+
         const userCategorie = userData.categorie;
         
         console.log('User categorie:', userCategorie, 'Team type:', TEAM_TYPE);

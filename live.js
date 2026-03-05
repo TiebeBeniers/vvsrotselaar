@@ -480,6 +480,21 @@ async function handleEndMatch() {
         // Finalize player stats
         await finalizePlayerStats(minute);
 
+        // Invalideer de localStorage-cache voor alle spelers in de lineup
+        // zodat hun profiel direct de nieuwe stats toont na de wedstrijd.
+        try {
+            const lineup = currentMatch.lineup || {};
+            const team   = currentMatch.team   || '';
+            for (const uid of Object.keys(lineup)) {
+                localStorage.removeItem(`vvs_profile_${uid}`);
+                localStorage.removeItem(`vvs_history_${uid}`);
+            }
+            // Teampagina's: recente wedstrijden en stats zijn nu verouderd
+            localStorage.removeItem(`vvs_recent_matches_${team}`);
+            localStorage.removeItem(`vvs_team_stats_${team}`);
+            localStorage.removeItem(`vvs_next_match_${team}`);
+        } catch (_) {}
+
         alert('Wedstrijd beëindigd!');
         window.location.href = 'index.html';
     } catch (e) { console.error('Error ending match:', e); alert('Fout bij beëindigen: ' + e.message); }

@@ -66,11 +66,41 @@ document.addEventListener('DOMContentLoaded', () => {
 // DOM ELEMENTS
 // ===============================================
 
+// ── Cache helpers (identiek aan speler.js) ───────────────────────────────────
+// Sla userData 30 min op — verandert zelden (rol, naam).
+// Bij uitloggen wordt de cache gewist.
+const AUTH_CACHE_TTL = 30 * 60 * 1000;
+
+function authCacheGet(uid) {
+    try {
+        const raw = localStorage.getItem(`vvs_authuser_${uid}`);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (Date.now() - ts > AUTH_CACHE_TTL) {
+            localStorage.removeItem(`vvs_authuser_${uid}`);
+            return null;
+        }
+        return data;
+    } catch (_) { return null; }
+}
+
+function authCacheSet(uid, data) {
+    try {
+        localStorage.setItem(`vvs_authuser_${uid}`, JSON.stringify({ ts: Date.now(), data }));
+    } catch (_) {}
+}
+
+function authCacheClear(uid) {
+    try { localStorage.removeItem(`vvs_authuser_${uid}`); } catch (_) {}
+}
+
+// ── DOM elementen ─────────────────────────────────────────────────────────────
 const loginForm = document.getElementById('loginForm');
 const loggedInView = document.getElementById('loggedInView');
 const errorMessage = document.getElementById('errorMessage');
 const logoutBtn = document.getElementById('logoutBtn');
 const adminBtn = document.getElementById('adminBtn');
+const profileBtn = document.getElementById('profileBtn');
 const requestAccountView = document.getElementById('requestAccountView');
 const showRequestFormBtn = document.getElementById('showRequestForm');
 const backToLoginBtn = document.getElementById('backToLogin');
@@ -78,21 +108,8 @@ const requestAccountForm = document.getElementById('requestAccountForm');
 const loginBoxHeader = document.querySelector('.login-box h2');
 const loginSubtitle = document.getElementById('loginSubtitle');
 
-// Debug: Check if all elements are found
 console.log('Auth.js loaded (with password show/hide + encryption)');
-console.log('Elements found:', {
-    loginForm: !!loginForm,
-    loggedInView: !!loggedInView,
-    errorMessage: !!errorMessage,
-    logoutBtn: !!logoutBtn,
-    adminBtn: !!adminBtn,
-    requestAccountView: !!requestAccountView,
-    showRequestFormBtn: !!showRequestFormBtn,
-    backToLoginBtn: !!backToLoginBtn,
-    requestAccountForm: !!requestAccountForm,
-    loginBoxHeader: !!loginBoxHeader,
-    loginSubtitle: !!loginSubtitle
-});
+
 
 // ===============================================
 // SHOW/HIDE ACCOUNT REQUEST FORM
@@ -388,108 +405,97 @@ if (adminBtn) {
     });
 }
 
+if (profileBtn) {
+    profileBtn.addEventListener('click', () => {
+        window.location.href = 'speler.html';
+    });
+}
+
 // ===============================================
 // AUTH STATE LISTENER
 // ===============================================
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
-        // User is logged in
         console.log('User logged in:', user.uid);
         try {
-            // Get user data from Firestore
-            const userQuery = query(
-                collection(db, 'users'),
-                where('uid', '==', user.uid)
-            );
-            const userSnapshot = await getDocs(userQuery);
-            
-            if (!userSnapshot.empty) {
-                const userData = userSnapshot.docs[0].data();
-                console.log('User data found:', userData);
-                
-                // Hide both login and request forms, show logged in view
-                if (loginForm) {
-                    loginForm.style.display = 'none';
+            // ── Probeer cache eerst — spaart 1 Firestore read bij elke paginabezoek ──
+            let userData = authCacheGet(user.uid);
+
+            if (!userData) {
+                console.log('[firestore] userData ophalen voor', user.uid);
+                const userSnapshot = await getDocs(
+                    query(collection(db, 'users'), where('uid', '==', user.uid))
+                );
+                if (userSnapshot.empty) {
+                    console.error('No user data found for UID:', user.uid);
+                    alert('Gebruikersgegevens niet gevonden. Neem contact op met de beheerder.');
+                    await signOut(auth);
+                    return;
                 }
-                if (requestAccountView) {
-                    requestAccountView.style.display = 'none';
-                }
-                if (loggedInView) {
-                    loggedInView.style.display = 'block';
-                }
-                
-                // Update user info
-                const userNameEl = document.getElementById('userName');
-                const userEmailEl = document.getElementById('userEmail');
-                const userRoleEl = document.getElementById('userRole');
-                
-                if (userNameEl) userNameEl.textContent = userData.naam || 'Gebruiker';
-                if (userEmailEl) userEmailEl.textContent = userData.email || user.email;
-                
-                const roleText = userData.rol === 'admin' ? 'Administrator' : 'Clublid';
-                if (userRoleEl) userRoleEl.textContent = roleText;
-                
-                // Show admin button if user is admin
-                if (adminBtn) {
-                    if (userData.rol === 'admin') {
-                        adminBtn.style.display = 'block';
-                        console.log('Admin button shown');
-                    } else {
-                        adminBtn.style.display = 'none';
-                    }
-                }
-                
-                console.log('UI updated - forms hidden, loggedInView shown');
+                userData = userSnapshot.docs[0].data();
+                authCacheSet(user.uid, userData);
             } else {
-                console.error('No user data found in Firestore for UID:', user.uid);
-                // Show error and logout
-                alert('Gebruikersgegevens niet gevonden. Neem contact op met de beheerder.');
-                await signOut(auth);
+                console.log('[cache] userData geladen voor', user.uid);
             }
+
+            // Formulieren verbergen, ingelogd-scherm tonen
+            if (loginForm)        loginForm.style.display        = 'none';
+            if (requestAccountView) requestAccountView.style.display = 'none';
+            if (loggedInView)     loggedInView.style.display     = 'block';
+
+            // Gebruikersinfo invullen
+            const userNameEl  = document.getElementById('userName');
+            const userEmailEl = document.getElementById('userEmail');
+            const userRoleEl  = document.getElementById('userRole');
+
+            if (userNameEl)  userNameEl.textContent  = userData.naam  || 'Gebruiker';
+            if (userEmailEl) userEmailEl.textContent = userData.email || user.email;
+
+            const isAdmin       = userData.rol === 'admin';
+            const isBestuurslid = userData.categorie === 'bestuurslid' || userData.rol === 'bestuurslid';
+            const isPrivileged  = isAdmin || isBestuurslid;
+
+            if (userRoleEl) userRoleEl.textContent = isAdmin ? 'Administrator' : (isBestuurslid ? 'Bestuurslid' : 'Clublid');
+
+            // Admin-knop: enkel voor admin/bestuurslid
+            if (adminBtn)   adminBtn.style.display   = isPrivileged ? 'block' : 'none';
+
+            // Profiel-knop: enkel voor gewone leden (niet admin/bestuurslid)
+            if (profileBtn) profileBtn.style.display = isPrivileged ? 'none' : 'block';
+
         } catch (error) {
             console.error('Error fetching user data:', error);
             alert('Fout bij ophalen gebruikersgegevens: ' + error.message);
         }
     } else {
-        // User is logged out
         console.log('User logged out');
-        
-        // Reset header and subtitle to login state
-        if (loginBoxHeader) {
-            loginBoxHeader.textContent = 'Inloggen';
-        }
-        if (loginSubtitle) {
-            loginSubtitle.textContent = 'Toegang voor clubleden';
-        }
-        
-        // Show login form, hide request and logged in views
+
+        // Cache wissen bij uitloggen zodat volgende gebruiker verse data krijgt
+        // (we kennen de uid niet meer, maar alle vvs_authuser_* items wissen is veilig)
+        try {
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('vvs_authuser_'))
+                .forEach(k => localStorage.removeItem(k));
+        } catch (_) {}
+
+        if (loginBoxHeader)  loginBoxHeader.textContent  = 'Inloggen';
+        if (loginSubtitle)   loginSubtitle.textContent   = 'Toegang voor clubleden';
+
         if (loginForm) {
             loginForm.style.display = 'flex';
             loginForm.style.flexDirection = 'column';
         }
-        if (requestAccountView) {
-            requestAccountView.style.display = 'none';
-        }
-        if (loggedInView) {
-            loggedInView.style.display = 'none';
-        }
-        
-        // Clear forms
-        if (loginForm) {
-            loginForm.reset();
-        }
-        if (requestAccountForm) {
-            requestAccountForm.reset();
-        }
-        if (errorMessage) {
-            errorMessage.style.display = 'none';
-        }
-        
-        // Clear request messages
+        if (requestAccountView) requestAccountView.style.display = 'none';
+        if (loggedInView)       loggedInView.style.display       = 'none';
+
+        if (loginForm)       loginForm.reset();
+        if (requestAccountForm) requestAccountForm.reset();
+        if (errorMessage)    errorMessage.style.display = 'none';
+
         const requestSuccessMessage = document.getElementById('requestSuccessMessage');
-        const requestErrorMessage = document.getElementById('requestErrorMessage');
+        const requestErrorMessage   = document.getElementById('requestErrorMessage');
         if (requestSuccessMessage) requestSuccessMessage.style.display = 'none';
-        if (requestErrorMessage) requestErrorMessage.style.display = 'none';
+        if (requestErrorMessage)   requestErrorMessage.style.display   = 'none';
     }
 });
