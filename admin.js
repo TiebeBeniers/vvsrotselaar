@@ -1798,8 +1798,8 @@ if (matchResultTeamSel) {
             }
 
             const teams = snap.data().teams || [];
-            const home  = document.getElementById('matchHomeTeam');
-            const away  = document.getElementById('matchAwayTeam');
+            const home  = document.getElementById('rankingHomeTeam');
+            const away  = document.getElementById('rankingAwayTeam');
             [home, away].forEach(sel => {
                 sel.innerHTML = '<option value="">Kies ploeg…</option>';
                 teams.forEach(t => {
@@ -1825,10 +1825,10 @@ const applyMatchResultBtn = document.getElementById('applyMatchResultBtn');
 if (applyMatchResultBtn) {
     applyMatchResultBtn.addEventListener('click', async () => {
         const team      = document.getElementById('matchResultTeam').value;
-        const homeName  = document.getElementById('matchHomeTeam').value;
-        const awayName  = document.getElementById('matchAwayTeam').value;
-        const homeScore = parseInt(document.getElementById('matchHomeScore').value);
-        const awayScore = parseInt(document.getElementById('matchAwayScore').value);
+        const homeName  = document.getElementById('rankingHomeTeam').value;
+        const awayName  = document.getElementById('rankingAwayTeam').value;
+        const homeScore = parseInt(document.getElementById('rankingHomeScore').value);
+        const awayScore = parseInt(document.getElementById('rankingAwayScore').value);
 
         if (!team || !homeName || !awayName) {
             showRankingStatus('matchResultStatus', 'error', 'Selecteer reeks en beide ploegen.');
