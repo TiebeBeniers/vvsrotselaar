@@ -139,6 +139,49 @@
                 </div>
             </div>
 
+            <!-- Wachtwoord wijzigen -->
+            <div class="section-title" id="passwordSectionTitle" style="display:none;">Wachtwoord Wijzigen</div>
+            <div class="info-card password-card" id="passwordCard" style="display:none;">
+                <p class="password-intro">Voer je huidige wachtwoord in en kies een nieuw wachtwoord.</p>
+
+                <div class="password-form" id="passwordForm">
+                    <div class="password-field-wrap">
+                        <label for="currentPassword">Huidig wachtwoord</label>
+                        <div class="pw-input-row">
+                            <input type="password" id="currentPassword" placeholder="Huidig wachtwoord" autocomplete="current-password">
+                            <button type="button" class="pw-toggle" data-target="currentPassword" aria-label="Toon/verberg">👁</button>
+                        </div>
+                    </div>
+                    <div class="password-field-wrap">
+                        <label for="newPassword">Nieuw wachtwoord</label>
+                        <div class="pw-input-row">
+                            <input type="password" id="newPassword" placeholder="Minimaal 6 tekens" autocomplete="new-password">
+                            <button type="button" class="pw-toggle" data-target="newPassword" aria-label="Toon/verberg">👁</button>
+                        </div>
+                    </div>
+                    <div class="password-field-wrap">
+                        <label for="confirmPassword">Bevestig nieuw wachtwoord</label>
+                        <div class="pw-input-row">
+                            <input type="password" id="confirmPassword" placeholder="Herhaal nieuw wachtwoord" autocomplete="new-password">
+                            <button type="button" class="pw-toggle" data-target="confirmPassword" aria-label="Toon/verberg">👁</button>
+                        </div>
+                    </div>
+
+                    <div class="password-actions">
+                        <button class="pw-save-btn" id="savePasswordBtn">🔒 Wachtwoord opslaan</button>
+                    </div>
+                    <div class="password-status" id="passwordStatus" style="display:none;"></div>
+                </div>
+
+                <!-- Reset via e-mail als alternatief -->
+                <div class="password-divider"><span>of</span></div>
+                <div class="password-reset-alt">
+                    <p>Wachtwoord vergeten of wil je het resetten via e-mail?</p>
+                    <button class="pw-email-btn" id="sendResetEmailBtn">📧 Reset-link sturen naar mijn e-mail</button>
+                    <div class="password-status" id="resetEmailStatus" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- Wedstrijdgeschiedenis -->
             <div class="section-title">Wedstrijdgeschiedenis</div>
             <div id="matchHistoryContainer">

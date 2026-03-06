@@ -4,7 +4,13 @@
 // ===============================================
 
 import { auth, db } from './firebase-config.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import {
+    onAuthStateChanged,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    updatePassword,
+    sendPasswordResetEmail
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, getDocs
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
@@ -122,7 +128,117 @@ function setAvatarDisplay(url) {
     }
 }
 
-// ── Profielfoto upload — voorlopig uitgeschakeld ─────────────────────────────
+// ── Wachtwoord wijzigen ───────────────────────────────────────────────────────
+
+function showPasswordSection() {
+    const title = document.getElementById('passwordSectionTitle');
+    const card  = document.getElementById('passwordCard');
+    if (title) title.style.display = '';
+    if (card)  card.style.display  = '';
+}
+
+function setPasswordStatus(elId, type, msg) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.style.display = 'block';
+    el.className = `password-status ${type}`;
+    el.textContent = msg;
+    if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+// Toon/verberg wachtwoord knoppen
+document.querySelectorAll('.pw-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.target);
+        if (!input) return;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        btn.textContent = input.type === 'password' ? '👁' : '🙈';
+    });
+});
+
+// Wachtwoord opslaan
+const savePasswordBtn = document.getElementById('savePasswordBtn');
+if (savePasswordBtn) {
+    savePasswordBtn.addEventListener('click', async () => {
+        const current  = document.getElementById('currentPassword').value;
+        const newPw    = document.getElementById('newPassword').value;
+        const confirm  = document.getElementById('confirmPassword').value;
+
+        if (!current || !newPw || !confirm) {
+            setPasswordStatus('passwordStatus', 'error', 'Vul alle velden in.');
+            return;
+        }
+        if (newPw.length < 6) {
+            setPasswordStatus('passwordStatus', 'error', 'Nieuw wachtwoord moet minimaal 6 tekens bevatten.');
+            return;
+        }
+        if (newPw !== confirm) {
+            setPasswordStatus('passwordStatus', 'error', 'De twee nieuwe wachtwoorden komen niet overeen.');
+            return;
+        }
+
+        savePasswordBtn.disabled = true;
+        savePasswordBtn.textContent = 'Bezig…';
+
+        try {
+            const user       = auth.currentUser;
+            const credential = EmailAuthProvider.credential(user.email, current);
+
+            // Herverificatie vereist door Firebase voor gevoelige acties
+            await reauthenticateWithCredential(user, credential);
+            await updatePassword(user, newPw);
+
+            // Velden leegmaken
+            ['currentPassword', 'newPassword', 'confirmPassword'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+
+            setPasswordStatus('passwordStatus', 'success', '✅ Wachtwoord succesvol gewijzigd!');
+        } catch (err) {
+            console.error('Password update error:', err);
+            let msg = 'Er ging iets mis. Probeer opnieuw.';
+            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                msg = 'Huidig wachtwoord is incorrect.';
+            } else if (err.code === 'auth/too-many-requests') {
+                msg = 'Te veel pogingen. Probeer later opnieuw of gebruik de reset-link.';
+            } else if (err.code === 'auth/weak-password') {
+                msg = 'Nieuw wachtwoord is te zwak. Kies een sterker wachtwoord.';
+            }
+            setPasswordStatus('passwordStatus', 'error', msg);
+        } finally {
+            savePasswordBtn.disabled = false;
+            savePasswordBtn.textContent = '🔒 Wachtwoord opslaan';
+        }
+    });
+}
+
+// Reset-link via e-mail
+const sendResetEmailBtn = document.getElementById('sendResetEmailBtn');
+if (sendResetEmailBtn) {
+    sendResetEmailBtn.addEventListener('click', async () => {
+        const user = auth.currentUser;
+        if (!user?.email) {
+            setPasswordStatus('resetEmailStatus', 'error', 'Geen e-mailadres gevonden.');
+            return;
+        }
+
+        sendResetEmailBtn.disabled = true;
+        sendResetEmailBtn.textContent = 'Bezig…';
+
+        try {
+            await sendPasswordResetEmail(auth, user.email);
+            setPasswordStatus('resetEmailStatus', 'success',
+                `✅ Reset-link verstuurd naar ${user.email}. Controleer ook je spam.`);
+        } catch (err) {
+            console.error('Reset email error:', err);
+            setPasswordStatus('resetEmailStatus', 'error', 'Kon e-mail niet sturen. Probeer later opnieuw.');
+        } finally {
+            sendResetEmailBtn.disabled = false;
+            sendResetEmailBtn.textContent = '📧 Reset-link sturen naar mijn e-mail';
+        }
+    });
+}
 
 // ── Profieldata laden (met cache) ─────────────────────────────────────────────
 
@@ -134,6 +250,7 @@ async function loadProfile(targetUid) {
         profileDocId = cached._docId;
         fillProfile(cached);
         showOnly('playerProfile');
+        if (isOwnProfile) showPasswordSection();
         // Laad geschiedenis ook uit cache (of Firestore als cache leeg/verlopen)
         loadMatchHistory(targetUid);
         return;
@@ -157,6 +274,7 @@ async function loadProfile(targetUid) {
 
     fillProfile(userData);
     showOnly('playerProfile');
+    if (isOwnProfile) showPasswordSection();
     loadMatchHistory(targetUid);
 }
 
