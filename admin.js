@@ -594,15 +594,18 @@ function createRequestCard(request) {
     // Use encryptedPassword instead of plain password
     const encryptedPwd = request.encryptedPassword || '';
     
+    const phoneDisplay = request.telefoon ? `<p><strong>Tel:</strong> ${request.telefoon}</p>` : '';
+    const phonePassed = request.telefoon || '';
     card.innerHTML = `
         <div class="request-info">
             <h4>${request.naam}</h4>
             <p><strong>Email:</strong> ${request.email}</p>
+            ${phoneDisplay}
             <p><strong>Ploeg:</strong> ${teamText}</p>
             <p class="request-date"><strong>Aangevraagd op:</strong> ${dateText}</p>
         </div>
         <div class="request-actions">
-            <button class="btn-accept" onclick="acceptRequest('${request.id}', '${request.naam}', '${request.email}', '${encryptedPwd}', '${request.categorie}')">
+            <button class="btn-accept" onclick="acceptRequest('${request.id}', '${request.naam}', '${request.email}', '${encryptedPwd}', '${request.categorie}', '${phonePassed}')">
                 ✓ Goedkeuren
             </button>
             <button class="btn-reject" onclick="rejectRequest('${request.id}')">
@@ -615,7 +618,7 @@ function createRequestCard(request) {
 }
 
 // Make functions globally accessible
-window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorie) {
+window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorie, telefoon = '') {
     console.log('Accepting request:', requestId);
     
     try {
@@ -657,7 +660,8 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
             naam: naam,
             email: email,
             categorie: categorie,
-            rol: 'speler'
+            rol: 'speler',
+            ...(telefoon && { telefoon })
         });
         
         console.log('User added to Firestore');

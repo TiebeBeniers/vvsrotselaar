@@ -177,6 +177,15 @@ if (requestAccountForm) {
         const email = document.getElementById('requestEmail').value.trim();
         const password = document.getElementById('requestPassword').value;
         const team = document.getElementById('requestTeam').value;
+        const phoneField = document.getElementById('requestPhone');
+        const phone = phoneField ? phoneField.value.trim() : '';
+
+        if (!phone) {
+            requestErrorMessage.textContent = 'Vul je telefoonnummer in.';
+            requestErrorMessage.style.display = 'block';
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'AANVRAAG INDIENEN'; }
+            return;
+        }
         
         const requestSuccessMessage = document.getElementById('requestSuccessMessage');
         const requestErrorMessage = document.getElementById('requestErrorMessage');
@@ -250,8 +259,9 @@ if (requestAccountForm) {
             await addDoc(collection(db, 'account_requests'), {
                 naam: name,
                 email: email,
-                encryptedPassword: encryptedPassword, // Store encrypted password
+                encryptedPassword: encryptedPassword,
                 categorie: team,
+                ...(phone && { telefoon: phone }),
                 status: 'pending',
                 createdAt: serverTimestamp()
             });

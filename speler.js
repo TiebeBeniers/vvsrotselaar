@@ -27,7 +27,23 @@ function cacheKey(type, uid) {
     return `vvs_${type}_${uid}`;
 }
 
+// Detecteer page refresh → negeer localStorage cache zodat verse data geladen wordt
+const PAGE_REFRESHED = (() => {
+    try {
+        const nav = performance.getEntriesByType?.('navigation')?.[0];
+        if (nav?.type === 'reload') {
+            if (!sessionStorage.getItem('vvs_refreshed')) {
+                sessionStorage.setItem('vvs_refreshed', '1');
+                return true;
+            }
+        } else {
+            sessionStorage.removeItem('vvs_refreshed');
+        }
+    } catch (_) {}
+    return false;
+})();
 function cacheGet(type, uid, ttl) {
+    if (PAGE_REFRESHED) return null;
     try {
         const raw = localStorage.getItem(cacheKey(type, uid));
         if (!raw) return null;
@@ -151,8 +167,14 @@ document.querySelectorAll('.pw-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
         const input = document.getElementById(btn.dataset.target);
         if (!input) return;
-        input.type = input.type === 'password' ? 'text' : 'password';
-        btn.textContent = input.type === 'password' ? '👁' : '🙈';
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        const eyeOpen   = btn.querySelector('.eye-open');
+        const eyeClosed = btn.querySelector('.eye-closed');
+        if (eyeOpen && eyeClosed) {
+            eyeOpen.style.display   = isPassword ? 'none'  : '';
+            eyeClosed.style.display = isPassword ? ''      : 'none';
+        }
     });
 });
 
@@ -215,8 +237,17 @@ if (savePasswordBtn) {
 
 // Reset-link via e-mail
 const sendResetEmailBtn = document.getElementById('sendResetEmailBtn');
+let resetEmailCooldown = 0; // timestamp waarop cooldown eindigt
+
 if (sendResetEmailBtn) {
     sendResetEmailBtn.addEventListener('click', async () => {
+        // Check cooldown
+        const remaining = Math.ceil((resetEmailCooldown - Date.now()) / 1000);
+        if (remaining > 0) {
+            setPasswordStatus('resetEmailStatus', 'error', `Wacht nog ${remaining} seconden voor je opnieuw een reset-link aanvraagt.`);
+            return;
+        }
+
         const user = auth.currentUser;
         if (!user?.email) {
             setPasswordStatus('resetEmailStatus', 'error', 'Geen e-mailadres gevonden.');
@@ -228,12 +259,36 @@ if (sendResetEmailBtn) {
 
         try {
             await sendPasswordResetEmail(auth, user.email);
+            resetEmailCooldown = Date.now() + 30_000;
             setPasswordStatus('resetEmailStatus', 'success',
                 `✅ Reset-link verstuurd naar ${user.email}. Controleer ook je spam.`);
+
+            // Countdown on button
+            let secs = 30;
+            const interval = setInterval(() => {
+                secs--;
+                if (secs <= 0) {
+                    clearInterval(interval);
+                    sendResetEmailBtn.disabled = false;
+                    sendResetEmailBtn.textContent = '📧 Reset-link sturen naar mijn e-mail';
+                } else {
+                    sendResetEmailBtn.textContent = `⏳ Opnieuw sturen (${secs}s)`;
+                }
+            }, 1000);
+
         } catch (err) {
-            console.error('Reset email error:', err);
-            setPasswordStatus('resetEmailStatus', 'error', 'Kon e-mail niet sturen. Probeer later opnieuw.');
-        } finally {
+            console.error('Reset email error:', err.code, err.message);
+            let msg = `Fout (${err.code}): ${err.message}`;
+            if (err.code === 'auth/unauthorized-continue-uri' || err.code === 'auth/invalid-continue-uri') {
+                msg = 'Domein niet toegestaan. Voeg je domein toe onder Authentication → Settings → Authorized domains.';
+            } else if (err.code === 'auth/too-many-requests') {
+                msg = 'Te veel pogingen. Probeer later opnieuw.';
+            } else if (err.code === 'auth/network-request-failed') {
+                msg = 'Netwerkfout. Controleer je internetverbinding.';
+            } else if (err.code === 'auth/user-not-found') {
+                msg = 'Geen account gevonden met dit e-mailadres.';
+            }
+            setPasswordStatus('resetEmailStatus', 'error', msg);
             sendResetEmailBtn.disabled = false;
             sendResetEmailBtn.textContent = '📧 Reset-link sturen naar mijn e-mail';
         }

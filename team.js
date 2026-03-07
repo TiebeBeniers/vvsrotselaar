@@ -27,7 +27,24 @@ const CACHE_TTL = {
     timeline:      7 * 24 * 60 * 60 * 1000,   // 1 week — afgelopen wedstrijden veranderen niet
 };
 
+// Detecteer page refresh → negeer localStorage cache zodat verse data geladen wordt
+const PAGE_REFRESHED = (() => {
+    try {
+        const nav = performance.getEntriesByType?.('navigation')?.[0];
+        if (nav?.type === 'reload') {
+            if (!sessionStorage.getItem('vvs_refreshed')) {
+                sessionStorage.setItem('vvs_refreshed', '1');
+                return true;
+            }
+        } else {
+            sessionStorage.removeItem('vvs_refreshed');
+        }
+    } catch (_) {}
+    return false;
+})();
+
 function tcGet(key, ttl) {
+    if (PAGE_REFRESHED) return null; // negeer cache bij refresh
     try {
         const raw = localStorage.getItem(`vvs_${key}`);
         if (!raw) return null;
@@ -924,10 +941,11 @@ function createTimelineItem(event) {
             description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'substitution': {
             const injuryIcon = event.injured
-                ? ` <img src="assets/blessure.png" alt="Geblesseerd" class="timeline-icon-img timeline-icon-inline" title="Geblesseerd">`
+                ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
             if (event.spelerUit && event.spelerIn) {
-                description = `Wissel: ${event.spelerUit}${injuryIcon} → ${event.spelerIn}`;
+                description = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit"><span class="sub-name">${event.spelerUit}</span>${injuryIcon}</span>`
+                            + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In"><span class="sub-name">${event.spelerIn}</span></span>`;
             } else {
                 description = `Wissel${injuryIcon}`;
             }

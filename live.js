@@ -548,6 +548,14 @@ async function finalizePlayerStats(finalMinute) {
             };
         });
 
+        // 3b. Bankspelers zonder speelminuten krijgen ook matchen: 1 (waren present)
+        for (const [uid, info] of Object.entries(lineup)) {
+            if (uid.startsWith('manual_')) continue;
+            if (info.status === 'bench' && !playerUpdates[uid]) {
+                playerUpdates[uid] = { minuten: 0, matchen: 1, goals: 0, assists: 0, geelKaarten: 0, roodKaarten: 0 };
+            }
+        }
+
         // 4. Count events per player by name → uid mapping
         events.forEach(ev => {
             if (!ev.speler) return;
@@ -1035,11 +1043,14 @@ export function createEventElement(event) {
         case 'red':            text = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
         case 'substitution': {
             const injuryIcon = event.injured
-                ? ` <img src="assets/blessure.png" alt="Geblesseerd" class="timeline-icon-img timeline-icon-inline" title="Geblesseerd">`
+                ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
-            text = (event.spelerUit && event.spelerIn)
-                ? `Wissel: ${event.spelerUit}${injuryIcon} → ${event.spelerIn}`
-                : `Wissel${injuryIcon}`;
+            if (event.spelerUit && event.spelerIn) {
+                text = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit"><span class="sub-name">${event.spelerUit}</span>${injuryIcon}</span>`
+                     + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In"><span class="sub-name">${event.spelerIn}</span></span>`;
+            } else {
+                text = `Wissel${injuryIcon}`;
+            }
             break;
         }
         case 'rust':           text = event.half >= 3 ? 'Rust verlengingen' : 'Rust'; break;

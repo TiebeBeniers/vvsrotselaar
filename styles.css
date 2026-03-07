@@ -4180,3 +4180,45 @@ img {
     color: #fff;
     animation: none;        /* geen puls, want niet live gevolgd */
 }
+
+/* ── Wissel: gestapelde speler-rijen ─────────────────────────────────────── */
+.sub-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.4;
+}
+.sub-row + .sub-row {
+    margin-top: 3px;
+}
+.sub-player-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+.sub-name {
+    flex: 1;
+}
+.sub-injury-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    object-fit: contain;
+    margin-left: 4px;
+}
+
+/* ── Lineup modal: knoppen op mobiel onder elkaar ────────────────────────── */
+.lineup-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+.lineup-actions .modal-btn {
+    flex: 1;
+}
+@media (max-width: 600px) {
+    .lineup-actions {
+        flex-direction: column;
+    }
+}
