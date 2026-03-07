@@ -793,6 +793,7 @@ async function showMatchTimeline(match) {
         ));
 
         if (eventsSnapshot.empty) {
+            tcSet(tlKey, []);
             modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
             return;
         }
@@ -839,7 +840,11 @@ function renderTimelineTeam(events, container) {
     const sortDesc = (a, b) => {
         const d = (b.minuut || 0) - (a.minuut || 0);
         if (d !== 0) return d;
-        if (a.timestamp && b.timestamp) return b.timestamp.toMillis() - a.timestamp.toMillis();
+        if (a.timestamp && b.timestamp) {
+            const tsA = typeof a.timestamp === 'number' ? a.timestamp : a.timestamp.toMillis?.() ?? 0;
+            const tsB = typeof b.timestamp === 'number' ? b.timestamp : b.timestamp.toMillis?.() ?? 0;
+            return tsB - tsA;
+        }
         return 0;
     };
     [1, 2, 3, 4].forEach(h => byHalf[h].sort(sortDesc));
