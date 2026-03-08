@@ -52,7 +52,7 @@
                     <h3>Clubleden</h3>
                     <div class="header-buttons">
                         <button class="add-btn secondary" id="manageRequestsBtn">
-                            📋 Aanvragen Behandelen
+                            Aanvragen Behandelen
                             <span class="badge" id="requestsBadge" style="display:none;">0</span>
                         </button>
                         <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
@@ -90,9 +90,9 @@
 
                 <!-- Sub-tabs -->
                 <div class="ranking-subtabs">
-                    <button class="ranking-subtab active" data-subtab="pasteTab">📋 Volledig Plakken</button>
-                    <button class="ranking-subtab" data-subtab="matchTab">⚽ Matchresultaat</button>
-                    <button class="ranking-subtab" data-subtab="currentTab">👁️ Huidig Klassement</button>
+                    <button class="ranking-subtab active" data-subtab="pasteTab">Volledig Plakken</button>
+                    <button class="ranking-subtab" data-subtab="matchTab">Matchresultaat</button>
+                    <button class="ranking-subtab" data-subtab="currentTab">Huidig Klassement</button>
                 </div>
 
                 <!-- ── SUBTAB 1: Volledig plakken van RBFA ── -->
@@ -103,7 +103,7 @@
                             <ol>
                                 <li>Selecteer voor welk team de data is</li>
                                 <li>Ga naar <strong><a href="https://www.rbfa.be/nl/club/7532/ploegen" target="_blank">RBFA</a></strong>, kopieer de volledige rangschikking tabel en plak ze hieronder</li>
-                                <li>Klik "Verwerken &amp; Opslaan" — data wordt direct in Firebase opgeslagen</li>
+                                <li>Klik "Verwerken &amp; Opslaan"</li>
                             </ol>
                             <p style="margin-top:0.75rem;font-size:0.85rem;color:#666;">Kolommen (TAB-separated): Positie · Logo+Naam · Gespeeld · Gewonnen · Verloren · Gelijk · Voor · Tegen · Saldo · Punten</p>
                         </div>
@@ -123,8 +123,8 @@
                                     placeholder="Plak hier de rangschikking data van rbfa.be..."></textarea>
                             </div>
                             <div class="ranking-actions">
-                                <button class="add-btn" id="processRankingBtn">🔄 Verwerken &amp; Opslaan in Firebase</button>
-                                <button class="btn-secondary" id="clearRankingBtn">🗑️ Wissen</button>
+                                <button class="add-btn" id="processRankingBtn">Verwerken &amp; Opslaan</button>
+                                <button class="btn-secondary" id="clearRankingBtn">Wissen</button>
                             </div>
                             <div class="ranking-preview" id="rankingPreview" style="display:none;">
                                 <h4>✅ Opgeslagen voor "<span id="previewTeamName"></span>"</h4>
@@ -178,7 +178,7 @@
                                 </div>
                             </div>
                             <div class="ranking-actions" id="matchResultActions" style="display:none;">
-                                <button class="add-btn" id="applyMatchResultBtn">⚽ Resultaat Verwerken &amp; Opslaan</button>
+                                <button class="add-btn" id="applyMatchResultBtn">Verwerken &amp; Opslaan</button>
                             </div>
                             <div class="ranking-preview" id="matchResultPreview" style="display:none;">
                                 <h4>✅ Klassement bijgewerkt</h4>
@@ -403,6 +403,20 @@
                     <label for="evenementLink">Link (optioneel)</label>
                     <input type="url" id="evenementLink" placeholder="https://...">
                 </div>
+                <div class="toggle-setting-row">
+                    <div class="toggle-setting-label">
+                        <strong>Inschrijvingen inschakelen</strong>
+                        <small>Ingelogde leden kunnen zich inschrijven voor dit evenement</small>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="evenementInschrijvingen">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="form-group" id="maxDeelnemersGroup" style="display:none;">
+                    <label for="evenementMaxDeelnemers">Maximum deelnemers (optioneel)</label>
+                    <input type="number" id="evenementMaxDeelnemers" min="1" placeholder="Leeglaten = onbeperkt">
+                </div>
                 <input type="hidden" id="evenementId">
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="evenementModalCancel">Annuleren</button>
@@ -433,6 +447,17 @@
             </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="requestsModalClose">Sluiten</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inschrijvingen Modal -->
+    <div class="modal" id="inschrijvingenModal">
+        <div class="modal-content large">
+            <h3 id="inschrijvingenModalTitle">Inschrijvingen</h3>
+            <div id="inschrijvingenList" style="margin:1rem 0;max-height:400px;overflow-y:auto;"></div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="inschrijvingenModalClose">Sluiten</button>
             </div>
         </div>
     </div>

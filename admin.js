@@ -1201,6 +1201,18 @@ if (evenementModalCancel) {
     });
 }
 
+// Toggle max deelnemers field visibility
+const evenementInschrijvingenCb = document.getElementById('evenementInschrijvingen');
+const maxDeelnemersGroup = document.getElementById('maxDeelnemersGroup');
+if (evenementInschrijvingenCb && maxDeelnemersGroup) {
+    evenementInschrijvingenCb.addEventListener('change', () => {
+        maxDeelnemersGroup.style.display = evenementInschrijvingenCb.checked ? '' : 'none';
+        if (!evenementInschrijvingenCb.checked) {
+            document.getElementById('evenementMaxDeelnemers').value = '';
+        }
+    });
+}
+
 if (evenementForm) {
     evenementForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1217,6 +1229,12 @@ if (evenementForm) {
         
         console.log('Submitting evenement form:', { titel, datum, tijd });
         
+        const inschrijvingenCb = document.getElementById('evenementInschrijvingen');
+        const maxDeelnemersField = document.getElementById('evenementMaxDeelnemers');
+        const inschrijvingenAan = inschrijvingenCb ? inschrijvingenCb.checked : false;
+        const maxDeelnemers = maxDeelnemersField && maxDeelnemersField.value
+            ? parseInt(maxDeelnemersField.value) : null;
+
         const evenementData = {
             datum,
             tijd,
@@ -1225,6 +1243,8 @@ if (evenementForm) {
             beschrijving,
             afbeeldingNaam,
             link,
+            inschrijvingenAan,
+            ...(maxDeelnemers !== null && { maxDeelnemers }),
             createdAt: serverTimestamp()
         };
         
@@ -1318,21 +1338,36 @@ function createEvenementCard(evenement) {
     
     const dateFormatted = new Date(evenement.datum).toLocaleDateString('nl-BE');
     
+    const inschrijvBadge = evenement.inschrijvingenAan
+        ? `<span class="member-badge" style="background:#e8f5e9;color:#2e7d32;cursor:pointer;" id="badge_${evenement.id}">
+               📋 Inschrijvingen laden...
+           </span>`
+        : '';
+
     card.innerHTML = `
         <div class="evenement-info">
             <h4>${evenement.titel}</h4>
             <p>${dateFormatted} om ${evenement.tijd}</p>
             <p>${evenement.locatie}</p>
             ${evenement.beschrijving ? `<p class="evenement-description">${evenement.beschrijving.substring(0, 100)}...</p>` : ''}
+            ${inschrijvBadge}
         </div>
         <div class="card-actions">
+            ${evenement.inschrijvingenAan ? `<button class="action-btn" style="background:#e8f5e9;color:#2e7d32;" id="viewInschrijv_${evenement.id}">Inschrijvingen</button>` : ''}
             <button class="action-btn edit">Bewerken</button>
             <button class="action-btn delete">Verwijderen</button>
         </div>
     `;
-    
+
     card.querySelector('.edit').addEventListener('click', () => editEvenement(evenement));
     card.querySelector('.delete').addEventListener('click', () => deleteEvenement(evenement));
+
+    if (evenement.inschrijvingenAan) {
+        // Load count
+        loadInschrijvingenCount(evenement.id);
+        card.querySelector(`#viewInschrijv_${evenement.id}`)
+            .addEventListener('click', () => openInschrijvingenModal(evenement));
+    }
     
     return card;
 }
@@ -1350,7 +1385,14 @@ function editEvenement(evenement) {
     
     const linkField = document.getElementById('evenementLink');
     if (linkField) linkField.value = evenement.link || '';
-    
+
+    const inschrijvCb = document.getElementById('evenementInschrijvingen');
+    if (inschrijvCb) inschrijvCb.checked = !!evenement.inschrijvingenAan;
+    const maxGroup = document.getElementById('maxDeelnemersGroup');
+    if (maxGroup) maxGroup.style.display = evenement.inschrijvingenAan ? '' : 'none';
+    const maxField = document.getElementById('evenementMaxDeelnemers');
+    if (maxField) maxField.value = evenement.maxDeelnemers || '';
+
     evenementModal.classList.add('active');
 }
 
@@ -1380,6 +1422,65 @@ async function deleteEvenement(evenement) {
             alert('Fout bij verwijderen: ' + error.message);
         }
     };
+}
+
+// ── Inschrijvingen helpers ────────────────────────────────────────────────────
+
+async function loadInschrijvingenCount(evenementId) {
+    try {
+        const snap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
+        const badge = document.getElementById(`badge_${evenementId}`);
+        if (badge) {
+            const count = snap.size;
+            badge.textContent = `${count} ingeschreven`;
+        }
+    } catch (e) { console.error('Count error:', e); }
+}
+
+async function openInschrijvingenModal(evenement) {
+    const modal = document.getElementById('inschrijvingenModal');
+    const title = document.getElementById('inschrijvingenModalTitle');
+    const list  = document.getElementById('inschrijvingenList');
+    if (!modal) return;
+
+    title.textContent = `Inschrijvingen — ${evenement.titel}`;
+    list.innerHTML = '<p>Laden...</p>';
+    modal.classList.add('active');
+
+    try {
+        const snap = await getDocs(collection(db, 'evenementen', evenement.id, 'inschrijvingen'));
+        if (snap.empty) {
+            list.innerHTML = '<p style="color:#888;">Nog niemand ingeschreven.</p>';
+            return;
+        }
+        const inschrijvingen = [];
+        snap.forEach(d => inschrijvingen.push(d.data()));
+        inschrijvingen.sort((a, b) => (a.ingeschrevenOp?.toMillis?.() || 0) - (b.ingeschrevenOp?.toMillis?.() || 0));
+
+        const maxInfo = evenement.maxDeelnemers
+            ? `<p style="margin-bottom:0.75rem;color:#555;"><strong>${inschrijvingen.length}</strong> / ${evenement.maxDeelnemers} plaatsen bezet</p>`
+            : `<p style="margin-bottom:0.75rem;color:#555;"><strong>${inschrijvingen.length}</strong> ingeschreven</p>`;
+
+        list.innerHTML = maxInfo + inschrijvingen.map((i, idx) => `
+            <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid #f0f0f0;">
+                <span style="width:24px;height:24px;border-radius:50%;background:#e3f2fd;color:#1565c0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;">${idx + 1}</span>
+                <div>
+                    <strong>${i.naam || '—'}</strong>
+                    <span style="color:#888;font-size:0.85rem;margin-left:0.5rem;">${i.email || ''}</span>
+                    ${i.ingeschrevenOp ? `<span style="color:#aaa;font-size:0.8rem;margin-left:0.5rem;">${new Date(i.ingeschrevenOp.toMillis()).toLocaleDateString('nl-BE')}</span>` : ''}
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        list.innerHTML = '<p style="color:red;">Fout bij laden: ' + e.message + '</p>';
+    }
+}
+
+const inschrijvingenModalClose = document.getElementById('inschrijvingenModalClose');
+if (inschrijvingenModalClose) {
+    inschrijvingenModalClose.addEventListener('click', () => {
+        document.getElementById('inschrijvingenModal').classList.remove('active');
+    });
 }
 
 // ===============================================

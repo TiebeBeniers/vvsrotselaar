@@ -99,7 +99,7 @@ function renderWerklijstenList() {
             <div class="wl-list-actions">
                 ${!wl.active ? `<button class="icon-btn activate-btn" data-id="${wl.id}">✔ Activeren</button>` : ''}
                 <button class="icon-btn rename-btn" data-id="${wl.id}">✏️ Naam</button>
-                <button class="icon-btn shifts-btn" data-id="${wl.id}">📋 Shiften</button>
+                <button class="icon-btn shifts-btn" data-id="${wl.id}">Shiften Beheren</button>
                 <button class="icon-btn delete delete-wl-btn" data-id="${wl.id}">🗑</button>
             </div>
         `;

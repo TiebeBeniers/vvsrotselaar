@@ -556,32 +556,40 @@ async function finalizePlayerStats(finalMinute) {
             }
         }
 
-        // 4. Count events per player by name → uid mapping
-        events.forEach(ev => {
-            if (!ev.speler) return;
-            const uid = nameToUid[ev.speler];
-            if (!uid || !playerUpdates[uid]) return;
-
-            switch (ev.type) {
-                case 'goal':
-                case 'penalty':
-                    playerUpdates[uid].goals++;
-                    break;
-                case 'own-goal':
-                    // own goal doesn't count positively
-                    break;
+        // Helper: zorg dat een uid altijd een entry heeft in playerUpdates
+        // (ook als hij niet gespeeld heeft maar wel een stat heeft)
+        function ensureEntry(uid) {
+            if (!uid || uid.startsWith('manual_')) return false;
+            if (!playerUpdates[uid]) {
+                playerUpdates[uid] = { minuten: 0, matchen: 0, goals: 0, assists: 0, geelKaarten: 0, roodKaarten: 0 };
             }
-            // Assists
+            return true;
+        }
+
+        // 4. Verwerk events — goals, assists en kaarten elk onafhankelijk
+        events.forEach(ev => {
+            // Goals & penalties (op naam van de schutter)
+            if ((ev.type === 'goal' || ev.type === 'penalty') && ev.speler) {
+                const uid = nameToUid[ev.speler];
+                if (ensureEntry(uid)) playerUpdates[uid].goals++;
+            }
+
+            // Assists — onafhankelijk van of de schutter gevonden wordt
             if ((ev.type === 'goal' || ev.type === 'penalty') && ev.assist) {
                 const assistUid = nameToUid[ev.assist];
-                if (assistUid && playerUpdates[assistUid]) {
-                    playerUpdates[assistUid].assists++;
+                if (ensureEntry(assistUid)) playerUpdates[assistUid].assists++;
+            }
+
+            // Kaarten
+            if (ev.speler) {
+                const uid = nameToUid[ev.speler];
+                if (uid && !uid.startsWith('manual_')) {
+                    if (!playerUpdates[uid]) ensureEntry(uid);
+                    if (ev.type === 'yellow')    { playerUpdates[uid].geelKaarten++; }
+                    if (ev.type === 'yellow2red') { playerUpdates[uid].geelKaarten++; playerUpdates[uid].roodKaarten++; }
+                    if (ev.type === 'red')        { playerUpdates[uid].roodKaarten++; }
                 }
             }
-            // Cards
-            if (ev.type === 'yellow') playerUpdates[uid].geelKaarten++;
-            if (ev.type === 'yellow2red') { playerUpdates[uid].geelKaarten++; playerUpdates[uid].roodKaarten++; }
-            if (ev.type === 'red') playerUpdates[uid].roodKaarten++;
         });
 
         // 5. Apply increments to each user doc

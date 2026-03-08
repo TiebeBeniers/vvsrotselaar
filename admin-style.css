@@ -1095,9 +1095,6 @@
     /* Instructies verbergen op mobiel — enkel het formulier tonen */
     .ranking-instructions { display: none; }
 
-    /* Textarea minder hoog op mobiel */
-    .ranking-textarea { rows: 8; min-height: 140px; }
-
     /* Knoppen vol breedte op mobiel */
     .ranking-actions { flex-direction: column; }
     .ranking-actions .add-btn,
@@ -1603,3 +1600,88 @@
 }
 .ranking-subtab-content { display: none; }
 .ranking-subtab-content.active { display: block; }
+
+/* ═══════════════════════════════════════════════════
+   TOGGLE SWITCH — gedeeld door werklijsten & evenementen
+   ═══════════════════════════════════════════════════ */
+
+/* Wrapper-rij voor een toggle-instelling */
+.toggle-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--off-white, #f8f9fa);
+    border: 1.5px solid var(--border-color, #e2e8f0);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+}
+
+.toggle-setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.toggle-setting-label strong {
+    font-size: 0.95rem;
+    color: var(--text-dark, #1a202c);
+    font-weight: 600;
+}
+
+.toggle-setting-label small {
+    font-size: 0.8rem;
+    color: var(--text-gray, #718096);
+}
+
+/* The switch itself */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #cbd5e0;
+    border-radius: 26px;
+    cursor: pointer;
+    transition: background 0.25s;
+}
+
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    transition: transform 0.25s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--primary-blue, #0047AB);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+    outline: 3px solid rgba(0,71,171,0.35);
+    outline-offset: 2px;
+}
