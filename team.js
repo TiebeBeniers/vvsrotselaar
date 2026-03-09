@@ -789,6 +789,19 @@ async function showMatchTimeline(match) {
     modal.classList.add('active');
     modalTimeline.innerHTML = '<div class="loading">Laden...</div>';
 
+    // Bepaal welke kant VVS is en markeer de timeline voor CSS-kleuring
+    const vvsNamesModal = ['v.v.s rotselaar', 'vvs rotselaar', 'v.v.s. rotselaar'];
+    const thuisIsVvs = vvsNamesModal.includes((match.thuisploeg || '').toLowerCase());
+    modalTimeline.dataset.vvsSide = thuisIsVvs ? 'home' : 'away';
+
+    // Bouw naam→uid map uit de opgeslagen lineup van deze wedstrijd
+    const matchUidMap = {};
+    if (match.lineup) {
+        Object.entries(match.lineup).forEach(([uid, info]) => {
+            if (uid && info.name && !uid.startsWith('manual_')) matchUidMap[info.name] = uid;
+        });
+    }
+
     // ── Timeline cache — wedstrijdevents veranderen niet meer na 'finished' ──
     const tlKey = `timeline_${match.id}`;
     const cachedEvents = tcGet(tlKey, CACHE_TTL.timeline);
@@ -798,7 +811,7 @@ async function showMatchTimeline(match) {
             modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
         } else {
             modalTimeline.innerHTML = '';
-            renderTimelineTeam(cachedEvents, modalTimeline);
+            renderTimelineTeam(cachedEvents, modalTimeline, matchUidMap);
         }
         return;
     }
@@ -826,7 +839,7 @@ async function showMatchTimeline(match) {
         tcSet(tlKey, serializableEvents);
 
         modalTimeline.innerHTML = '';
-        renderTimelineTeam(events, modalTimeline);
+        renderTimelineTeam(events, modalTimeline, matchUidMap);
 
     } catch (error) {
         console.error('Error loading match timeline:', error);
@@ -842,7 +855,7 @@ async function showMatchTimeline(match) {
  *   einde → ET half 4 → ET rust → ET half 3 → einde-regulier
  *   → 2nd half → HT rust → 1st half → aftrap
  */
-function renderTimelineTeam(events, container) {
+function renderTimelineTeam(events, container, uidMap = {}) {
     const STRUCTURAL = new Set(['aftrap', 'rust', 'einde-regulier', 'einde', 'hervat']);
     // Filter out 'hervat' entirely from display
     const structural = events.filter(e => STRUCTURAL.has(e.type) && e.type !== 'hervat');
@@ -884,7 +897,7 @@ function renderTimelineTeam(events, container) {
     byHalf[1].forEach(e => ordered.push(e));
     if (aftrap) ordered.push(aftrap);
 
-    ordered.forEach(e => container.appendChild(createTimelineItem(e)));
+    ordered.forEach(e => container.appendChild(createTimelineItem(e, uidMap)));
 }
 
 // Returns an <img> tag for a given event type — mirrors live.js eventIcon().
@@ -911,9 +924,16 @@ function eventIcon(type, half) {
     }
 }
 
-function createTimelineItem(event) {
+function createTimelineItem(event, uidMap = {}) {
     const item = document.createElement('div');
     item.className = `timeline-item ${event.ploeg || 'center'}`;
+
+    // Klikbare link voor VVS-spelers met een account
+    const n = (name, cls = '') => {
+        const uid = uidMap[name];
+        if (uid) return `<a href="speler.html?uid=${uid}" class="tl-player-link${cls ? ' ' + cls : ''}">${name}</a>`;
+        return `<span${cls ? ` class="${cls}"` : ''}>${name}</span>`;
+    };
 
     let description = '';
 
@@ -921,31 +941,31 @@ function createTimelineItem(event) {
         case 'aftrap':
             description = 'Aftrap'; break;
         case 'goal':
-            description = `GOAL${event.speler ? ' - ' + event.speler : ''}`;
-            if (event.assist) description += ` <span class="event-assist">(assist: ${event.assist})</span>`;
+            description = `GOAL${event.speler ? ' - ' + n(event.speler) : ''}`;
+            if (event.assist) description += ` <span class="event-assist">(assist: ${n(event.assist)})</span>`;
             break;
         case 'penalty':
-            description = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
-            if (event.assist) description += ` <span class="event-assist">(assist: ${event.assist})</span>`;
+            description = `PENALTY${event.speler ? ' - ' + n(event.speler) : ''}`;
+            if (event.assist) description += ` <span class="event-assist">(assist: ${n(event.assist)})</span>`;
             break;
         case 'penalty-missed':
-            description = `Penalty gemist${event.speler ? ' - ' + event.speler : ''}`;
+            description = `Penalty gemist${event.speler ? ' - ' + n(event.speler) : ''}`;
             break;
         case 'own-goal':
-            description = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
+            description = `Eigen doelpunt${event.speler ? ' - ' + n(event.speler) : ''}`; break;
         case 'yellow':
-            description = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`; break;
+            description = `Gele kaart${event.speler ? ' - ' + n(event.speler) : ''}`; break;
         case 'yellow2red':
-            description = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
+            description = `2e Gele kaart (Rood)${event.speler ? ' - ' + n(event.speler) : ''}`; break;
         case 'red':
-            description = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
+            description = `Rode kaart${event.speler ? ' - ' + n(event.speler) : ''}`; break;
         case 'substitution': {
             const injuryIcon = event.injured
                 ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
             if (event.spelerUit && event.spelerIn) {
-                description = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit"><span class="sub-name">${event.spelerUit}</span>${injuryIcon}</span>`
-                            + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In"><span class="sub-name">${event.spelerIn}</span></span>`;
+                description = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(event.spelerUit, 'sub-name')}${injuryIcon}</span>`
+                            + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(event.spelerIn, 'sub-name')}</span>`;
             } else {
                 description = `Wissel${injuryIcon}`;
             }

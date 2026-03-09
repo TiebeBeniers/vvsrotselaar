@@ -46,6 +46,7 @@ let hasAccess       = false;
 // All players who marked available for this match
 // { uid, name, isExternal }
 let availablePlayers = [];
+let playerUidMap = {}; // name → uid, built from availablePlayers
 
 // Current active lineup:
 //   activePlayers  — on the pitch right now (selectable for goals etc.)
@@ -165,6 +166,12 @@ async function loadAvailablePlayers() {
             }
         });
         availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Build name→uid map — alleen spelers MET een echt account (geen externe, geen manual_)
+        playerUidMap = {};
+        availablePlayers.forEach(p => {
+            if (p.uid && p.name && !p.isExternal && !p.uid.startsWith('manual_')) playerUidMap[p.name] = p.uid;
+        });
 
         // Determine VVS side
         const thuisploeg = (currentMatch?.thuisploeg || '').toLowerCase();
@@ -966,10 +973,10 @@ function loadTimeline(snapshot) {
     const events = [];
     snapshot.forEach(d => events.push({ id: d.id, ...d.data() }));
     timeline.innerHTML = '';
-    renderTimeline(events, timeline);
+    renderTimeline(events, timeline, playerUidMap);
 }
 
-export function renderTimeline(events, container) {
+export function renderTimeline(events, container, uidMap = {}) {
     const STRUCTURAL = new Set(['aftrap', 'rust', 'einde-regulier', 'einde']);
     const structural = events.filter(e => STRUCTURAL.has(e.type));
     const regular    = events.filter(e => !STRUCTURAL.has(e.type));
@@ -1003,7 +1010,7 @@ export function renderTimeline(events, container) {
     byHalf[1].forEach(e => ordered.push(e));
     if (aftrap)   ordered.push(aftrap);
 
-    ordered.forEach(e => container.appendChild(createEventElement(e)));
+    ordered.forEach(e => container.appendChild(createEventElement(e, uidMap)));
 }
 
 function eventIcon(type, half) {
@@ -1025,7 +1032,7 @@ function eventIcon(type, half) {
     }
 }
 
-export function createEventElement(event) {
+export function createEventElement(event, uidMap = {}) {
     const div = document.createElement('div');
     div.className = `timeline-event ${event.type}`;
     let teamClass = 'center';
@@ -1033,29 +1040,36 @@ export function createEventElement(event) {
     else if (event.ploeg === 'away') teamClass = 'away';
     div.classList.add(teamClass);
 
+    // Only VVS players (known in uidMap) get a clickable link
+    const n = (name, cls = '') => {
+        const uid = uidMap[name];
+        if (uid) return `<a href="speler.html?uid=${uid}" class="tl-player-link${cls ? ' ' + cls : ''}">${name}</a>`;
+        return `<span${cls ? ` class="${cls}"` : ''}>${name}</span>`;
+    };
+
     let text = '';
     switch (event.type) {
-        case 'aftrap':        text = 'Aftrap'; break;
+        case 'aftrap': text = 'Aftrap'; break;
         case 'goal':
-            text = `GOAL${event.speler ? ' - ' + event.speler : ''}`;
-            if (event.assist) text += ` <span class="event-assist">(assist: ${event.assist})</span>`;
+            text = `GOAL${event.speler ? ' - ' + n(event.speler) : ''}`;
+            if (event.assist) text += ` <span class="event-assist">(assist: ${n(event.assist)})</span>`;
             break;
         case 'penalty':
-            text = `PENALTY${event.speler ? ' - ' + event.speler : ''}`;
-            if (event.assist) text += ` <span class="event-assist">(assist: ${event.assist})</span>`;
+            text = `PENALTY${event.speler ? ' - ' + n(event.speler) : ''}`;
+            if (event.assist) text += ` <span class="event-assist">(assist: ${n(event.assist)})</span>`;
             break;
-        case 'penalty-missed': text = `Penalty gemist${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'own-goal':       text = `Eigen doelpunt${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'yellow':         text = `Gele kaart${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'yellow2red':     text = `2e Gele kaart (Rood)${event.speler ? ' - ' + event.speler : ''}`; break;
-        case 'red':            text = `Rode kaart${event.speler ? ' - ' + event.speler : ''}`; break;
+        case 'penalty-missed': text = `Penalty gemist${event.speler ? ' - ' + n(event.speler) : ''}`; break;
+        case 'own-goal':       text = `Eigen doelpunt${event.speler ? ' - ' + n(event.speler) : ''}`; break;
+        case 'yellow':         text = `Gele kaart${event.speler ? ' - ' + n(event.speler) : ''}`; break;
+        case 'yellow2red':     text = `2e Gele kaart (Rood)${event.speler ? ' - ' + n(event.speler) : ''}`; break;
+        case 'red':            text = `Rode kaart${event.speler ? ' - ' + n(event.speler) : ''}`; break;
         case 'substitution': {
             const injuryIcon = event.injured
                 ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
             if (event.spelerUit && event.spelerIn) {
-                text = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit"><span class="sub-name">${event.spelerUit}</span>${injuryIcon}</span>`
-                     + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In"><span class="sub-name">${event.spelerIn}</span></span>`;
+                text = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(event.spelerUit, 'sub-name')}${injuryIcon}</span>`
+                     + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(event.spelerIn, 'sub-name')}</span>`;
             } else {
                 text = `Wissel${injuryIcon}`;
             }

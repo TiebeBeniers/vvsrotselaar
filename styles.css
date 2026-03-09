@@ -789,8 +789,38 @@ img {
 .timeline-event.away {
     justify-content: flex-end;
     flex-direction: row-reverse;
-    border-right: 4px solid #2C5F2D;
-    background: linear-gradient(to left, rgba(44, 95, 45, 0.05), var(--off-white));
+    border-right: 4px solid var(--primary-blue);
+    background: linear-gradient(to left, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+/* ── Wanneer VVS de uitploeg is: away = blauw, home = grijs ── */
+[data-vvs-side="away"] .timeline-event.away {
+    border-right-color: var(--primary-blue);
+    background: linear-gradient(to left, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+[data-vvs-side="away"] .timeline-event.home {
+    border-left-color: #9ca3af;
+    background: linear-gradient(to right, rgba(156, 163, 175, 0.08), var(--off-white));
+}
+
+[data-vvs-side="away"] .timeline-event.home .event-time {
+    color: #6b7280;
+}
+
+/* ── Wanneer VVS de thuisploeg is: home = blauw, away = grijs ── */
+[data-vvs-side="home"] .timeline-event.home {
+    border-left-color: var(--primary-blue);
+    background: linear-gradient(to right, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+[data-vvs-side="home"] .timeline-event.away {
+    border-right-color: #9ca3af;
+    background: linear-gradient(to left, rgba(156, 163, 175, 0.08), var(--off-white));
+}
+
+[data-vvs-side="home"] .timeline-event.away .event-time {
+    color: #6b7280;
 }
 
 .timeline-event.away .event-time {
@@ -837,7 +867,7 @@ img {
 }
 
 .timeline-event.away .event-time {
-    color: #2C5F2D;
+    color: var(--primary-blue);
 }
 
 .timeline-event.center .event-time {
@@ -3709,8 +3739,38 @@ img {
 /* Away team - Rechts uitgelijnd */
 .timeline-item.away {
     justify-content: flex-end;
-    border-right: 4px solid #2C5F2D;
-    background: linear-gradient(to left, rgba(44, 95, 45, 0.05), var(--off-white));
+    border-right: 4px solid var(--primary-blue);
+    background: linear-gradient(to left, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+/* ── Wanneer VVS de uitploeg is: away = blauw, home = grijs ── */
+[data-vvs-side="away"] .timeline-item.away {
+    border-right-color: var(--primary-blue);
+    background: linear-gradient(to left, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+[data-vvs-side="away"] .timeline-item.home {
+    border-left-color: #9ca3af;
+    background: linear-gradient(to right, rgba(156, 163, 175, 0.08), var(--off-white));
+}
+
+[data-vvs-side="away"] .timeline-item.home .timeline-minute {
+    color: #6b7280;
+}
+
+/* ── Wanneer VVS de thuisploeg is: home = blauw, away = grijs ── */
+[data-vvs-side="home"] .timeline-item.home {
+    border-left-color: var(--primary-blue);
+    background: linear-gradient(to right, rgba(0, 71, 171, 0.05), var(--off-white));
+}
+
+[data-vvs-side="home"] .timeline-item.away {
+    border-right-color: #9ca3af;
+    background: linear-gradient(to left, rgba(156, 163, 175, 0.08), var(--off-white));
+}
+
+[data-vvs-side="home"] .timeline-item.away .timeline-minute {
+    color: #6b7280;
 }
 
 .timeline-item.away .timeline-minute {
@@ -4221,4 +4281,23 @@ img {
     .lineup-actions {
         flex-direction: column;
     }
+}
+
+/* ── Klikbare spelernamen in tijdslijn ── */
+.tl-player-link {
+    color: inherit;
+    font-weight: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.tl-player-link:hover {
+    opacity: 0.7;
+}
+
+/* Sub-name als link: overschrijf de span-stijl niet */
+.sub-name.tl-player-link,
+a.tl-player-link.sub-name {
+    display: inline;
 }

@@ -108,17 +108,9 @@ function showOnly(id) {
 // ── UI vullen ─────────────────────────────────────────────────────────────────
 
 function fillProfile(userData) {
-    document.getElementById('heroNaam').textContent = userData.naam || 'Onbekend';
-    document.getElementById('infoNaam').textContent      = userData.naam      || '—';
-    document.getElementById('infoEmail').textContent     = userData.email     || '—';
-    document.getElementById('infoCategorie').textContent = capitalize(userData.categorie);
-
-    const uidEl = document.getElementById('infoUid');
-    if (uidEl) {
-        const tooltip = uidEl.querySelector('.uid-help');
-        uidEl.textContent = userData.uid || '—';
-        if (tooltip) uidEl.appendChild(tooltip);
-    }
+    document.getElementById('heroNaam').textContent       = userData.naam || 'Onbekend';
+    document.getElementById('infoNaam').textContent       = userData.naam      || '—';
+    document.getElementById('infoCategorie').textContent  = capitalize(userData.categorie);
 
     document.getElementById('statGoals').textContent   = userData.goals        ?? 0;
     document.getElementById('statAssists').textContent = userData.assists      ?? 0;
@@ -128,6 +120,34 @@ function fillProfile(userData) {
     document.getElementById('statRed').textContent     = userData.roodKaarten  ?? 0;
 
     setAvatarDisplay(userData.fotoUrl || null);
+
+    if (isOwnProfile) {
+        // Eigen profiel: alles tonen
+        document.getElementById('infoEmail').textContent = userData.email || '—';
+        document.getElementById('infoTelefoon').textContent = userData.telefoon || '—';
+        const uidEl = document.getElementById('infoUid');
+        if (uidEl) {
+            const tooltip = uidEl.querySelector('.uid-help');
+            uidEl.textContent = userData.uid || '—';
+            if (tooltip) uidEl.appendChild(tooltip);
+        }
+        showPasswordSection();
+    } else {
+        // Gastprofiel: e-mail, telefoon en uid verbergen
+        const emailRow    = document.getElementById('infoEmail')?.closest('.info-row');
+        const telefoonRow = document.getElementById('infoTelefoonRow');
+        const uidRow      = document.getElementById('infoUid')?.closest('.info-row');
+        if (emailRow)    emailRow.style.display    = 'none';
+        if (telefoonRow) telefoonRow.style.display = 'none';
+        if (uidRow)      uidRow.style.display      = 'none';
+
+        // Banner tonen
+        const banner     = document.getElementById('guestBanner');
+        const bannerText = document.getElementById('guestBannerText');
+        if (banner) banner.style.display = '';
+        if (bannerText) bannerText.textContent =
+            'Je bekijkt het profiel van ' + (userData.naam || 'een ander lid') + '.';
+    }
 }
 
 function setAvatarDisplay(url) {
@@ -305,7 +325,7 @@ async function loadProfile(targetUid) {
         profileDocId = cached._docId;
         fillProfile(cached);
         showOnly('playerProfile');
-        if (isOwnProfile) showPasswordSection();
+
         // Laad geschiedenis ook uit cache (of Firestore als cache leeg/verlopen)
         loadMatchHistory(targetUid);
         return;
@@ -329,7 +349,6 @@ async function loadProfile(targetUid) {
 
     fillProfile(userData);
     showOnly('playerProfile');
-    if (isOwnProfile) showPasswordSection();
     loadMatchHistory(targetUid);
 }
 
@@ -456,25 +475,32 @@ function renderMatchHistory(matches, container) {
 onAuthStateChanged(auth, async (user) => {
     const loginLink = document.getElementById('loginLink');
 
+    currentUser = user || null;
+    if (loginLink) loginLink.textContent = user ? 'PROFIEL' : 'LOGIN';
+
+    const params    = new URLSearchParams(window.location.search);
+    const uidParam  = params.get('uid');
+
     if (!user) {
-        currentUser = null;
-        if (loginLink) loginLink.textContent = 'LOGIN';
-        showOnly('stateNotLoggedIn');
+        // Niet ingelogd: alleen gastprofiel tonen als ?uid= aanwezig is
+        if (uidParam) {
+            isOwnProfile = false;
+            try {
+                await loadProfile(uidParam);
+            } catch (err) {
+                console.error('Fout bij laden gastprofiel:', err);
+                showOnly('stateNotFound');
+            }
+        } else {
+            showOnly('stateNotLoggedIn');
+        }
         return;
     }
 
-    currentUser = user;
-    if (loginLink) loginLink.textContent = 'PROFIEL';
-
     try {
-        const params    = new URLSearchParams(window.location.search);
-        const targetUid = params.get('uid') || user.uid;
+        const targetUid = uidParam || user.uid;
         isOwnProfile    = targetUid === user.uid;
 
-        // Bij eigen profiel: invalideer de profielcache na een wedstrijd.
-        // Controle: als de cache ouder is dan de TTL wordt hij sowieso ververst.
-        // Extra forceer-refresh als URL-param ?refresh=1 aanwezig is
-        // (live.js kan dit toevoegen na wedstrijdeinde).
         if (params.get('refresh') === '1') {
             cacheInvalidate('profile', targetUid);
             cacheInvalidate('history', targetUid);
