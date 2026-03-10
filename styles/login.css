@@ -1,0 +1,151 @@
+/* ===============================================
+   VVS ROTSELAAR - LOGIN PAGE STYLES
+   =============================================== */
+
+.login-page {
+    min-height: calc(100vh - 150px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 450px;
+}
+
+.login-box {
+    background: var(--white);
+    padding: 3rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px var(--shadow);
+}
+
+.login-box h2 {
+    color: var(--primary-blue);
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+}
+
+.login-subtitle {
+    text-align: center;
+    color: var(--text-gray);
+    margin-bottom: 2rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Submit button */
+.login-btn {
+    padding: 1.2rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.login-btn:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px var(--shadow);
+}
+
+.login-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Logged-in view ── */
+.profile-info {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+.profile-icon {
+    width: 80px;
+    height: 80px;
+    color: var(--primary-blue);
+    margin: 0 auto 1rem;
+}
+
+.profile-info h3 {
+    color: var(--primary-blue);
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.profile-info p {
+    color: var(--text-gray);
+    margin-bottom: 0.3rem;
+}
+
+.user-role {
+    display: inline-block;
+    padding: 0.4rem 1rem;
+    background: var(--light-blue);
+    color: var(--white);
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+}
+
+.logout-btn,
+.admin-btn {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.logout-btn { background: var(--danger); color: var(--white); }
+.admin-btn  { background: var(--primary-blue); color: var(--white); }
+
+.logout-btn:hover,
+.admin-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px var(--shadow);
+}
+
+/* ── Account request links ── */
+.account-request-link,
+.back-to-login,
+.request-subtitle {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
+}
+
+.account-request-link a,
+.back-to-login a {
+    color: var(--primary-blue);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.account-request-link a:hover,
+.back-to-login a:hover {
+    color: var(--dark-blue);
+    text-decoration: underline;
+}
+
+#requestAccountView h3 {
+    color: var(--primary-blue);
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-size: 1.8rem;
+}

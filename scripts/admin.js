@@ -348,7 +348,7 @@ async function loadMembers() {
         return;
     }
     
-    membersList.innerHTML = '<div class="loading">Laden...</div>';
+    membersList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
     console.log('Loading members...');
     
     try {
@@ -523,7 +523,7 @@ async function loadAccountRequests() {
     
     try {
         console.log('Loading account requests...');
-        requestsList.innerHTML = '<div class="loading">Laden...</div>';
+        requestsList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
         
         // Get all pending requests
         // Note: We removed orderBy to avoid needing a composite index
@@ -960,7 +960,7 @@ async function loadMatches() {
         return;
     }
     
-    matchesList.innerHTML = '<div class="loading">Laden...</div>';
+    matchesList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
     console.log('Loading matches...');
     
     try {
@@ -1294,7 +1294,7 @@ async function loadEvenementen() {
         return;
     }
     
-    evenementenList.innerHTML = '<div class="loading">Laden...</div>';
+    evenementenList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
     console.log('Loading evenementen...');
     
     try {
@@ -1340,7 +1340,7 @@ function createEvenementCard(evenement) {
     
     const inschrijvBadge = evenement.inschrijvingenAan
         ? `<span class="member-badge" style="background:#e8f5e9;color:#2e7d32;cursor:pointer;" id="badge_${evenement.id}">
-               📋 Inschrijvingen laden...
+               📋 Inschrijvingen <div class="loader"></div>
            </span>`
         : '';
 
@@ -1444,7 +1444,7 @@ async function openInschrijvingenModal(evenement) {
     if (!modal) return;
 
     title.textContent = `Inschrijvingen — ${evenement.titel}`;
-    list.innerHTML = '<p>Laden...</p>';
+    list.innerHTML = '<p><div class="loader"></div></p>';
     modal.classList.add('active');
 
     try {
@@ -1498,7 +1498,7 @@ async function loadContactberichten() {
         return;
     }
     
-    container.innerHTML = '<div class="loading">Laden...</div>';
+    container.innerHTML = '<div class="loading"><div class="loader"></div></div>';
     
     try {
         // Try to load with ordering - if it fails, we'll catch it and load without ordering

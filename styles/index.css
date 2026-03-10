@@ -1,0 +1,343 @@
+/* ===============================================
+   VVS ROTSELAAR - INDEX / HOME PAGE STYLES
+   =============================================== */
+
+/* ── Announcement Banner ── */
+.announcement-banner {
+    background: linear-gradient(90deg, var(--primary-blue) 0%, var(--dark-blue) 100%);
+    color: var(--white);
+    overflow: hidden;
+    position: relative;
+    height: 45px;
+    display: flex;
+    align-items: center;
+}
+
+.announcement-content {
+    display: flex;
+    white-space: nowrap;
+    animation: scroll-announcement 40s linear infinite;
+}
+
+.announcement-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 4rem;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.announcement-item::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    margin-right: 0.8rem;
+    background-image: url('../assets/bier.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    vertical-align: middle;
+}
+
+@keyframes scroll-announcement {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+.announcement-banner:hover .announcement-content {
+    animation-play-state: paused;
+}
+
+@media (max-width: 768px) {
+    .announcement-banner { height: 40px; }
+    .announcement-item { font-size: 0.9rem; padding: 0 2rem; }
+}
+
+/* ── Hero Section ── */
+.hero-section {
+    position: relative;
+    width: 100%;
+    height: 500px;
+    background: var(--dark-blue);
+    overflow: hidden;
+}
+
+/* Carousel */
+.carousel-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.carousel-slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+}
+
+.carousel-slide.active { opacity: 1; }
+
+.carousel-dots {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+}
+
+.dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    border: 2px solid var(--white);
+    transition: all 0.3s ease;
+}
+
+.dot.active,
+.dot:hover {
+    background: var(--white);
+    transform: scale(1.2);
+}
+
+/* Start Match Button */
+.start-match-container {
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+}
+
+.start-match-btn {
+    padding: 1.5rem 4rem;
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: var(--white);
+    color: var(--primary-blue);
+    border-radius: 12px;
+    box-shadow: 0 8px 20px var(--shadow-lg);
+    transition: all 0.3s ease;
+    animation: pulse-btn 2s infinite;
+}
+
+.start-match-btn:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px var(--shadow-lg);
+}
+
+@keyframes pulse-btn {
+    0%, 100% { transform: scale(1); }
+    50%       { transform: scale(1.05); }
+}
+
+/* ── Live Match Overlay (over carousel) ── */
+.live-match-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.85);
+    z-index: 10;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.live-overlay-card {
+    background: white;
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 700px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    text-align: center;
+    animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-30px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.live-badge {
+    display: inline-block;
+    padding: 8px 20px;
+    border-radius: 25px;
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 25px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+
+.live-badge.live     { background: #DC3545; color: white; animation: pulse-live 2s infinite; }
+.live-badge.rust     { background: #FFC107; color: #1A1A1A; }
+.live-badge.finished { background: #6C757D; color: white; }
+.live-badge.bezig    { background: #FF8C00; color: #fff; animation: none; }
+
+@keyframes pulse-live {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.7; }
+}
+
+.overlay-match-info {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 30px;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.overlay-team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.overlay-team h2 {
+    font-size: 1.5rem;
+    color: var(--text-dark);
+    font-weight: 700;
+    margin: 0;
+}
+
+.overlay-score {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    line-height: 1;
+}
+
+.overlay-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.overlay-time {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    background: var(--off-white);
+    padding: 12px 24px;
+    border-radius: 10px;
+}
+
+.overlay-separator {
+    font-size: 2rem;
+    color: var(--text-gray);
+    font-weight: 300;
+}
+
+.overlay-watch-btn {
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 16px 45px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(0,71,171,0.2);
+}
+
+.overlay-watch-btn:hover {
+    background: var(--dark-blue);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,71,171,0.4);
+}
+
+@media (max-width: 768px) {
+    .hero-section { height: 400px; }
+    .live-overlay-card { padding: 30px 20px; }
+    .overlay-match-info { gap: 15px; }
+    .overlay-team h2 { font-size: 1.1rem; }
+    .overlay-score { font-size: 2rem; }
+    .overlay-time { font-size: 1.3rem; padding: 8px 16px; }
+    .overlay-separator { font-size: 1.5rem; }
+    .overlay-watch-btn { padding: 14px 35px; font-size: 1rem; width: 100%; }
+    .start-match-btn { padding: 1.2rem 2.5rem; font-size: 1.4rem; }
+}
+
+@media (max-width: 480px) {
+    .live-match-overlay { padding: 15px; }
+    .live-overlay-card { padding: 25px 15px; }
+    .overlay-match-info { gap: 10px; }
+    .overlay-team h2 { font-size: 0.9rem; }
+    .overlay-score { font-size: 1.6rem; }
+    .overlay-time { font-size: 1.1rem; padding: 6px 12px; }
+    .overlay-separator { font-size: 1.2rem; }
+    .live-badge { font-size: 0.9rem; padding: 6px 16px; }
+}
+
+/* ── Team Buttons Section ── */
+.teams-section {
+    padding: 4rem 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.team-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+}
+
+.team-button {
+    position: relative;
+    aspect-ratio: 2 / 1;
+    width: 100%;
+    background-size: cover;
+    background-position: center;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: block;
+    text-decoration: none;
+}
+
+.team-button:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 30px var(--shadow-lg);
+}
+
+.team-overlay {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 2rem;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    display: flex;
+    align-items: flex-end;
+}
+
+.team-overlay h2 {
+    color: var(--white);
+    font-size: 2rem;
+    font-weight: 800;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+@media (max-width: 768px) {
+    .team-buttons {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    .team-overlay h2 { font-size: 1.5rem; }
+}

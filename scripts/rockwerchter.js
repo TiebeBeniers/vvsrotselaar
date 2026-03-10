@@ -501,7 +501,7 @@ document.getElementById('bestellingenSluiten').addEventListener('click',    () =
 async function laadBestellingen() {
     const lijstEl = document.getElementById('bestLijst');
     const statsEl = document.getElementById('bestStats');
-    lijstEl.innerHTML = '<p class="loading-tekst">Laden...</p>';
+    lijstEl.innerHTML = '<p class="loading-tekst"><div class="loader"></div></p>';
     statsEl.innerHTML = '';
     alleDocs      = [];
     getoondAantal = 0;

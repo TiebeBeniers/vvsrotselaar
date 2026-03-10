@@ -298,7 +298,7 @@ function displayPlannedMatch(match, container) {
                         </div>
                     </div>
                     <div id="availabilityContent">
-                        <div class="loading">Laden...</div>
+                        <div class="loading"><div class="loader"></div></div>
                     </div>
                 </div>
         ` : '';
@@ -787,7 +787,7 @@ async function showMatchTimeline(match) {
     modalMatchLocation.textContent = match.locatie;
 
     modal.classList.add('active');
-    modalTimeline.innerHTML = '<div class="loading">Laden...</div>';
+    modalTimeline.innerHTML = '<div class="loading"><div class="loader"></div></div>';
 
     // Bepaal welke kant VVS is en markeer de timeline voor CSS-kleuring
     const vvsNamesModal = ['v.v.s rotselaar', 'vvs rotselaar', 'v.v.s. rotselaar'];
@@ -1191,7 +1191,7 @@ async function loadAvailability(matchId, matchData = {}) {
                     ${extraPlayerBtn}
                 </div>
                 <div class="availability-list" id="availabilityList">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             `;
             
@@ -1216,7 +1216,7 @@ async function loadAvailability(matchId, matchData = {}) {
                     </button>
                 </div>
                 <div class="availability-list" id="availabilityList">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             `;
             

@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V.V.S Rotselaar - Zondag</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/team.css">
+    <link rel="stylesheet" href="styles/live.css">
 </head>
 <body>
     <!-- Header -->
@@ -48,7 +50,7 @@
         <section class="next-match-section" id="nextMatchSection">
             <h2>Eerstvolgende Wedstrijd</h2>
             <div class="match-card-container" id="nextMatchContainer">
-                <div class="loading">Laden...</div>
+                <div class="loading"><div class="loader"></div></div>
             </div>
         </section>
 
@@ -72,7 +74,7 @@
                         </tr>
                     </thead>
                     <tbody id="rankingBody">
-                        <tr><td colspan="10" class="loading">Laden...</td></tr>
+                        <tr><td colspan="10" class="loading"><div class="loader"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -87,7 +89,7 @@
                     <div class="stat-list" id="topScorers">
                         <div class="stat-item">
                             <span class="stat-rank">1</span>
-                            <span class="stat-player">Laden...</span>
+                            <span class="stat-player"><div class="loader"></div></span>
                             <span class="stat-value-team">-</span>
                         </div>
                     </div>
@@ -97,7 +99,7 @@
                     <div class="stat-list" id="topAssists">
                         <div class="stat-item">
                             <span class="stat-rank">1</span>
-                            <span class="stat-player">Laden...</span>
+                            <span class="stat-player"><div class="loader"></div></span>
                             <span class="stat-value-team">-</span>
                         </div>
                     </div>
@@ -109,7 +111,7 @@
         <section class="recent-matches-section">
             <h2>Afgelopen Wedstrijden</h2>
             <div class="recent-matches-list" id="recentMatchesList">
-                <div class="loading">Laden...</div>
+                <div class="loading"><div class="loader"></div></div>
             </div>
         </section>
 
@@ -138,7 +140,7 @@
                 </div>
                 
                 <div class="timeline-container" id="modalTimeline">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             </div>
         </div>
@@ -175,7 +177,7 @@
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
 
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="team.js"></script>
+    <script type="module" src="scripts/firebase-config.js"></script>
+    <script type="module" src="scripts/team.js"></script>
 </body>
 </html>

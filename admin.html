@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V.V.S Rotselaar - Admin</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="admin-style.css">
+    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/admin.css">
 </head>
 <body>
     <header class="main-header">
@@ -59,7 +59,7 @@
                     </div>
                 </div>
                 <div class="members-list" id="membersList">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             </div>
 
@@ -201,7 +201,7 @@
                             </select>
                         </div>
                         <div id="currentRankingTable">
-                            <div class="loading">Laden...</div>
+                            <div class="loading"><div class="loader"></div></div>
                         </div>
                         <div class="ranking-status" id="currentRankingStatus"></div>
                     </div>
@@ -216,7 +216,7 @@
                     <button class="add-btn" id="addEvenementBtn">+ Nieuw Evenement</button>
                 </div>
                 <div class="evenementen-list" id="evenementenList">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             </div>
 
@@ -235,7 +235,7 @@
                     <button class="filter-btn" data-filter="read">Gelezen</button>
                 </div>
                 <div class="contactberichten-list" id="contactberichtenList">
-                    <div class="loading">Laden...</div>
+                    <div class="loading"><div class="loader"></div></div>
                 </div>
             </div>
         </div>
@@ -443,7 +443,7 @@
         <div class="modal-content large">
             <h3>Accountaanvragen Behandelen</h3>
             <div id="requestsList" class="requests-list">
-                <div class="loading">Laden...</div>
+                <div class="loading"><div class="loader"></div></div>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="requestsModalClose">Sluiten</button>
@@ -462,7 +462,7 @@
         </div>
     </div>
 
-    <script type="module" src="firebase-config.js"></script>
-    <script type="module" src="admin.js"></script>
+    <script type="module" src="scripts/firebase-config.js"></script>
+    <script type="module" src="scripts/admin.js"></script>
 </body>
 </html>
