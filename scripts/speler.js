@@ -8,8 +8,7 @@ import {
     onAuthStateChanged,
     EmailAuthProvider,
     reauthenticateWithCredential,
-    updatePassword,
-    sendPasswordResetEmail
+    updatePassword
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, getDocs
@@ -121,9 +120,14 @@ function fillProfile(userData) {
 
     setAvatarDisplay(userData.fotoUrl || null);
 
+    // Altijd gevoelige rijen verbergen tenzij eigen profiel
+    const emailRow    = document.getElementById('infoEmail')?.closest('.info-row');
+    const telefoonRow = document.getElementById('infoTelefoonRow');
+    const uidRow      = document.getElementById('infoUid')?.closest('.info-row');
+
     if (isOwnProfile) {
-        // Eigen profiel: alles tonen
-        document.getElementById('infoEmail').textContent = userData.email || '—';
+        // ── Geval 1: eigen profiel ───────────────────────────────────────────
+        document.getElementById('infoEmail').textContent    = userData.email    || '—';
         document.getElementById('infoTelefoon').textContent = userData.telefoon || '—';
         const uidEl = document.getElementById('infoUid');
         if (uidEl) {
@@ -131,22 +135,38 @@ function fillProfile(userData) {
             uidEl.textContent = userData.uid || '—';
             if (tooltip) uidEl.appendChild(tooltip);
         }
+        // Guestbanners verbergen, wachtwoord-sectie tonen
+        const guestBanner  = document.getElementById('guestBanner');
+        const publicBanner = document.getElementById('publicBanner');
+        if (guestBanner)  guestBanner.style.display  = 'none';
+        if (publicBanner) publicBanner.style.display = 'none';
         showPasswordSection();
-    } else {
-        // Gastprofiel: e-mail, telefoon en uid verbergen
-        const emailRow    = document.getElementById('infoEmail')?.closest('.info-row');
-        const telefoonRow = document.getElementById('infoTelefoonRow');
-        const uidRow      = document.getElementById('infoUid')?.closest('.info-row');
+
+    } else if (currentUser) {
+        // ── Geval 2: ingelogd, bekijkt iemand anders ────────────────────────
         if (emailRow)    emailRow.style.display    = 'none';
         if (telefoonRow) telefoonRow.style.display = 'none';
         if (uidRow)      uidRow.style.display      = 'none';
 
-        // Banner tonen
         const banner     = document.getElementById('guestBanner');
         const bannerText = document.getElementById('guestBannerText');
         if (banner) banner.style.display = '';
         if (bannerText) bannerText.textContent =
             'Je bekijkt het profiel van ' + (userData.naam || 'een ander lid') + '.';
+
+    } else {
+        // ── Geval 3: niet ingelogd ───────────────────────────────────────────
+        if (emailRow)    emailRow.style.display    = 'none';
+        if (telefoonRow) telefoonRow.style.display = 'none';
+        if (uidRow)      uidRow.style.display      = 'none';
+
+        const banner     = document.getElementById('publicBanner');
+        const bannerText = document.getElementById('publicBannerText');
+        const ownBtn     = document.getElementById('ownProfileBtn');
+        if (banner) banner.style.display = '';
+        if (bannerText) bannerText.textContent =
+            'Je bekijkt het publiek profiel van ' + (userData.naam || 'een speler') + '.';
+        if (ownBtn) ownBtn.style.display = 'none';
     }
 }
 
@@ -255,66 +275,6 @@ if (savePasswordBtn) {
     });
 }
 
-// Reset-link via e-mail
-const sendResetEmailBtn = document.getElementById('sendResetEmailBtn');
-let resetEmailCooldown = 0; // timestamp waarop cooldown eindigt
-
-if (sendResetEmailBtn) {
-    sendResetEmailBtn.addEventListener('click', async () => {
-        // Check cooldown
-        const remaining = Math.ceil((resetEmailCooldown - Date.now()) / 1000);
-        if (remaining > 0) {
-            setPasswordStatus('resetEmailStatus', 'error', `Wacht nog ${remaining} seconden voor je opnieuw een reset-link aanvraagt.`);
-            return;
-        }
-
-        const user = auth.currentUser;
-        if (!user?.email) {
-            setPasswordStatus('resetEmailStatus', 'error', 'Geen e-mailadres gevonden.');
-            return;
-        }
-
-        sendResetEmailBtn.disabled = true;
-        sendResetEmailBtn.textContent = 'Bezig…';
-
-        try {
-            await sendPasswordResetEmail(auth, user.email);
-            resetEmailCooldown = Date.now() + 30_000;
-            setPasswordStatus('resetEmailStatus', 'success',
-                `✅ Reset-link verstuurd naar ${user.email}. Controleer ook je spam.`);
-
-            // Countdown on button
-            let secs = 30;
-            const interval = setInterval(() => {
-                secs--;
-                if (secs <= 0) {
-                    clearInterval(interval);
-                    sendResetEmailBtn.disabled = false;
-                    sendResetEmailBtn.textContent = '📧 Reset-link sturen naar mijn e-mail';
-                } else {
-                    sendResetEmailBtn.textContent = `⏳ Opnieuw sturen (${secs}s)`;
-                }
-            }, 1000);
-
-        } catch (err) {
-            console.error('Reset email error:', err.code, err.message);
-            let msg = `Fout (${err.code}): ${err.message}`;
-            if (err.code === 'auth/unauthorized-continue-uri' || err.code === 'auth/invalid-continue-uri') {
-                msg = 'Domein niet toegestaan. Voeg je domein toe onder Authentication → Settings → Authorized domains.';
-            } else if (err.code === 'auth/too-many-requests') {
-                msg = 'Te veel pogingen. Probeer later opnieuw.';
-            } else if (err.code === 'auth/network-request-failed') {
-                msg = 'Netwerkfout. Controleer je internetverbinding.';
-            } else if (err.code === 'auth/user-not-found') {
-                msg = 'Geen account gevonden met dit e-mailadres.';
-            }
-            setPasswordStatus('resetEmailStatus', 'error', msg);
-            sendResetEmailBtn.disabled = false;
-            sendResetEmailBtn.textContent = '📧 Reset-link sturen naar mijn e-mail';
-        }
-    });
-}
-
 // ── Profieldata laden (met cache) ─────────────────────────────────────────────
 
 async function loadProfile(targetUid) {
@@ -327,7 +287,15 @@ async function loadProfile(targetUid) {
         showOnly('playerProfile');
 
         // Laad geschiedenis ook uit cache (of Firestore als cache leeg/verlopen)
-        loadMatchHistory(targetUid);
+        if (currentUser) {
+            loadMatchHistory(targetUid);
+        } else {
+            const container = document.getElementById('matchHistoryContainer');
+            if (container) container.style.display = 'none';
+            const historyTitle = Array.from(document.querySelectorAll('.section-title'))
+                .find(el => el.textContent.includes('Wedstrijdgeschiedenis'));
+            if (historyTitle) historyTitle.style.display = 'none';
+        }
         return;
     }
 
@@ -349,7 +317,17 @@ async function loadProfile(targetUid) {
 
     fillProfile(userData);
     showOnly('playerProfile');
-    loadMatchHistory(targetUid);
+    // Wedstrijdgeschiedenis vereist auth (availability-subcollection queries)
+    // Alleen laden als de gebruiker is ingelogd
+    if (currentUser) {
+        loadMatchHistory(targetUid);
+    } else {
+        const container = document.getElementById('matchHistoryContainer');
+        if (container) container.style.display = 'none';
+        const historyTitle = Array.from(document.querySelectorAll('.section-title'))
+            .find(el => el.textContent.includes('Wedstrijdgeschiedenis'));
+        if (historyTitle) historyTitle.style.display = 'none';
+    }
 }
 
 // ── Wedstrijdgeschiedenis (met cache) ─────────────────────────────────────────

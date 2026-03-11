@@ -197,6 +197,10 @@ if (addMemberBtn) {
             passwordField.required = true;
             passwordField.disabled = false;
         }
+
+        // Verberg stats-sectie bij nieuw lid (pas tonen bij bewerken)
+        const statsGroup = document.getElementById('statsEditGroup');
+        if (statsGroup) statsGroup.style.display = 'none';
         
         memberModal.classList.add('active');
     });
@@ -231,9 +235,18 @@ if (memberForm) {
         const email = document.getElementById('memberEmail').value.trim();
         const passwordField = document.getElementById('memberPassword');
         const password = passwordField ? passwordField.value : '';
+        const telefoon = document.getElementById('memberTelefoon')?.value.trim() || '';
         const categorie = document.getElementById('memberCategorie').value;
         const role = document.getElementById('memberRole').value;
         const uid = document.getElementById('memberUid').value;
+        
+        // Stats (alleen bij bewerken)
+        const goals       = parseInt(document.getElementById('memberGoals')?.value)  || 0;
+        const assists     = parseInt(document.getElementById('memberAssists')?.value) || 0;
+        const matchen     = parseInt(document.getElementById('memberMatchen')?.value) || 0;
+        const minuten     = parseInt(document.getElementById('memberMinuten')?.value) || 0;
+        const geelKaarten = parseInt(document.getElementById('memberGeel')?.value)    || 0;
+        const roodKaarten = parseInt(document.getElementById('memberRood')?.value)    || 0;
         
         console.log('Submitting member form:', { name, email, categorie, role, isUpdate: !!uid });
         
@@ -253,10 +266,17 @@ if (memberForm) {
                 if (!memberSnapshot.empty) {
                     const memberDoc = memberSnapshot.docs[0];
                     const updateData = {
-                        naam: name,
-                        email: email,
-                        categorie: categorie,
-                        rol: role
+                        naam:        name,
+                        email:       email,
+                        telefoon:    telefoon,
+                        categorie:   categorie,
+                        rol:         role,
+                        goals,
+                        assists,
+                        matchen,
+                        minuten,
+                        geelKaarten,
+                        roodKaarten,
                     };
                     
                     console.log('Updating document:', memberDoc.id, updateData);
@@ -390,7 +410,7 @@ function createMemberCard(member) {
     
     card.innerHTML = `
         <div class="member-info">
-            <h4>${member.naam}</h4>
+            <h4 class="member-name-link">${member.naam}</h4>
             <p>${member.email}</p>
             <span class="member-badge">${roleText}</span>
             <span class="member-badge">${categorieText}</span>
@@ -401,11 +421,68 @@ function createMemberCard(member) {
         </div>
     `;
     
+    card.querySelector('.member-info').addEventListener('click', () => showMemberDetail(member));
     card.querySelector('.edit').addEventListener('click', () => editMember(member));
     card.querySelector('.delete').addEventListener('click', () => deleteMember(member));
     
     return card;
 }
+
+// ── Member Detail Overlay ─────────────────────────────────────────────────────
+
+let _detailCurrentMember = null;
+
+function showMemberDetail(member) {
+    _detailCurrentMember = member;
+    const modal = document.getElementById('memberDetailModal');
+    if (!modal) return;
+
+    document.getElementById('detailNaam').textContent     = member.naam || '—';
+    document.getElementById('detailUid').textContent      = member.uid  || '—';
+    document.getElementById('detailEmail').textContent    = member.email || '—';
+    document.getElementById('detailTelefoon').textContent = member.telefoon || '—';
+    document.getElementById('detailCategorie').textContent = member.categorie
+        ? member.categorie.charAt(0).toUpperCase() + member.categorie.slice(1) : '—';
+    document.getElementById('detailRol').textContent      = member.rol === 'admin' ? 'Admin' : 'Speler';
+
+    // Badges
+    const badgesEl = document.getElementById('detailBadges');
+    if (badgesEl) {
+        badgesEl.innerHTML = `
+            <span class="member-badge">${member.rol === 'admin' ? 'Admin' : 'Speler'}</span>
+            <span class="member-badge">${member.categorie || '—'}</span>`;
+    }
+
+    // Stats
+    document.getElementById('detailGoals').textContent   = member.goals        ?? 0;
+    document.getElementById('detailAssists').textContent = member.assists      ?? 0;
+    document.getElementById('detailMatchen').textContent = member.matchen      ?? 0;
+    document.getElementById('detailMinuten').textContent = member.minuten      ?? 0;
+    document.getElementById('detailGeel').textContent    = member.geelKaarten  ?? 0;
+    document.getElementById('detailRood').textContent    = member.roodKaarten  ?? 0;
+
+    modal.classList.add('active');
+}
+
+// Wire up detail modal close/edit buttons
+document.addEventListener('DOMContentLoaded', () => {
+    const detailModal    = document.getElementById('memberDetailModal');
+    const closeX         = document.getElementById('memberDetailClose');
+    const closeBtn       = document.getElementById('memberDetailCloseBtn');
+    const editBtn        = document.getElementById('memberDetailEditBtn');
+
+    const closeDetail = () => detailModal?.classList.remove('active');
+
+    if (closeX)   closeX.addEventListener('click', closeDetail);
+    if (closeBtn) closeBtn.addEventListener('click', closeDetail);
+    if (detailModal) detailModal.addEventListener('click', (e) => {
+        if (e.target === detailModal) closeDetail();
+    });
+    if (editBtn) editBtn.addEventListener('click', () => {
+        closeDetail();
+        if (_detailCurrentMember) editMember(_detailCurrentMember);
+    });
+});
 
 function editMember(member) {
     console.log('Editing member:', member.naam);
@@ -413,17 +490,30 @@ function editMember(member) {
     document.getElementById('memberUid').value = member.uid;
     document.getElementById('memberName').value = member.naam;
     document.getElementById('memberEmail').value = member.email;
+    document.getElementById('memberTelefoon').value = member.telefoon || '';
     document.getElementById('memberCategorie').value = member.categorie || 'veteranen';
     document.getElementById('memberRole').value = member.rol || 'speler';
+
+    // Statistieken invullen
+    document.getElementById('memberGoals').value   = member.goals       ?? 0;
+    document.getElementById('memberAssists').value = member.assists     ?? 0;
+    document.getElementById('memberMatchen').value = member.matchen     ?? 0;
+    document.getElementById('memberMinuten').value = member.minuten     ?? 0;
+    document.getElementById('memberGeel').value    = member.geelKaarten ?? 0;
+    document.getElementById('memberRood').value    = member.roodKaarten ?? 0;
+
+    // Toon stats-sectie (enkel bij bewerken)
+    const statsGroup = document.getElementById('statsEditGroup');
+    if (statsGroup) statsGroup.style.display = '';
     
     // CRITICAL FIX: Hide password field completely when editing
     const passwordField = document.getElementById('memberPassword');
     const passwordGroup = passwordField.closest('.form-group');
     if (passwordGroup) {
         passwordGroup.style.display = 'none';
-        passwordField.required = false; // Not required
-        passwordField.disabled = true;  // Disabled to prevent validation
-        passwordField.value = '';       // Clear value
+        passwordField.required = false;
+        passwordField.disabled = true;
+        passwordField.value = '';
     }
     
     memberModal.classList.add('active');
@@ -469,27 +559,31 @@ async function deleteMember(member) {
 // ===============================================
 
 async function updateRequestsBadge() {
-    const badge = document.getElementById('requestsBadge');
-    if (!badge) return;
-    
+    const dot        = document.getElementById('requestsBadge');
+    const countBadge = document.getElementById('requestsCountBadge');
+
     try {
         const requestsQuery = query(
             collection(db, 'account_requests'),
             where('status', '==', 'pending')
         );
         const requestsSnapshot = await getDocs(requestsQuery);
-        
         const count = requestsSnapshot.size;
-        
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
+
+        if (dot) dot.style.display = count > 0 ? 'block' : 'none';
+
+        if (countBadge) {
+            if (count > 0) {
+                countBadge.textContent = count;
+                countBadge.style.display = 'inline-flex';
+            } else {
+                countBadge.style.display = 'none';
+            }
         }
     } catch (error) {
         console.error('Error updating requests badge:', error);
-        badge.style.display = 'none';
+        if (dot) dot.style.display = 'none';
+        if (countBadge) countBadge.style.display = 'none';
     }
 }
 
@@ -503,15 +597,7 @@ async function updateContactberichtenBadge() {
             where('gelezen', '==', false)
         );
         const berichtenSnapshot = await getDocs(berichtenQuery);
-        
-        const count = berichtenSnapshot.size;
-        
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
-        }
+        badge.style.display = berichtenSnapshot.size > 0 ? 'block' : 'none';
     } catch (error) {
         console.error('Error updating contactberichten badge:', error);
         badge.style.display = 'none';

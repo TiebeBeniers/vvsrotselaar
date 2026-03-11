@@ -5,7 +5,7 @@
 // ===============================================
 
 import { auth, db } from './firebase-config.js';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { encryptPassword } from './crypto-utils.js';
 
@@ -60,6 +60,88 @@ function setupPasswordToggle(toggleButtonId, passwordInputId) {
 document.addEventListener('DOMContentLoaded', () => {
     setupPasswordToggle('toggleLoginPassword', 'password');
     setupPasswordToggle('toggleRequestPassword', 'requestPassword');
+
+    // ── Wachtwoord vergeten popup ────────────────────────────────────────────
+
+    const forgotModal      = document.getElementById('forgotPasswordModal');
+    const showForgotBtn    = document.getElementById('showForgotPassword');
+    const closeForgotBtn   = document.getElementById('closeForgotBtn');
+    const sendForgotBtn    = document.getElementById('sendForgotEmailBtn');
+    const forgotEmailInput = document.getElementById('forgotEmail');
+    const forgotStatus     = document.getElementById('forgotStatus');
+
+    function openForgotModal() {
+        // Pre-fill met de eerder ingevulde email als die er is
+        const loginEmail = document.getElementById('email')?.value?.trim();
+        if (forgotEmailInput && loginEmail) forgotEmailInput.value = loginEmail;
+        if (forgotStatus) { forgotStatus.style.display = 'none'; forgotStatus.textContent = ''; }
+        if (forgotModal) forgotModal.style.display = 'block';
+    }
+
+    function closeForgotModal() {
+        if (forgotModal) forgotModal.style.display = 'none';
+    }
+
+    if (showForgotBtn)  showForgotBtn.addEventListener('click',  (e) => { e.preventDefault(); openForgotModal(); });
+    if (closeForgotBtn) closeForgotBtn.addEventListener('click', closeForgotModal);
+    if (forgotModal)    forgotModal.addEventListener('click', (e) => { if (e.target === forgotModal) closeForgotModal(); });
+
+    if (sendForgotBtn) {
+        let cooldownUntil = 0;
+
+        sendForgotBtn.addEventListener('click', async () => {
+            const remaining = Math.ceil((cooldownUntil - Date.now()) / 1000);
+            if (remaining > 0) {
+                showForgotStatus('error', `Wacht nog ${remaining} seconden voor je opnieuw een reset-link aanvraagt.`);
+                return;
+            }
+
+            const email = forgotEmailInput?.value?.trim();
+            if (!email) {
+                showForgotStatus('error', 'Vul je e-mailadres in.');
+                return;
+            }
+
+            sendForgotBtn.disabled = true;
+            sendForgotBtn.textContent = 'Bezig…';
+
+            try {
+                await sendPasswordResetEmail(auth, email);
+                cooldownUntil = Date.now() + 30_000;
+                showForgotStatus('success', `Reset-link verstuurd naar ${email}. Controleer ook je spam.`);
+
+                let secs = 30;
+                const interval = setInterval(() => {
+                    secs--;
+                    if (secs <= 0) {
+                        clearInterval(interval);
+                        sendForgotBtn.disabled = false;
+                        sendForgotBtn.textContent = 'Stuur e-mail';
+                    } else {
+                        sendForgotBtn.textContent = `Opnieuw sturen (${secs}s)`;
+                    }
+                }, 1000);
+
+            } catch (err) {
+                let msg = 'Er ging iets mis. Probeer opnieuw.';
+                if (err.code === 'auth/user-not-found')        msg = 'Geen account gevonden met dit e-mailadres.';
+                else if (err.code === 'auth/invalid-email')    msg = 'Ongeldig e-mailadres.';
+                else if (err.code === 'auth/too-many-requests') msg = 'Te veel pogingen. Probeer later opnieuw.';
+                showForgotStatus('error', msg);
+                sendForgotBtn.disabled = false;
+                sendForgotBtn.textContent = 'Stuur e-mail';
+            }
+        });
+    }
+
+    function showForgotStatus(type, msg) {
+        if (!forgotStatus) return;
+        forgotStatus.style.display = 'block';
+        forgotStatus.style.background = type === 'success' ? '#d4edda' : '#f8d7da';
+        forgotStatus.style.color      = type === 'success' ? '#155724' : '#721c24';
+        forgotStatus.style.border     = `1px solid ${type === 'success' ? '#c3e6cb' : '#f5c6cb'}`;
+        forgotStatus.textContent = msg;
+    }
 });
 
 // ===============================================

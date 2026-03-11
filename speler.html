@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="styles/styles.css">
     <link rel="stylesheet" href="styles/speler.css">
 </head>
-<body class="player-page">
+<body class="player-page" style="display:flex;flex-direction:column;min-height:100vh;">
 
     <!-- Header -->
     <header class="main-header">
@@ -38,14 +38,14 @@
     </header>
 
     <!-- STATE: Laden -->
-    <div id="stateLoading" class="state-card">
-        <div class="state-icon">&#9203;</div>
+    <div id="stateLoading" class="state-card" style="flex:1;">
+        <div class="loader" style="margin:0 auto 16px;"></div>
         <h2>Profiel laden...</h2>
         <p>Even geduld, we halen de spelersdata op.</p>
     </div>
 
     <!-- STATE: Niet ingelogd -->
-    <div id="stateNotLoggedIn" class="state-card" style="display:none;">
+    <div id="stateNotLoggedIn" class="state-card" style="display:none;flex:1;">
         <div class="state-icon">&#128274;</div>
         <h2>Niet ingelogd</h2>
         <p>Je moet ingelogd zijn om je spelersprofiel te bekijken.</p>
@@ -53,14 +53,14 @@
     </div>
 
     <!-- STATE: Niet gevonden -->
-    <div id="stateNotFound" class="state-card" style="display:none;">
+    <div id="stateNotFound" class="state-card" style="display:none;flex:1;">
         <div class="state-icon">&#128269;</div>
         <h2>Profiel niet gevonden</h2>
         <p>Er werd geen profiel gevonden voor dit account.</p>
     </div>
 
     <!-- SPELERSPROFIEL -->
-    <div id="playerProfile" style="display:none;">
+    <div id="playerProfile" style="display:none;flex:1;">
 
         <!-- Hero Banner -->
         <div class="player-hero">
@@ -86,6 +86,19 @@
 
         <!-- Hoofdinhoud -->
         <main class="player-content">
+
+            <!-- Banner: ingelogd maar bekijkt ander profiel -->
+            <div id="guestBanner" class="guest-banner" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                <span id="guestBannerText">Je bekijkt het profiel van een ander lid.</span>
+                <a href="speler.html" class="guest-banner-btn" id="ownProfileBtn">Mijn Profiel</a>
+            </div>
+
+            <!-- Banner: niet ingelogd -->
+            <div id="publicBanner" class="guest-banner guest-banner--public" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                <span id="publicBannerText">Je bekijkt het publiek profiel van een speler.</span>
+            </div>
 
             <!-- Seizoensstatistieken -->
             <div class="section-title">Seizoensstatistieken</div>
@@ -196,14 +209,6 @@
                         <button class="pw-save-btn" id="savePasswordBtn">Wachtwoord opslaan</button>
                     </div>
                     <div class="password-status" id="passwordStatus" style="display:none;"></div>
-                </div>
-
-                <!-- Reset via e-mail als alternatief -->
-                <div class="password-divider"><span>of</span></div>
-                <div class="password-reset-alt">
-                    <p>Wachtwoord vergeten of wil je het resetten via e-mail?</p>
-                    <button class="pw-email-btn" id="sendResetEmailBtn">Reset-link sturen naar mijn e-mail</button>
-                    <div class="password-status" id="resetEmailStatus" style="display:none;"></div>
                 </div>
             </div>
 

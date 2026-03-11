@@ -143,6 +143,26 @@
     text-decoration: underline;
 }
 
+/* ── Wachtwoord vergeten link ── */
+.forgot-password-link {
+    text-align: left;
+    font-size: 0.8rem;
+    margin-top: -5px;
+    margin-bottom: -5px;;
+}
+
+.forgot-password-link a {
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.forgot-password-link a:hover {
+    color: var(--dark-blue);
+    text-decoration: underline;
+}
+
 #requestAccountView h3 {
     color: var(--primary-blue);
     text-align: center;

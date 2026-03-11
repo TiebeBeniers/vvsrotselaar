@@ -35,6 +35,7 @@
 }
 
 .tab-btn {
+    position: relative;
     padding: 1rem 1.82rem;
     background: transparent;
     color: var(--text-gray);
@@ -49,6 +50,42 @@
 .tab-btn.active {
     color: var(--primary-blue);
     border-bottom-color: var(--primary-blue);
+}
+
+/* Rode notificatiebol rechtsboven de tab-knop */
+.tab-dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 9px;
+    height: 9px;
+    background: #e53935;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    pointer-events: none;
+    animation: tab-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tab-dot-pulse {
+    0%, 100% { background: #e53935; }
+    50%       { background: #ff8a80; }
+}
+
+/* Rood badge met aantal naast "Aanvragen Behandelen" */
+.requests-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    background: #e53935;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: 0.4rem;
+    line-height: 1;
 }
 
 .tab-content { display: none; }
@@ -142,7 +179,7 @@
 
 .member-info,
 .match-info-admin,
-.evenement-info { flex: 1; }
+.evenement-info { flex: 1; cursor: pointer;}
 
 .member-info h4,
 .match-info-admin h4,
@@ -1684,4 +1721,139 @@
 .toggle-switch input:focus-visible + .toggle-slider {
     outline: 3px solid rgba(0,71,171,0.35);
     outline-offset: 2px;
+}
+
+/* ── Member Detail Overlay ────────────────────────────── */
+.member-detail-content {
+    position: relative;
+    max-width: 560px;
+}
+
+.modal-close-x {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    cursor: pointer;
+    color: #888;
+    line-height: 1;
+    padding: 0 0.25rem;
+    transition: color 0.2s;
+}
+.modal-close-x:hover { color: #333; }
+
+.detail-naam {
+    margin: 0 2rem 0.4rem 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.detail-badges {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.detail-section {
+    margin-bottom: 1.5rem;
+}
+
+.detail-section-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #eee;
+}
+
+.detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.detail-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.detail-key {
+    min-width: 90px;
+    font-weight: 600;
+    color: #555;
+    flex-shrink: 0;
+}
+
+.detail-val {
+    color: #1a1a1a;
+    word-break: break-all;
+}
+
+.detail-uid-item .detail-val {
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    background: #f4f4f4;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    word-break: break-all;
+}
+
+/* Stats grid in detail overlay */
+.detail-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+}
+
+.detail-stat-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    border: 1px solid #eee;
+}
+
+.detail-stat-val {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--primary-blue, #0047AB);
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.detail-stat-lbl {
+    font-size: 0.75rem;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.detail-yellow .detail-stat-val { color: #e6a817; }
+.detail-red    .detail-stat-val { color: #dc3545; }
+
+/* Stats form section label */
+.form-section-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin: 1.25rem 0 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid #eee;
+}
+
+@media (max-width: 480px) {
+    .detail-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .detail-key { min-width: 75px; }
+    .detail-uid-item { flex-direction: column; gap: 0.25rem; }
 }

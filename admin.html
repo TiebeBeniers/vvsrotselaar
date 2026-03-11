@@ -38,12 +38,11 @@
             <h2>Administratie</h2>
 
             <div class="admin-tabs">
-                <button class="tab-btn active" data-tab="members">Leden Beheren</button>
+                <button class="tab-btn active" data-tab="members">Leden Beheren<span class="tab-dot" id="requestsBadge" style="display:none;"></span></button>
                 <button class="tab-btn" data-tab="matches">Wedstrijden Beheren</button>
                 <button class="tab-btn" data-tab="ranking">Rangschikking Beheren</button>
                 <button class="tab-btn" data-tab="evenementen">Evenementen Beheren</button>
-                <button class="tab-btn" data-tab="contactberichten">Contactberichten<span class="badge" id="contactberichtenBadge" style="display:none;">0</span>
-                </button>
+                <button class="tab-btn" data-tab="contactberichten">Contactberichten<span class="tab-dot" id="contactberichtenBadge" style="display:none;"></span></button>
             </div>
 
             <!-- ── Leden Tab ── -->
@@ -53,7 +52,7 @@
                     <div class="header-buttons">
                         <button class="add-btn secondary" id="manageRequestsBtn">
                             Aanvragen Behandelen
-                            <span class="badge" id="requestsBadge" style="display:none;">0</span>
+                            <span class="requests-count-badge" id="requestsCountBadge" style="display:none;"></span>
                         </button>
                         <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
                     </div>
@@ -265,6 +264,10 @@
                     <input type="email" id="memberEmail" required>
                 </div>
                 <div class="form-group">
+                    <label for="memberTelefoon">Telefoonnummer</label>
+                    <input type="tel" id="memberTelefoon" placeholder="+32 470 00 00 00">
+                </div>
+                <div class="form-group">
                     <label for="memberPassword">Wachtwoord *</label>
                     <input type="password" id="memberPassword" required minlength="6">
                     <small>Minimaal 6 karakters</small>
@@ -285,12 +288,116 @@
                         <option value="admin">Admin</option>
                     </select>
                 </div>
+
+                <!-- Statistieken (alleen bij bewerken) -->
+                <div id="statsEditGroup" style="display:none;">
+                    <div class="form-section-label">Seizoensstatistieken</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="memberGoals">Goals</label>
+                            <input type="number" id="memberGoals" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberAssists">Assists</label>
+                            <input type="number" id="memberAssists" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberMatchen">Matchen</label>
+                            <input type="number" id="memberMatchen" min="0" value="0">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="memberMinuten">Minuten</label>
+                            <input type="number" id="memberMinuten" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberGeel">Gele kaarten</label>
+                            <input type="number" id="memberGeel" min="0" value="0">
+                        </div>
+                        <div class="form-group">
+                            <label for="memberRood">Rode kaarten</label>
+                            <input type="number" id="memberRood" min="0" value="0">
+                        </div>
+                    </div>
+                </div>
+
                 <input type="hidden" id="memberUid">
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="memberModalCancel">Annuleren</button>
                     <button type="submit" class="modal-btn confirm">Opslaan</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ── Member Detail Overlay ── -->
+    <div class="modal" id="memberDetailModal">
+        <div class="modal-content large member-detail-content">
+            <button class="modal-close-x" id="memberDetailClose">&times;</button>
+            <h3 id="detailNaam" class="detail-naam">—</h3>
+            <div class="detail-badges" id="detailBadges"></div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">Account</div>
+                <div class="detail-grid">
+                    <div class="detail-item detail-uid-item">
+                        <span class="detail-key">UID</span>
+                        <span class="detail-val uid-mono" id="detailUid">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-key">E-mail</span>
+                        <span class="detail-val" id="detailEmail">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-key">Telefoon</span>
+                        <span class="detail-val" id="detailTelefoon">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-key">Ploeg</span>
+                        <span class="detail-val" id="detailCategorie">—</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-key">Rol</span>
+                        <span class="detail-val" id="detailRol">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">Seizoensstatistieken</div>
+                <div class="detail-stats-grid">
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-val" id="detailGoals">0</div>
+                        <div class="detail-stat-lbl">Goals</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-val" id="detailAssists">0</div>
+                        <div class="detail-stat-lbl">Assists</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-val" id="detailMatchen">0</div>
+                        <div class="detail-stat-lbl">Matchen</div>
+                    </div>
+                    <div class="detail-stat-card">
+                        <div class="detail-stat-val" id="detailMinuten">0</div>
+                        <div class="detail-stat-lbl">Minuten</div>
+                    </div>
+                    <div class="detail-stat-card detail-yellow">
+                        <div class="detail-stat-val" id="detailGeel">0</div>
+                        <div class="detail-stat-lbl">Geel</div>
+                    </div>
+                    <div class="detail-stat-card detail-red">
+                        <div class="detail-stat-val" id="detailRood">0</div>
+                        <div class="detail-stat-lbl">Rood</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:1.5rem;">
+                <button class="modal-btn cancel" id="memberDetailCloseBtn">Sluiten</button>
+                <button class="modal-btn confirm" id="memberDetailEditBtn">Bewerken</button>
+            </div>
         </div>
     </div>
 

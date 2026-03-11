@@ -241,7 +241,7 @@
             const btn = document.createElement('button');
             btn.className   = 'inschrijf-btn';
             btn.disabled    = true;
-            btn.textContent = 'Laden...';
+            btn.textContent = '<div class="loader">';
             wrap.appendChild(btn);
             return wrap;
         }
@@ -261,7 +261,7 @@
             if (!currentUser) { btn.style.display = 'none'; return; }
             btn.style.display = '';
             btn.disabled      = true;
-            btn.textContent   = 'Laden...';
+            btn.textContent   = '<div class="loader">';
 
             try {
                 const myRef  = doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid);

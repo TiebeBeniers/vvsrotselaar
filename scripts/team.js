@@ -1049,6 +1049,7 @@ async function loadStatistics() {
             const u = d.data();
             if (u.naam) players.push({
                 name:    u.naam,
+                uid:     u.uid || null,
                 goals:   u.goals   || 0,
                 assists: u.assists || 0,
             });
@@ -1078,6 +1079,10 @@ function renderStatistics(topScorers, topAssists) {
     const topScorersEl = document.getElementById('topScorers');
     const topAssistsEl = document.getElementById('topAssists');
 
+    const playerLink = (p) => p.uid
+        ? `<a href="speler.html?uid=${p.uid}" class="stat-player-link"">${p.name}</a>`
+        : `<span>${p.name}</span>`;
+
     if (topScorersEl) {
         if (topScorers.length === 0) {
             topScorersEl.innerHTML = '<div class="stat-item"><span class="stat-player">Nog geen data</span></div>';
@@ -1085,7 +1090,7 @@ function renderStatistics(topScorers, topAssists) {
             topScorersEl.innerHTML = topScorers.map((p, i) => `
                 <div class="stat-item">
                     <span class="stat-rank">${i + 1}</span>
-                    <span class="stat-player">${p.name}</span>
+                    <span class="stat-player">${playerLink(p)}</span>
                     <span class="stat-value-team">${p.goals}</span>
                 </div>`).join('');
         }
@@ -1098,7 +1103,7 @@ function renderStatistics(topScorers, topAssists) {
             topAssistsEl.innerHTML = topAssists.map((p, i) => `
                 <div class="stat-item">
                     <span class="stat-rank">${i + 1}</span>
-                    <span class="stat-player">${p.name}</span>
+                    <span class="stat-player">${playerLink(p)}</span>
                     <span class="stat-value-team">${p.assists}</span>
                 </div>`).join('');
         }
