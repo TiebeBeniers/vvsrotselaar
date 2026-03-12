@@ -27,6 +27,16 @@
                 </button>
                 <ul class="nav-menu" id="navMenu">
                     <li><a href="index.html" class="active">HOME</a></li>
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-btn" id="teamsDropdownBtn" aria-expanded="false" aria-haspopup="true">
+                            TEAMS <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <ul class="nav-dropdown-menu" id="teamsDropdownMenu">
+                            <li><a href="veteranen.html">Veteranen</a></li>
+                            <li><a href="zaterdag.html">Zaterdag</a></li>
+                            <li><a href="zondag.html">Zondag</a></li>
+                        </ul>
+                    </li>
                     <li><a href="evenementen.html">EVENEMENTEN</a></li>
                     <li><a href="sponsors.html">SPONSORS</a></li>
                     <li><a href="galerij.html">GALERIJ</a></li>
@@ -114,6 +124,7 @@
         </section>
 
         <!-- Contact Section -->
+        <!-- Contact Section -->
         <section class="contact-section">
             <div class="contact-container">
                 <div class="contact-item">
@@ -145,7 +156,7 @@
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
 
-    <script data-cfasync="false" src="/cdn-cgi/l/email-protection#91f8fff7fed1e7e7e2e3fee5e2f4fdf0f0e3bff3f4"></script>
+    <script type="module" src="scripts/header.js"></script>
     <script type="module" src="scripts/firebase-config.js"></script>
     <script type="module" src="scripts/app.js"></script>
     <script type="module" src="scripts/announcement.js"></script>

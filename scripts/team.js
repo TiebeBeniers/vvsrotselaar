@@ -1336,18 +1336,18 @@ function showAddExtraPlayerModal(matchId) {
         confirmBtn.style.opacity = '0.5';
     }
 
-    searchInput.addEventListener('input', async () => {
+        searchInput.addEventListener('input', async () => {
         const q = searchInput.value.trim().toLowerCase();
         clearSelection();
-
+ 
         if (q.length < 1) {
             resultsBox.style.display = 'none';
             return;
         }
-
+ 
         const users = await getAllUsers();
         const matches = users.filter(u => u.naam.toLowerCase().includes(q));
-
+ 
         if (matches.length === 0) {
             resultsBox.innerHTML = `
                 <div style="padding:0.6rem 0.75rem; color:#888; font-size:0.9rem;">Geen spelers gevonden</div>
@@ -1355,12 +1355,12 @@ function showAddExtraPlayerModal(matchId) {
                     class="extra-player-result extra-player-manual-opt"
                     style="padding:0.55rem 0.75rem; cursor:pointer; font-size:0.88rem; color:#555; border-top:1px solid #eee; font-style:italic;"
                 >
-                    ✏️ Handmatig toevoegen…
+                    Niet gevonden? Handmatig toevoegen.
                 </div>
             `;
             resultsBox.style.display = 'block';
             resultsBox.querySelector('.extra-player-manual-opt')?.addEventListener('click', () => {
-                showManualFallback(modal, matchId, q);
+                showManualFallback(modal, matchId, searchInput.value.trim());
             });
             return;
         }
@@ -1381,7 +1381,7 @@ function showAddExtraPlayerModal(matchId) {
                 class="extra-player-result extra-player-manual-opt"
                 style="padding:0.55rem 0.75rem; cursor:pointer; font-size:0.88rem; color:#555; border-top:2px solid #eee; font-style:italic;"
             >
-                ✏️ Niet gevonden? Handmatig toevoegen…
+                Niet gevonden? Handmatig toevoegen.
             </div>
         `;
         resultsBox.style.display = 'block';
@@ -1567,7 +1567,10 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
             } else {
                 availabilities.sort((a, b) => {
                     if (a.available !== b.available) return b.available - a.available;
-                    return (a.displayName || '').localeCompare(b.displayName || '');
+                    // Nieuwste reactie bovenaan
+                    const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                    const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                    return tsB - tsA;
                 });
                 
                 availabilityList.innerHTML = availabilities.map(av => {

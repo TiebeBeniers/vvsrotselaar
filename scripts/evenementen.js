@@ -1,0 +1,247 @@
+import { auth, db } from './firebase-config.js';
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import {
+    collection, getDocs, doc, setDoc, deleteDoc, getDoc
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+let currentUser = null;
+
+// ── Auth ──────────────────────────────────────────────────────────────
+onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    const ll = document.getElementById('loginLink');
+    if (ll) ll.textContent = user ? 'PROFIEL' : 'LOGIN';
+    document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
+});
+
+// ── Hamburger ─────────────────────────────────────────────────────────
+const hamburger = document.getElementById('hamburger');
+const navMenu   = document.getElementById('navMenu');
+if (hamburger && navMenu) {
+    hamburger.addEventListener('click', () => {
+        hamburger.classList.toggle('active');
+        navMenu.classList.toggle('active');
+    });
+    navMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => {
+        hamburger.classList.remove('active');
+        navMenu.classList.remove('active');
+    }));
+}
+
+// ── Load evenementen ──────────────────────────────────────────────────
+async function loadEvenementen() {
+    const featured  = document.getElementById('featuredEvenement');
+    const upcoming  = document.getElementById('upcomingEvenementen');
+    const noEvents  = document.getElementById('noEvenementen');
+
+    try {
+        const snap = await getDocs(collection(db, 'evenementen'));
+        if (snap.empty) { featured.style.display = 'none'; noEvents.style.display = 'block'; return; }
+
+        const now  = new Date();
+        const list = [];
+        snap.forEach(d => {
+            const data = d.data();
+            const dt   = new Date(data.datum + 'T' + data.tijd);
+            if (dt > now) list.push({ id: d.id, ...data, dateTime: dt });
+        });
+
+        if (list.length === 0) { featured.style.display = 'none'; noEvents.style.display = 'block'; return; }
+        list.sort((a, b) => a.dateTime - b.dateTime);
+
+        featured.innerHTML = '';
+        featured.classList.remove('loading');
+        featured.appendChild(buildFeaturedCard(list[0]));
+
+        upcoming.innerHTML = '';
+        for (let i = 1; i < list.length; i++) upcoming.appendChild(buildSmallCard(list[i]));
+
+        document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
+
+    } catch (err) {
+        console.error(err);
+        featured.innerHTML = '<p class="error">Fout bij laden van evenementen.</p>';
+    }
+}
+
+// ── Card builders ─────────────────────────────────────────────────────
+function buildFeaturedCard(ev) {
+    const wrap = document.createElement('div');
+    wrap.className = 'featured-evenement';
+
+    const dateFmt = ev.dateTime.toLocaleDateString('nl-BE', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const imgHtml  = ev.afbeeldingNaam
+        ? '<div class="evenement-image"><img src="assets/' + ev.afbeeldingNaam + '" alt="' + htmlEsc(ev.titel) + '"></div>'
+        : '';
+    const linkHtml = ev.link
+        ? '<a href="' + ev.link + '" target="_blank" rel="noopener noreferrer" class="evenement-link">Meer info &rarr;</a>'
+        : '';
+    
+    const content = document.createElement('div');
+    content.className = 'featured-evenement-content';
+    content.innerHTML =
+        '<span class="evenement-badge">Eerstvolgende Evenement</span>' +
+        '<h2>' + htmlEsc(ev.titel) + '</h2>' +
+        '<div class="evenement-meta">' +
+            '<div class="meta-item">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
+                dateFmt +
+            '</div>' +
+            '<div class="meta-item">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
+                htmlEsc(ev.tijd) +
+            '</div>' +
+            '<div class="meta-item">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                htmlEsc(ev.locatie) +
+            '</div>' +
+        '</div>' +
+        '<p class="evenement-beschrijving">' + htmlEsc(ev.beschrijving) + '</p>' +
+        linkHtml;
+
+    if (ev.inschrijvingenAan) content.appendChild(buildInschrijfWrap(ev));
+
+    wrap.innerHTML = imgHtml;
+    wrap.appendChild(content);
+    return wrap;
+}
+
+function buildSmallCard(ev) {
+    const card = document.createElement('div');
+    card.className = 'evenement-card disabled';
+
+    const dateFmt  = ev.dateTime.toLocaleDateString('nl-BE');
+    const imgHtml  = ev.afbeeldingNaam
+        ? '<img src="assets/' + ev.afbeeldingNaam + '" alt="' + htmlEsc(ev.titel) + '">'
+        : '<div class="evenement-placeholder"></div>';
+    const preview  = ev.beschrijving
+        ? (ev.beschrijving.length > 100 ? ev.beschrijving.substring(0, 100) + '...' : ev.beschrijving)
+        : '';
+
+    const content = document.createElement('div');
+    content.className = 'evenement-card-content';
+    content.innerHTML =
+        '<h3>' + htmlEsc(ev.titel) + '</h3>' +
+        '<p class="evenement-date">' + dateFmt + ' om ' + htmlEsc(ev.tijd) + '</p>' +
+        '<p class="evenement-location">' + htmlEsc(ev.locatie) + '</p>' +
+        '<p class="evenement-preview">' + htmlEsc(preview) + '</p>';
+
+    if (ev.inschrijvingenAan) content.appendChild(buildInschrijfWrap(ev));
+
+    card.innerHTML = '<div class="evenement-card-image">' + imgHtml + '</div>';
+    card.appendChild(content);
+    return card;
+}
+
+function buildInschrijfWrap(ev) {
+    const wrap = document.createElement('div');
+    wrap.className = 'inschrijf-btn-wrap';
+    wrap.dataset.evenementId = ev.id;
+    wrap.dataset.max = ev.maxDeelnemers || '';
+    const btn = document.createElement('button');
+    btn.className   = 'inschrijf-btn';
+    btn.disabled    = true;
+    btn.textContent = '<div class="loader">';
+    wrap.appendChild(btn);
+    return wrap;
+}
+
+function htmlEsc(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Inschrijvingen ────────────────────────────────────────────────────
+async function updateInschrijfButton(wrap) {
+    const btn          = wrap.querySelector('.inschrijf-btn');
+    const evenementId  = wrap.dataset.evenementId;
+    const maxD         = parseInt(wrap.dataset.max) || null;
+    if (!btn) return;
+
+    if (!currentUser) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    btn.disabled      = true;
+    btn.textContent   = '<div class="loader">';
+
+    try {
+        const myRef  = doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid);
+        const mySnap = await getDoc(myRef);
+        const isIn   = mySnap.exists();
+
+        const allSnap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
+        const total   = allSnap.size;
+        const vol     = maxD && total >= maxD && !isIn;
+
+        btn.onclick = null;
+
+        if (isIn) {
+            btn.textContent = '\u2705 Ingeschreven';
+            btn.className   = 'inschrijf-btn ingeschreven';
+            btn.disabled    = false;
+            btn.onclick     = () => handleUitschrijven(wrap);
+        } else if (vol) {
+            btn.textContent = 'Volzet (' + total + '/' + maxD + ')';
+            btn.className   = 'inschrijf-btn volzet';
+            btn.disabled    = true;
+        } else {
+            btn.textContent = 'Inschrijven';
+            btn.className   = 'inschrijf-btn';
+            btn.disabled    = false;
+            btn.onclick     = () => handleInschrijven(wrap);
+        }
+    } catch (e) {
+        btn.textContent = 'Fout bij laden';
+        btn.disabled    = true;
+        console.error(e);
+    }
+}
+
+async function handleInschrijven(wrap) {
+    if (!currentUser) return;
+    const btn         = wrap.querySelector('.inschrijf-btn');
+    const evenementId = wrap.dataset.evenementId;
+    btn.disabled      = true;
+    btn.textContent   = 'Bezig...';
+    try {
+        let naam = currentUser.displayName || currentUser.email;
+        try {
+            const usersSnap = await getDocs(collection(db, 'users'));
+            usersSnap.forEach(d => {
+                if (d.data().uid === currentUser.uid && d.data().naam) naam = d.data().naam;
+            });
+        } catch (_) {}
+
+        await setDoc(doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid), {
+            uid:            currentUser.uid,
+            naam,
+            email:          currentUser.email,
+            ingeschrevenOp: new Date()
+        });
+        await updateInschrijfButton(wrap);
+    } catch (e) {
+        btn.textContent = 'Fout \u2014 probeer opnieuw';
+        btn.disabled    = false;
+        console.error(e);
+    }
+}
+
+async function handleUitschrijven(wrap) {
+    if (!currentUser) return;
+    if (!confirm('Wil je je uitschrijven voor dit evenement?')) return;
+    const btn         = wrap.querySelector('.inschrijf-btn');
+    const evenementId = wrap.dataset.evenementId;
+    btn.disabled      = true;
+    btn.textContent   = 'Bezig...';
+    try {
+        await deleteDoc(doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid));
+        await updateInschrijfButton(wrap);
+    } catch (e) {
+        btn.textContent = 'Fout \u2014 probeer opnieuw';
+        btn.disabled    = false;
+        console.error(e);
+    }
+}
+loadEvenementen();

@@ -6,80 +6,7 @@
     <title>V.V.S Rotselaar - Privacyverklaring</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles/styles.css">
-    <style>
-        .privacy-main {
-            max-width: 760px;
-            margin: 0 auto;
-            padding: 2.5rem 1.5rem 4rem;
-        }
-        .privacy-main h2 {
-            margin-bottom: 0.25rem;
-        }
-        .privacy-main h3 {
-            margin-bottom: 0.6rem;
-        }
-        .privacy-subtitle {
-            color: #888;
-            font-size: 0.9rem;
-            margin-bottom: 2rem;
-        }
-        .privacy-section {
-            margin-bottom: 2rem;
-        }
-        .privacy-main p {
-            line-height: 1.75;
-        }
-        .privacy-main ul {
-            margin: 0.75rem 0 0 1.25rem;
-            line-height: 1.9;
-        }
-
-        /* Links */
-        .privacy-main a {
-            color: #1a73e8;
-            text-decoration: underline;
-        }
-        .privacy-main a:hover {
-            color: #0c57c0;
-        }
-
-        /* Card-stijl voor localStorage en externe diensten */
-        .info-cards {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-top: 0.75rem;
-        }
-        .info-card {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 0.9rem 1rem;
-            background: #fafafa;
-        }
-        .info-card-title {
-            font-weight: 700;
-            font-size: 0.9rem;
-            margin-bottom: 0.35rem;
-            font-family: monospace;
-            color: #333;
-        }
-        .info-card-title.normal {
-            font-family: inherit;
-        }
-        .info-card-meta {
-            font-size: 0.83rem;
-            color: #666;
-            margin-top: 0.25rem;
-        }
-        .info-card-meta span {
-            display: inline-block;
-            background: #eee;
-            border-radius: 3px;
-            padding: 0.1rem 0.4rem;
-            margin-right: 0.3rem;
-            font-size: 0.8rem;
-        }
-    </style>
+    <link rel="stylesheet" href="styles/privacy.css">
 </head>
 <body>
     <header class="main-header">
@@ -92,15 +19,27 @@
             </div>
             <nav class="nav-section">
                 <button class="hamburger" id="hamburger" aria-label="Menu">
-                    <span></span><span></span><span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
                 </button>
-                <ul class="nav-menu" id="navMenu">
+                                <ul class="nav-menu" id="navMenu">
                     <li><a href="index.html">HOME</a></li>
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-btn" id="teamsDropdownBtn" aria-expanded="false" aria-haspopup="true">
+                            TEAMS <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <ul class="nav-dropdown-menu" id="teamsDropdownMenu">
+                            <li><a href="veteranen.html">Veteranen</a></li>
+                            <li><a href="zaterdag.html">Zaterdag</a></li>
+                            <li><a href="zondag.html">Zondag</a></li>
+                        </ul>
+                    </li>
                     <li><a href="evenementen.html">EVENEMENTEN</a></li>
                     <li><a href="sponsors.html">SPONSORS</a></li>
                     <li><a href="galerij.html">GALERIJ</a></li>
                     <li><a href="contact.html">CONTACT</a></li>
-                    <li><a href="login.html">LOGIN</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
                 </ul>
             </nav>
         </div>
@@ -299,5 +238,6 @@
         <p>&copy; TiebeBeniers &nbsp;&middot;&nbsp;
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
+    <script type="module" src="scripts/header.js"></script>
 </body>
 </html>
