@@ -1165,6 +1165,7 @@ function createMatchCard(match) {
     }
     
     card.querySelector('.delete').addEventListener('click', () => deleteMatch(match));
+    card.querySelector('.match-info-admin').addEventListener('click', () => editMatch(match));
     
     return card;
 }
@@ -1275,6 +1276,9 @@ if (addEvenementBtn) {
         document.getElementById('evenementModalTitle').textContent = 'Nieuw Evenement Aanmaken';
         document.getElementById('evenementId').value = '';
         evenementForm.reset();
+        const opties = document.getElementById('inschrijfOpties');
+        if (opties) opties.style.display = 'none';
+        loadExtraVelden([]);
         evenementModal.classList.add('active');
     });
 } else {
@@ -1289,15 +1293,88 @@ if (evenementModalCancel) {
 
 // Toggle max deelnemers field visibility
 const evenementInschrijvingenCb = document.getElementById('evenementInschrijvingen');
-const maxDeelnemersGroup = document.getElementById('maxDeelnemersGroup');
-if (evenementInschrijvingenCb && maxDeelnemersGroup) {
+
+if (evenementInschrijvingenCb) {
     evenementInschrijvingenCb.addEventListener('change', () => {
-        maxDeelnemersGroup.style.display = evenementInschrijvingenCb.checked ? '' : 'none';
+        const opties = document.getElementById('inschrijfOpties');
+        if (opties) opties.style.display = evenementInschrijvingenCb.checked ? '' : 'none';
         if (!evenementInschrijvingenCb.checked) {
-            document.getElementById('evenementMaxDeelnemers').value = '';
+            const maxF = document.getElementById('evenementMaxDeelnemers');
+            if (maxF) maxF.value = '';
         }
     });
 }
+
+// ── Extra velden builder ──────────────────────────────────────────────
+let extraVeldenCounter = 0;
+
+function addExtraVeldRow(data = {}) {
+    extraVeldenCounter++;
+    const id = data.id || ('veld_' + extraVeldenCounter);
+    const div = document.createElement('div');
+    div.className = 'extra-veld-row';
+    div.dataset.veldId = id;
+    const wijzigbaar = data.wijzigbaar || false;
+    div.innerHTML = `
+        <div class="extra-veld-row-header">
+            <span class="extra-veld-row-title">Veld</span>
+            <button class="modal-close-x" id="memberDetailClose">&times;</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex:2;">
+                <label>Label *</label>
+                <input type="text" class="veld-label" placeholder="bv. Aantal volwassenen" value="${data.label || ''}" required>
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Prijs p.p. (€)</label>
+                <input type="number" class="veld-prijs" min="0" step="0.01" placeholder="0 = gratis" value="${data.pricePerUnit ?? ''}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Toelichting <small style="font-weight:400;">(optioneel)</small></label>
+            <input type="text" class="veld-toelichting" placeholder="bv. t.e.m. 12 jaar gratis" value="${data.toelichting || ''}">
+        </div>
+        <div class="toggle-setting-row extra-veld-toggle-row">
+            <div class="toggle-setting-label">
+                <strong>Achteraf aanpasbaar</strong>
+                <small>Lid kan dit veld na inschrijving nog wijzigen</small>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" class="veld-wijzigbaar" ${wijzigbaar ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+            </label>
+        </div>
+    `;
+    div.querySelector('.modal-close-x').addEventListener('click', () => {
+        if (confirm('Ben je zeker dat je dit veld wilt verwijderen?')) {
+            div.remove();
+        }
+    });
+    document.getElementById('extraVeldenList').appendChild(div);
+}
+
+document.getElementById('addExtraVeldBtn')?.addEventListener('click', () => addExtraVeldRow());
+
+function getExtraVelden() {
+    const rows = document.querySelectorAll('#extraVeldenList .extra-veld-row');
+    const velden = [];
+    rows.forEach(row => {
+        const label = row.querySelector('.veld-label')?.value.trim();
+        if (!label) return;
+        const pricePerUnit = parseFloat(row.querySelector('.veld-prijs')?.value) || 0;
+        const toelichting  = row.querySelector('.veld-toelichting')?.value.trim() || '';
+        const wijzigbaar   = row.querySelector('.veld-wijzigbaar')?.checked || false;
+        velden.push({ id: row.dataset.veldId, label, pricePerUnit, toelichting, wijzigbaar });
+    });
+    return velden;
+}
+
+function loadExtraVelden(velden = []) {
+    document.getElementById('extraVeldenList').innerHTML = '';
+    extraVeldenCounter = 0;
+    velden.forEach(v => addExtraVeldRow(v));
+}
+
 
 if (evenementForm) {
     evenementForm.addEventListener('submit', async (e) => {
@@ -1320,6 +1397,8 @@ if (evenementForm) {
         const inschrijvingenAan = inschrijvingenCb ? inschrijvingenCb.checked : false;
         const maxDeelnemers = maxDeelnemersField && maxDeelnemersField.value
             ? parseInt(maxDeelnemersField.value) : null;
+        const inschrijfBeschrijving = document.getElementById('evenementInschrijfBeschrijving')?.value.trim() || '';
+        const extraVelden = inschrijvingenAan ? getExtraVelden() : [];
 
         const evenementData = {
             datum,
@@ -1331,6 +1410,8 @@ if (evenementForm) {
             link,
             inschrijvingenAan,
             ...(maxDeelnemers !== null && { maxDeelnemers }),
+            inschrijfBeschrijving,
+            extraVelden,
             createdAt: serverTimestamp()
         };
         
@@ -1445,12 +1526,13 @@ function createEvenementCard(evenement) {
         </div>
     `;
 
+    card.querySelector('.evenement-info').addEventListener('click', () => editEvenement(evenement));
     card.querySelector('.edit').addEventListener('click', () => editEvenement(evenement));
     card.querySelector('.delete').addEventListener('click', () => deleteEvenement(evenement));
 
     if (evenement.inschrijvingenAan) {
         // Load count
-        loadInschrijvingenCount(evenement.id);
+        loadInschrijvingenCount(evenement.id, evenement.extraVelden || []);
         card.querySelector(`#viewInschrijv_${evenement.id}`)
             .addEventListener('click', () => openInschrijvingenModal(evenement));
     }
@@ -1474,10 +1556,13 @@ function editEvenement(evenement) {
 
     const inschrijvCb = document.getElementById('evenementInschrijvingen');
     if (inschrijvCb) inschrijvCb.checked = !!evenement.inschrijvingenAan;
-    const maxGroup = document.getElementById('maxDeelnemersGroup');
-    if (maxGroup) maxGroup.style.display = evenement.inschrijvingenAan ? '' : 'none';
+    const opties = document.getElementById('inschrijfOpties');
+    if (opties) opties.style.display = evenement.inschrijvingenAan ? '' : 'none';
     const maxField = document.getElementById('evenementMaxDeelnemers');
     if (maxField) maxField.value = evenement.maxDeelnemers || '';
+    const inschrijfBeschrijvingField = document.getElementById('evenementInschrijfBeschrijving');
+    if (inschrijfBeschrijvingField) inschrijfBeschrijvingField.value = evenement.inschrijfBeschrijving || '';
+    loadExtraVelden(evenement.extraVelden || []);
 
     evenementModal.classList.add('active');
 }
@@ -1512,26 +1597,39 @@ async function deleteEvenement(evenement) {
 
 // ── Inschrijvingen helpers ────────────────────────────────────────────────────
 
-async function loadInschrijvingenCount(evenementId) {
+async function loadInschrijvingenCount(evenementId, extraVelden = []) {
     try {
         const snap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
         const badge = document.getElementById(`badge_${evenementId}`);
         if (badge) {
-            const count = snap.size;
-            badge.textContent = `${count} ingeschreven`;
+            const aantalLeden = snap.size;
+            let totaalExtra = 0;
+            snap.forEach(d => {
+                (d.data().extraAntwoorden || []).forEach(ant => {
+                    totaalExtra += parseInt(ant.waarde) || 0;
+                });
+            });
+            const totaal = aantalLeden + totaalExtra;
+            badge.textContent = totaalExtra > 0
+                ? `${aantalLeden} leden · ${totaal} aanwezigen`
+                : `${aantalLeden} ingeschreven`;
         }
     } catch (e) { console.error('Count error:', e); }
 }
 
 async function openInschrijvingenModal(evenement) {
-    const modal = document.getElementById('inschrijvingenModal');
-    const title = document.getElementById('inschrijvingenModalTitle');
-    const list  = document.getElementById('inschrijvingenList');
+    const modal    = document.getElementById('inschrijvingenModal');
+    const title    = document.getElementById('inschrijvingenModalTitle');
+    const samenvatting = document.getElementById('inschrijvingenSamenvatting');
+    const list     = document.getElementById('inschrijvingenList');
     if (!modal) return;
 
     title.textContent = `Inschrijvingen — ${evenement.titel}`;
     list.innerHTML = '<p><div class="loader"></div></p>';
+    if (samenvatting) samenvatting.innerHTML = '';
     modal.classList.add('active');
+
+    const extraVelden = evenement.extraVelden || [];
 
     try {
         const snap = await getDocs(collection(db, 'evenementen', evenement.id, 'inschrijvingen'));
@@ -1539,24 +1637,98 @@ async function openInschrijvingenModal(evenement) {
             list.innerHTML = '<p style="color:#888;">Nog niemand ingeschreven.</p>';
             return;
         }
+
         const inschrijvingen = [];
         snap.forEach(d => inschrijvingen.push(d.data()));
         inschrijvingen.sort((a, b) => (a.ingeschrevenOp?.toMillis?.() || 0) - (b.ingeschrevenOp?.toMillis?.() || 0));
 
-        const maxInfo = evenement.maxDeelnemers
-            ? `<p style="margin-bottom:0.75rem;color:#555;"><strong>${inschrijvingen.length}</strong> / ${evenement.maxDeelnemers} plaatsen bezet</p>`
-            : `<p style="margin-bottom:0.75rem;color:#555;"><strong>${inschrijvingen.length}</strong> ingeschreven</p>`;
+        // ── Totaaltelling ────────────────────────────────────
+        const aantalLeden = inschrijvingen.length;
+        // totaal extra personen per veld
+        const veldTotalen = {};
+        let totaalExtraPersonen = 0;
+        let totaalKosten = 0;
 
-        list.innerHTML = maxInfo + inschrijvingen.map((i, idx) => `
-            <div style="display:flex;align-items:center;gap:0.75rem;padding:0.6rem 0;border-bottom:1px solid #f0f0f0;">
-                <span style="width:24px;height:24px;border-radius:50%;background:#e3f2fd;color:#1565c0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;">${idx + 1}</span>
-                <div>
-                    <strong>${i.naam || '—'}</strong>
-                    <span style="color:#888;font-size:0.85rem;margin-left:0.5rem;">${i.email || ''}</span>
-                    ${i.ingeschrevenOp ? `<span style="color:#aaa;font-size:0.8rem;margin-left:0.5rem;">${new Date(i.ingeschrevenOp.toMillis()).toLocaleDateString('nl-BE')}</span>` : ''}
+        inschrijvingen.forEach(i => {
+            (i.extraAntwoorden || []).forEach(ant => {
+                const veld = extraVelden.find(v => v.id === ant.veldId);
+                if (!veld) return;
+                const aantal = parseInt(ant.waarde) || 0;
+                veldTotalen[ant.veldId] = (veldTotalen[ant.veldId] || 0) + aantal;
+                totaalExtraPersonen += aantal;
+                totaalKosten += aantal * (veld.pricePerUnit || 0);
+            });
+        });
+
+        const totaalPersonen = aantalLeden + totaalExtraPersonen;
+
+        // ── Samenvatting kaarten ─────────────────────────────
+        if (samenvatting) {
+            const maxBadge = evenement.maxDeelnemers
+                ? `<span style="color:#888;font-size:0.9rem;"> / ${evenement.maxDeelnemers} leden</span>` : '';
+
+            let veldenHtml = extraVelden.map(v => {
+                const tot = veldTotalen[v.id] || 0;
+                const kost = tot * (v.pricePerUnit || 0);
+                return `<div class="inschrijf-stat-card">
+                    <div class="inschrijf-stat-value">${tot}</div>
+                    <div class="inschrijf-stat-label">${v.label}</div>
+                    ${v.pricePerUnit > 0 ? `<div class="inschrijf-stat-sub">€${kost.toFixed(2)}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            samenvatting.innerHTML = `
+                <div class="inschrijf-stats-row">
+                    <div class="inschrijf-stat-card primary">
+                        <div class="inschrijf-stat-value">${aantalLeden}${maxBadge}</div>
+                        <div class="inschrijf-stat-label">Ingeschreven leden</div>
+                    </div>
+                    ${veldenHtml}
+                    <div class="inschrijf-stat-card">
+                        <div class="inschrijf-stat-value">${totaalPersonen}</div>
+                        <div class="inschrijf-stat-label">Totaal aanwezigen</div>
+                    </div>
+                    ${totaalKosten > 0 ? `<div class="inschrijf-stat-card accent">
+                        <div class="inschrijf-stat-value">€${totaalKosten.toFixed(2)}</div>
+                        <div class="inschrijf-stat-label">Te innen</div>
+                    </div>` : ''}
                 </div>
-            </div>
-        `).join('');
+            `;
+        }
+
+        // ── Lijst per lid ────────────────────────────────────
+        list.innerHTML = inschrijvingen.map((i, idx) => {
+            const extraHtml = (i.extraAntwoorden || []).map(ant => {
+                const veld = extraVelden.find(v => v.id === ant.veldId);
+                if (!veld || !ant.waarde) return '';
+                const aantal = parseInt(ant.waarde) || 0;
+                if (aantal === 0) return '';
+                const kost = aantal * (veld.pricePerUnit || 0);
+                return `<span style="font-size:0.82rem;color:#555;margin-top:2px;display:block;">
+                    ${veld.label}: <strong>${aantal}</strong>
+                    ${veld.pricePerUnit > 0 ? `<span style="color:#1565c0;">(€${kost.toFixed(2)})</span>` : ''}
+                </span>`;
+            }).join('');
+
+            const datum = i.ingeschrevenOp
+                ? new Date(i.ingeschrevenOp.toMillis?.() || i.ingeschrevenOp).toLocaleDateString('nl-BE')
+                : '';
+
+            return `
+                <div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid #f0f0f0;">
+                    <span style="width:24px;height:24px;border-radius:50%;background:#e3f2fd;color:#1565c0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;margin-top:2px;">${idx + 1}</span>
+                    <div style="flex:1;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                            <strong>${i.naam || '—'}</strong>
+                            <span style="color:#888;font-size:0.85rem;">${i.email || ''}</span>
+                            ${datum ? `<span style="color:#aaa;font-size:0.8rem;">${datum}</span>` : ''}
+                        </div>
+                        ${extraHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
     } catch (e) {
         list.innerHTML = '<p style="color:red;">Fout bij laden: ' + e.message + '</p>';
     }

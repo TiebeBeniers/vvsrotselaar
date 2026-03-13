@@ -532,9 +532,20 @@
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
-                <div class="form-group" id="maxDeelnemersGroup" style="display:none;">
-                    <label for="evenementMaxDeelnemers">Maximum deelnemers (optioneel)</label>
-                    <input type="number" id="evenementMaxDeelnemers" min="1" placeholder="Leeglaten = onbeperkt">
+                <div id="inschrijfOpties" style="display:none;">
+                    <div class="form-group" id="maxDeelnemersGroup">
+                        <label for="evenementMaxDeelnemers">Maximum leden (optioneel)</label>
+                        <input type="number" id="evenementMaxDeelnemers" min="1" placeholder="Leeglaten = onbeperkt">
+                    </div>
+                    <div class="form-group">
+                        <label for="evenementInschrijfBeschrijving">Beschrijving voor inschrijvers</label>
+                        <textarea id="evenementInschrijfBeschrijving" rows="3" placeholder="bv. Gratis frietjes voor leden. Familie welkom voor &euro;20 p.p., kinderen t.e.m. 12 jaar gratis."></textarea>
+                        <small>Wordt getoond in het inschrijfvenster van de leden</small>
+                    </div>
+                    <div class="form-section-label" style="margin-bottom:0.5rem;">Extra velden inschrijfformulier <small style="font-weight:400;color:#888;">(optioneel)</small></div>
+                    <div id="extraVeldenList"></div>
+                    <button type="button" class="action-btn" id="addExtraVeldBtn" style="margin-top:0.5rem;width:100%;">+ Veld toevoegen</button>
+
                 </div>
                 <input type="hidden" id="evenementId">
                 <div class="modal-actions">
@@ -574,6 +585,7 @@
     <div class="modal" id="inschrijvingenModal">
         <div class="modal-content large">
             <h3 id="inschrijvingenModalTitle">Inschrijvingen</h3>
+            <div id="inschrijvingenSamenvatting" style="margin-bottom:1rem;"></div>
             <div id="inschrijvingenList" style="margin:1rem 0;max-height:400px;overflow-y:auto;"></div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="inschrijvingenModalClose">Sluiten</button>

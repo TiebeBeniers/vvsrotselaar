@@ -241,3 +241,279 @@
     .evenement-card-content { padding: 15px; }
     .evenement-card-content h3 { font-size: 1.1rem; }
 }
+
+
+/* ── Inschrijf popup overlay ── */
+.inschrijf-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    padding: 1rem;
+}
+
+.inschrijf-popup-card {
+    background: var(--white);
+    border-radius: 14px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+}
+
+.inschrijf-popup-card h3 {
+    color: var(--primary-blue);
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.inschrijf-popup-beschrijving {
+    color: var(--text-gray);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.25rem;
+    padding: 0.75rem 1rem;
+    background: var(--off-white);
+    border-left: 3px solid var(--primary-blue);
+    border-radius: 4px;
+}
+
+/* Jijzelf rij */
+.inschrijf-popup-jijzelf {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 1rem;
+    background: #e8f5e9;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: #2e7d32;
+    font-size: 0.95rem;
+}
+.inschrijf-popup-check {
+    font-size: 1.1rem;
+}
+
+/* Extra sectie */
+.inschrijf-popup-extra-sectie {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: var(--off-white);
+}
+
+.inschrijf-popup-extra-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    font-size: 0.95rem;
+}
+
+.inschrijf-popup-optioneel {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--white);
+    background: var(--text-gray);
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+/* Veld per rij */
+.inschrijf-popup-veld {
+    margin-bottom: 0.9rem;
+}
+.inschrijf-popup-veld:last-child { margin-bottom: 0; }
+
+.inschrijf-popup-veld-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.2rem;
+}
+
+.inschrijf-popup-veld label {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 0.92rem;
+}
+
+.inschrijf-popup-veld small {
+    display: block;
+    color: var(--text-gray);
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+}
+
+.inschrijf-prijs-hint {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+}
+.inschrijf-prijs-hint.gratis { color: #2e7d32; }
+
+/* +/- stepper */
+.inschrijf-aantal-control {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    width: fit-content;
+}
+
+.aantal-minus, .aantal-plus {
+    width: 38px;
+    height: 38px;
+    background: var(--off-white);
+    border: none;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    color: var(--primary-blue);
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+.aantal-minus:hover, .aantal-plus:hover { background: #e3f2fd; }
+
+.inschrijf-popup-input {
+    width: 54px;
+    padding: 0.5rem 0;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    font-size: 1rem;
+    font-family: inherit;
+    text-align: center;
+}
+.inschrijf-popup-input::-webkit-inner-spin-button,
+.inschrijf-popup-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.inschrijf-popup-input:focus { outline: none; }
+
+/* Samenvatting */
+.inschrijf-popup-samenvatting {
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    transition: background 0.2s, color 0.2s;
+}
+.inschrijf-popup-samenvatting.neutraal {
+    background: var(--off-white);
+    color: var(--text-gray);
+    border: 1px solid var(--border-color);
+}
+.inschrijf-popup-samenvatting.actief {
+    background: #e3f2fd;
+    color: var(--primary-blue);
+    border: 1px solid #90caf9;
+}
+
+.inschrijf-popup-kosten {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    text-align: center;
+}
+
+#inschrijfPopupStatus {
+    color: var(--danger);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+    min-height: 1.2rem;
+}
+
+.inschrijf-popup-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.inschrijf-popup-btn {
+    flex: 1;
+    padding: 0.85rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    font-family: inherit;
+}
+.inschrijf-popup-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.inschrijf-popup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.inschrijf-popup-btn.confirm { background: var(--primary-blue); color: var(--white); }
+.inschrijf-popup-btn.cancel  { background: var(--border-color); color: var(--text-dark); }
+
+/* Ingeschreven + extra aanpassen: naast elkaar */
+.inschrijf-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.inschrijf-btn-row .inschrijf-btn {
+    margin-top: 0;
+    flex: 1;
+    min-width: 0;
+}
+
+.inschrijf-extra-btn {
+    padding: 0.65rem 0.9rem;
+    background: transparent;
+    border: 2px solid var(--primary-blue);
+    border-radius: 6px;
+    color: var(--primary-blue);
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.inschrijf-extra-btn:hover { background: var(--primary-blue); color: var(--white); }
+
+@media (max-width: 480px) {
+    .inschrijf-popup-card { padding: 1.5rem 1rem; }
+    .inschrijf-popup-actions { flex-direction: column; }
+}
+
+.inschrijf-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.65rem 1.4rem;
+    background: var(--primary-blue, #1a73e8);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+.inschrijf-btn:hover:not(:disabled) { background: #1558b0; transform: translateY(-1px); }
+.inschrijf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.inschrijf-btn.ingeschreven { background: #2e7d32; }
+.inschrijf-btn.ingeschreven:hover:not(:disabled) { background: #1b5e20; }
+.inschrijf-btn.volzet { background: #888; }
+.inschrijf-btn-wrap {
+    margin-top: 1rem;
+}

@@ -234,7 +234,20 @@
 /* ── Card actions ── */
 .card-actions {
     display: flex;
-    gap: 0.8rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-start;
+}
+
+/* Inschrijvingen knop: altijd volledige breedte zodat bewerken/verwijderen eronder komen */
+.card-actions .action-btn[id^="viewInschrijv_"] {
+    flex: 1 1 100%;
+}
+
+/* Bewerken + verwijderen blijven naast elkaar op de volgende rij */
+.card-actions .action-btn.edit,
+.card-actions .action-btn.delete {
+    flex: 1 1 auto;
 }
 
 .action-btn {
@@ -1091,8 +1104,6 @@
         justify-content: stretch;
     }
 
-    .action-btn { flex: 1; }
-
     /* Header buttons stack */
     .header-buttons {
         flex-direction: column;
@@ -1856,4 +1867,142 @@
     .detail-stats-grid { grid-template-columns: repeat(2, 1fr); }
     .detail-key { min-width: 75px; }
     .detail-uid-item { flex-direction: column; gap: 0.25rem; }
+}
+
+/* ── Extra veld rows in evenement modal ── */
+.extra-veld-row {
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ── Inschrijvingen samenvatting kaarten ── */
+.inschrijf-stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.inschrijf-stat-card {
+    flex: 1;
+    min-width: 110px;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    text-align: center;
+}
+
+.inschrijf-stat-card.primary {
+    background: #e3f2fd;
+    border-color: #90caf9;
+}
+
+.inschrijf-stat-card.accent {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+
+.inschrijf-stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    line-height: 1.1;
+}
+
+.inschrijf-stat-label {
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    margin-top: 0.25rem;
+}
+
+.inschrijf-stat-sub {
+    font-size: 0.85rem;
+    color: #2e7d32;
+    font-weight: 600;
+    margin-top: 0.2rem;
+}
+
+/* ── Extra veld row redesign (point 4+5) ── */
+.extra-veld-row {
+    position: relative;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.9rem 1rem 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.extra-veld-row-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+}
+
+.extra-veld-row-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-gray);
+}
+
+.remove-veld-btn {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    color: var(--danger);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    cursor: pointer;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s;
+}
+.remove-veld-btn:hover {
+    background: var(--danger);
+    color: var(--white);
+    border-color: var(--danger);
+}
+
+.extra-veld-toggle-row {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ── Evenement modal: responsive fix (point 3) ── */
+#evenementModal .modal-content,
+#evenementModal .modal-content.large {
+    max-width: min(600px, 100%);
+    width: 100%;
+    padding: 1.5rem;
+    box-sizing: border-box;
+}
+
+#evenementModal .form-row {
+    flex-wrap: wrap;
+}
+
+#evenementModal .form-row .form-group {
+    min-width: 0;
+    flex: 1 1 140px;
+}
+
+@media (max-width: 600px) {
+    #evenementModal .modal-content {
+        padding: 1.25rem 1rem;
+        border-radius: 10px;
+    }
+    #evenementModal .form-row {
+        flex-direction: column;
+    }
+    #evenementModal .form-row .form-group {
+        flex: 1 1 100%;
+    }
+    .extra-veld-row { padding: 0.75rem 0.75rem 0.4rem; }
 }

@@ -7,27 +7,6 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles/styles.css">
     <link rel="stylesheet" href="styles/evenementen.css">
-    <link rel="stylesheet" href="styles_additions.css">
-    <style>
-        .inschrijf-btn {
-            display: inline-block;
-            margin-top: 1rem;
-            padding: 0.65rem 1.4rem;
-            background: var(--primary-blue, #1a73e8);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s;
-        }
-        .inschrijf-btn:hover:not(:disabled) { background: #1558b0; transform: translateY(-1px); }
-        .inschrijf-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-        .inschrijf-btn.ingeschreven { background: #2e7d32; }
-        .inschrijf-btn.ingeschreven:hover:not(:disabled) { background: #1b5e20; }
-        .inschrijf-btn.volzet { background: #888; }
-    </style>
 </head>
 <body>
     <header class="main-header">
@@ -44,7 +23,7 @@
                     <span></span>
                     <span></span>
                 </button>
-                                <ul class="nav-menu" id="navMenu">
+                <ul class="nav-menu" id="navMenu">
                     <li><a href="index.html">HOME</a></li>
                     <li class="nav-dropdown">
                         <button class="nav-dropdown-btn" id="teamsDropdownBtn" aria-expanded="false" aria-haspopup="true">
@@ -65,7 +44,7 @@
             </nav>
         </div>
     </header>
-
+ 
     <main class="evenementen-page">
         <div class="evenementen-container">
             <h1>Aankomende Evenementen</h1>
