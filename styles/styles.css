@@ -689,3 +689,17 @@ img {
     padding: 3rem;
     min-height: 200px;
 }
+
+.icon {
+    width: 1em;
+    height: 1em;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: middle;
+    flex-shrink: 0;
+    color: white;
+}
+ 
+/* Groottevarianten — optioneel */
+.icon-sm { width: 0.85em; height: 0.85em; }
+.icon-lg { width: 1.25em; height: 1.25em; }

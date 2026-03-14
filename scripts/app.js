@@ -390,91 +390,174 @@ function stopLiveOverlayUpdate() {
 // ── Start match (for designated persons) ─────────────────────────────────────
 
 async function checkForStartMatch() {
-    const startMatchContainer = document.getElementById('startMatchContainer');
-    if (!startMatchContainer) return;
+    const container = document.getElementById('startMatchContainer');
+    if (!container) return;
 
     if (!currentUser || !currentUserData) {
-        startMatchContainer.style.display = 'none';
+        container.style.display = 'none';
         return;
     }
 
+    const isBestuurslid = currentUserData.categorie === 'bestuurslid';
     const now = new Date();
+    // Start of today at 00:00 local time
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     try {
-        const upcomingSnapshot = await getDocs(query(
+        const snap = await getDocs(query(
             collection(db, 'matches'),
             where('status', '==', 'planned')
         ));
 
-        let showStartButton = false;
-        let matchToStart    = null;
+        let todayMatch = null;
 
-        upcomingSnapshot.forEach((docSnap) => {
-            const matchData    = docSnap.data();
-            const matchDateTime = new Date(`${matchData.datum}T${matchData.uur}`);
+        snap.forEach(docSnap => {
+            const d           = docSnap.data();
+            const matchDateTime = new Date(`${d.datum}T${d.uur}`);
+            const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
 
-            // Window: 30 min before → 30 min after scheduled kick-off
-            const thirtyBefore = new Date(matchDateTime.getTime() - 30 * 60 * 1000);
-            const thirtyAfter  = new Date(matchDateTime.getTime() + 30 * 60 * 1000);
-
-            const isBestuurslid = currentUserData.categorie === 'bestuurslid';
-            const isDesignated  = matchData.aangeduidePersonen?.includes(currentUser.uid);
-
-            if ((isBestuurslid || isDesignated) && now >= thirtyBefore && now <= thirtyAfter) {
-                showStartButton = true;
-                matchToStart    = { id: docSnap.id, ...matchData };
+            // Match must be today (from 00:00) and user must be allowed
+            if ((isBestuurslid || isDesignated) && matchDateTime >= todayStart) {
+                // Pick the soonest match today
+                if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
+                    todayMatch = { id: docSnap.id, ...d };
+                }
             }
         });
 
-        if (showStartButton && matchToStart) {
-            startMatchContainer.style.display = 'flex';
-            const startMatchBtn = document.getElementById('startMatchBtn');
-            if (startMatchBtn) {
-                // Rebind to avoid duplicate handlers
-                startMatchBtn.onclick = () => startMatch(matchToStart);
-            }
-        } else {
-            startMatchContainer.style.display = 'none';
+        if (!todayMatch) {
+            container.style.display = 'none';
+            return;
         }
 
-    } catch (error) {
-        console.error('Error checking for start match:', error);
+        const matchDateTime = new Date(`${todayMatch.datum}T${todayMatch.uur}`);
+        const thirtyBefore  = new Date(matchDateTime.getTime() - 30 * 60 * 1000);
+        const thirtyAfter   = new Date(matchDateTime.getTime() + 30 * 60 * 1000);
+        const inStartWindow = now >= thirtyBefore && now <= thirtyAfter;
+        const lineupSaved   = !!todayMatch.lineupDraftConfirmed;
+
+        container.style.display = 'flex';
+
+        // ── Build the right button set ────────────────────────────────────
+        if (!lineupSaved) {
+            // State 1: lineup not yet confirmed — show only "Line-up selecteren"
+            container.innerHTML = `
+                <button class="start-match-btn" id="lineupSelectBtn">
+                    Line-up selecteren
+                </button>`;
+            document.getElementById('lineupSelectBtn').onclick = () => openLineupForDraft(todayMatch);
+
+        } else if (inStartWindow) {
+            // State 3: lineup confirmed + within 30-min window — show start + wijzig
+            container.innerHTML = `
+                <div class="start-match-btn-group">
+                    <button class="start-match-btn" id="startMatchBtn">
+                        ▶ Start wedstrijd
+                    </button>
+                    <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
+                        <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
+                    </button>
+                </div>`;
+            document.getElementById('startMatchBtn').onclick   = () => confirmStartMatch(todayMatch);
+            document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(todayMatch, true);
+
+        } else {
+            // State 2: lineup confirmed but not yet in start window — show only wijzig
+            container.innerHTML = `
+                <div class="start-match-btn-group">
+                    <div class="lineup-saved-badge">✓ Opstelling opgeslagen</div>
+                    <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
+                        <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
+                    </button>
+                </div>`;
+            document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(todayMatch, true);
+        }
+
+    } catch (err) {
+        console.error('Error checking for start match:', err);
     }
 }
 
-// ── Lineup modal (shown on index.html before match starts) ───────────────────
+// ── Confirmation before actually starting ────────────────────────────────────
 
-let lineupMatchData      = null;   // the match we're about to start
-let lineupAvailablePlayers = [];   // loaded from availability subcollection
+function confirmStartMatch(matchData) {
+    let confirmModal = document.getElementById('startMatchConfirmModal');
+    if (!confirmModal) {
+        confirmModal = document.createElement('div');
+        confirmModal.id        = 'startMatchConfirmModal';
+        confirmModal.className = 'modal';
+        confirmModal.innerHTML = `
+            <div class="modal-content">
+                <h3>Wedstrijd starten?</h3>
+                <p style="margin-bottom:1.5rem;color:var(--text-gray);">
+                    De wedstrijd wordt live gezet en je wordt doorgestuurd naar de live pagina.
+                    Dit kan niet ongedaan worden gemaakt.
+                </p>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" id="startConfirmCancel">Annuleren</button>
+                    <button class="modal-btn confirm" id="startConfirmOk">▶ Ja, start!</button>
+                </div>
+            </div>`;
+        document.body.appendChild(confirmModal);
+        document.getElementById('startConfirmCancel').addEventListener('click', () => {
+            confirmModal.classList.remove('active');
+        });
+        confirmModal.addEventListener('click', e => {
+            if (e.target === confirmModal) confirmModal.classList.remove('active');
+        });
+    }
 
-async function startMatch(matchData) {
-    // Instead of immediately starting, load available players and show lineup modal
+    // Wire confirm button fresh each time
+    const okBtn = document.getElementById('startConfirmOk');
+    okBtn.onclick = async () => {
+        okBtn.disabled    = true;
+        okBtn.textContent = 'Bezig...';
+        confirmModal.classList.remove('active');
+        await finalizeMatchStart(matchData);
+    };
+
+    confirmModal.classList.add('active');
+}
+
+// ── Lineup modal ──────────────────────────────────────────────────────────────
+
+let lineupMatchData        = null;
+let lineupAvailablePlayers = [];
+
+/**
+ * Open the lineup modal in "draft" mode.
+ * @param {Object}  matchData  - the match object
+ * @param {boolean} isEdit     - true when editing an already-saved draft
+ */
+async function openLineupForDraft(matchData, isEdit = false) {
     lineupMatchData = matchData;
 
     try {
         const snap = await getDocs(collection(db, 'matches', matchData.id, 'availability'));
         lineupAvailablePlayers = [];
         snap.forEach(d => {
-            const data = d.data();
-            if (data.available) {
-                lineupAvailablePlayers.push({
-                    uid:  d.id,
-                    name: data.displayName || d.id
-                });
+            if (d.data().available) {
+                lineupAvailablePlayers.push({ uid: d.id, name: d.data().displayName || d.id });
             }
         });
         lineupAvailablePlayers.sort((a, b) => a.name.localeCompare(b.name));
     } catch (e) {
-        console.error('Error loading availability:', e);
         alert('Fout bij laden spelers: ' + e.message);
         return;
     }
 
-    openLineupModal();
+    // Pre-load saved starters when editing
+    const savedStarters = new Set();
+    if (isEdit && matchData.lineupDraft) {
+        Object.entries(matchData.lineupDraft).forEach(([uid, info]) => {
+            if (info.status === 'starter') savedStarters.add(uid);
+        });
+    }
+
+    openLineupModal(savedStarters);
 }
 
-function openLineupModal() {
-    // Build modal if it doesn't exist yet
+function openLineupModal(initialStarters = new Set()) {
     let modal = document.getElementById('lineupModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -483,7 +566,7 @@ function openLineupModal() {
         modal.innerHTML = `
             <div class="modal-content lineup-modal-content">
                 <h3>Opstelling Aanduiden</h3>
-                <p class="lineup-subtitle">Selecteer de basisspelers (7–11). De overige aanwezige spelers worden bankzitters.</p>
+                <p class="lineup-subtitle">Selecteer de basisspelers. De overige aanwezige spelers worden bankzitters.</p>
                 <div class="lineup-columns">
                     <div class="lineup-col">
                         <h4>Aanwezig (<span id="lineupAvailCount">0</span>)</h4>
@@ -497,21 +580,20 @@ function openLineupModal() {
                 <div class="lineup-hint" id="lineupHint">Selecteer 7 tot 11 basisspelers.</div>
                 <div class="lineup-actions">
                     <button class="modal-btn cancel" id="lineupCancelBtn">Annuleren</button>
-                    <button class="modal-btn confirm" id="lineupConfirmBtn" disabled>START WEDSTRIJD</button>
+                    <button class="modal-btn confirm" id="lineupConfirmBtn" disabled>Bevestigen</button>
                 </div>
             </div>`;
         document.body.appendChild(modal);
-
         document.getElementById('lineupCancelBtn').addEventListener('click', () => {
             modal.classList.remove('active');
         });
     }
 
-    renderLineupModal(modal);
+    renderLineupModal(modal, initialStarters);
     modal.classList.add('active');
 }
 
-function renderLineupModal(modal) {
+function renderLineupModal(modal, initialStarters = new Set()) {
     const availList  = modal.querySelector('#lineupAvailList');
     const startList  = modal.querySelector('#lineupStartList');
     const confirmBtn = modal.querySelector('#lineupConfirmBtn');
@@ -520,11 +602,11 @@ function renderLineupModal(modal) {
     const hintEl     = modal.querySelector('#lineupHint');
 
     const MIN = 7, MAX = 11;
-    const starters = new Set();
+    const starters = new Set(initialStarters);
 
     function refresh() {
-        availList.innerHTML  = '';
-        startList.innerHTML  = '';
+        availList.innerHTML = '';
+        startList.innerHTML = '';
         const count = starters.size;
         availCount.textContent = lineupAvailablePlayers.length - count;
         startCount.textContent = count;
@@ -558,41 +640,70 @@ function renderLineupModal(modal) {
 
     refresh();
 
-    // Attach handler directly — no cloneNode, keep closure intact
+    confirmBtn.textContent = 'Bevestigen';
     confirmBtn.onclick = async () => {
         if (starters.size < MIN || starters.size > MAX) return;
         confirmBtn.disabled    = true;
-        confirmBtn.textContent = 'Bezig...';
-        await finalizeMatchStart(starters, modal);
+        confirmBtn.textContent = 'Opslaan...';
+
+        try {
+            // Build draft lineup object
+            const lineupDraft = {};
+            lineupAvailablePlayers.forEach(p => {
+                lineupDraft[p.uid] = {
+                    name:   p.name,
+                    status: starters.has(p.uid) ? 'starter' : 'bench'
+                };
+            });
+
+            await updateDoc(doc(db, 'matches', lineupMatchData.id), {
+                lineupDraft,
+                lineupDraftConfirmed: true
+            });
+
+            // Update local object so wijzig-lineup opens the new draft
+            lineupMatchData.lineupDraft          = lineupDraft;
+            lineupMatchData.lineupDraftConfirmed = true;
+
+            modal.classList.remove('active');
+            // Refresh the start-match button area
+            await checkForStartMatch();
+
+        } catch (e) {
+            alert('Fout bij opslaan opstelling: ' + e.message);
+            confirmBtn.disabled    = false;
+            confirmBtn.textContent = 'Bevestigen';
+        }
     };
 }
 
-async function finalizeMatchStart(starterUids, modal) {
+async function finalizeMatchStart(matchData) {
     try {
-        const matchData = lineupMatchData;
-        const matchRef  = doc(db, 'matches', matchData.id);
+        const matchRef = doc(db, 'matches', matchData.id);
 
-        // Build lineup object
-        const lineup = {};
-        lineupAvailablePlayers.forEach(p => {
-            lineup[p.uid] = {
-                name:   p.name,
-                status: starterUids.has(p.uid) ? 'starter' : 'bench'
-            };
-        });
+        // Use the saved draft lineup
+        const lineup = matchData.lineupDraft || {};
+        if (Object.keys(lineup).length === 0) {
+            alert('Geen opgeslagen opstelling gevonden. Sla eerst een lineup op.');
+            return;
+        }
 
-        // Calculate startedAt — right at this confirm click
+        const starterUids = new Set(
+            Object.entries(lineup)
+                .filter(([, info]) => info.status === 'starter')
+                .map(([uid]) => uid)
+        );
+
         const scheduledTime = new Date(`${matchData.datum}T${matchData.uur}`);
         const now           = new Date();
         const lateMinutes   = (now.getTime() - scheduledTime.getTime()) / 60_000;
         const startedAt     = lateMinutes > START_LATE_THRESHOLD_MINUTES
-            ? Timestamp.fromDate(scheduledTime)   // back-date to scheduled kick-off
-            : Timestamp.fromDate(now);             // exact confirm moment
+            ? Timestamp.fromDate(scheduledTime)
+            : Timestamp.fromDate(now);
 
-        // Write everything in one shot — status:'live' and startedAt set here
         await updateDoc(matchRef, {
             status:            'live',
-            startedAt:         startedAt,
+            startedAt,
             scoreThuis:        0,
             scoreUit:          0,
             phase:             1,
@@ -604,26 +715,22 @@ async function finalizeMatchStart(starterUids, modal) {
             etStartedAt:       null,
             etResumeStartedAt: null,
             lineupConfirmed:   true,
-            lineup:            lineup,
+            lineup,
         });
 
-        // Write playerMinutes for each starter
+        // Write playerMinutes for starters
         const minutePromises = [];
         for (const [uid, info] of Object.entries(lineup)) {
             if (info.status === 'starter') {
                 minutePromises.push(
                     setDoc(doc(db, 'matches', matchData.id, 'playerMinutes', uid), {
-                        uid,
-                        name:      info.name,
-                        minuteOn:  0,
-                        minuteOff: null
+                        uid, name: info.name, minuteOn: 0, minuteOff: null
                     })
                 );
             }
         }
         await Promise.all(minutePromises);
 
-        // Aftrap event
         await addDoc(collection(db, 'events'), {
             matchId:   matchData.id,
             minuut:    0,
@@ -634,15 +741,13 @@ async function finalizeMatchStart(starterUids, modal) {
             timestamp: serverTimestamp()
         });
 
-        modal.classList.remove('active');
-        console.log('Match started with lineup, redirecting...');
         window.location.href = 'live.html';
 
     } catch (e) {
         console.error('Error finalizing match start:', e);
         alert('Fout bij starten wedstrijd: ' + e.message);
-        const confirmBtn = modal.querySelector('#lineupConfirmBtn');
-        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'START WEDSTRIJD'; }
+        // Re-enable start button if something went wrong
+        await checkForStartMatch();
     }
 }
 
