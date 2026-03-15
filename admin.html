@@ -47,14 +47,21 @@
 
     <main class="admin-page">
         <div class="admin-container">
-            <h2>Administratie</h2>
+            <div class="admin-header-row">
+                <h2>Administratie</h2>
+                <div class="admin-page-nav">
+                    <a class="page-nav-btn active" href="admin.html" title="Pagina 1">1</a>
+                    <a class="page-nav-btn" href="admin2.html" title="Pagina 2">2</a>
+                </div>
+            </div>
 
             <div class="admin-tabs">
-                <button class="tab-btn active" data-tab="members">Leden Beheren<span class="tab-dot" id="requestsBadge" style="display:none;"></span></button>
-                <button class="tab-btn" data-tab="matches">Wedstrijden Beheren</button>
-                <button class="tab-btn" data-tab="ranking">Rangschikking Beheren</button>
-                <button class="tab-btn" data-tab="evenementen">Evenementen Beheren</button>
+                <button class="tab-btn active" data-tab="members">Leden<span class="tab-dot" id="requestsBadge" style="display:none;"></span></button>
+                <button class="tab-btn" data-tab="matches">Wedstrijden</button>
+                <button class="tab-btn" data-tab="ranking">Rangschikking</button>
+                <button class="tab-btn" data-tab="evenementen">Evenementen</button>
                 <button class="tab-btn" data-tab="contactberichten">Contactberichten<span class="tab-dot" id="contactberichtenBadge" style="display:none;"></span></button>
+                <button class="tab-btn" data-tab="announcements">Aankondigingen</button>
             </div>
 
             <!-- ── Leden Tab ── -->
@@ -249,12 +256,27 @@
                     <div class="loading"><div class="loader"></div></div>
                 </div>
             </div>
+
+            <!-- ── Announcements Tab ── -->
+            <div class="tab-content" id="announcementsTab">
+                <div class="section-header">
+                    <h3>Aankondigingsbanner</h3>
+                </div>
+                <p style="color:var(--text-gray);margin-bottom:1.5rem;font-size:0.95rem;">
+                    De tekst hieronder wordt getoond in de scrollende banner bovenaan de homepagina.
+                </p>
+                <div class="form-group">
+                    <label for="announcementText">Bannertekst</label>
+                    <input type="text" id="announcementText" placeholder="bv. Bier van de maand: Primus">
+                </div>
+                <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+                    <button class="add-btn" id="saveAnnouncementBtn">Opslaan</button>
+                    <span id="announcementStatus" style="font-size:0.9rem;color:var(--success);display:none;">✓ Opgeslagen</span>
+                </div>
+            </div>
+
         </div>
-        <!-- ── Pagina navigatie ── -->
-        <div class="admin-page-nav">
-            <a class="page-nav-btn active" href="admin.html" title="Pagina 1">1</a>
-            <a class="page-nav-btn" href="admin2.html" title="Pagina 2">2</a>
-        </div>
+
     </main>
 
     <footer class="main-footer">

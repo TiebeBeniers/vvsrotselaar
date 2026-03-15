@@ -400,8 +400,8 @@ async function checkForStartMatch() {
 
     const isBestuurslid = currentUserData.categorie === 'bestuurslid';
     const now = new Date();
-    // Start of today at 00:00 local time
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    // Window: from 24u before match kick-off, until end of match day
+    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     try {
         const snap = await getDocs(query(
@@ -412,13 +412,13 @@ async function checkForStartMatch() {
         let todayMatch = null;
 
         snap.forEach(docSnap => {
-            const d           = docSnap.data();
+            const d             = docSnap.data();
             const matchDateTime = new Date(`${d.datum}T${d.uur}`);
             const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
 
-            // Match must be today (from 00:00) and user must be allowed
-            if ((isBestuurslid || isDesignated) && matchDateTime >= todayStart) {
-                // Pick the soonest match today
+            // Match must be within the next 24 hours and user must be allowed
+            if ((isBestuurslid || isDesignated) && matchDateTime <= in24Hours && matchDateTime >= now) {
+                // Pick the soonest qualifying match
                 if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
                     todayMatch = { id: docSnap.id, ...d };
                 }

@@ -10,7 +10,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, doc, addDoc, getDocs, setDoc, deleteDoc,
-    query, where, onSnapshot, serverTimestamp
+    query, where, onSnapshot, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── Hamburger ──────────────────────────────────────────────────────────────────
@@ -538,6 +538,82 @@ function openConfirm(message, onConfirm) {
     newCancelBtn.addEventListener('click', () => confirmModal.classList.remove('active'));
 }
 
+// ── Data reset confirm modal ────────────────────────────────────────────────────
+
+function generateCode(length = 6) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < length; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+function showDataResetConfirm({ label, teamLabel, onConfirmed }) {
+    let modal = document.getElementById('dataResetConfirmModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'dataResetConfirmModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3 style="color:var(--danger);">⚠ Bevestig reset</h3>
+                <p id="drcDescription" style="margin-bottom:1.25rem;color:var(--text-gray);line-height:1.6;"></p>
+                <div class="data-reset-code-box">
+                    <span>Typ deze code om te bevestigen:</span>
+                    <strong id="drcCode" class="data-reset-code"></strong>
+                </div>
+                <div class="form-group" style="margin-top:0.75rem;">
+                    <input type="text" id="drcInput" autocomplete="off" autocorrect="off"
+                        spellcheck="false" placeholder="Typ de code hier"
+                        style="letter-spacing:0.15em;font-weight:700;font-size:1.05rem;">
+                </div>
+                <p id="drcError" style="color:var(--danger);font-size:0.88rem;min-height:1.2rem;margin-bottom:0.5rem;"></p>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" id="drcCancelBtn">Annuleren</button>
+                    <button class="modal-btn danger" id="drcConfirmBtn">Verwijderen</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    const code       = generateCode();
+    const input      = modal.querySelector('#drcInput');
+    const errorEl    = modal.querySelector('#drcError');
+    const codeEl     = modal.querySelector('#drcCode');
+    const descEl     = modal.querySelector('#drcDescription');
+    const confirmBtn = modal.querySelector('#drcConfirmBtn');
+    const cancelBtn  = modal.querySelector('#drcCancelBtn');
+
+    descEl.textContent = `Je staat op het punt om de ${label} van de ${teamLabel} te verwijderen. Dit kan NIET ongedaan worden gemaakt.`;
+    codeEl.textContent = code;
+    input.value        = '';
+    errorEl.textContent = '';
+    confirmBtn.disabled = true;
+
+    // Enable confirm only when input matches
+    input.oninput = () => {
+        const match = input.value.trim().toUpperCase() === code;
+        confirmBtn.disabled = !match;
+        if (errorEl.textContent && match) errorEl.textContent = '';
+    };
+
+    cancelBtn.onclick = () => modal.classList.remove('active');
+
+    confirmBtn.onclick = () => {
+        if (input.value.trim().toUpperCase() !== code) {
+            errorEl.textContent = 'Code komt niet overeen.';
+            return;
+        }
+        modal.classList.remove('active');
+        onConfirmed();
+    };
+
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 50);
+}
+
 // ── Toast ───────────────────────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, type = '') {
@@ -558,3 +634,154 @@ function showToast(msg, type = '') {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
 }
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const target = document.getElementById(btn.dataset.tab + 'Tab');
+        if (target) target.classList.add('active');
+    });
+});
+
+// ── Data reset ───────────────────────────────────────────────────────────────
+
+const SUBCOLLECTIONS = ['availability', 'playerMinutes', 'lineup', 'events'];
+
+/**
+ * Delete all documents in a subcollection of a match using a batch.
+ * Returns the number of deletes queued.
+ */
+async function queueMatchSubcollectionDeletes(batch, matchId, subName) {
+    const snap = await getDocs(collection(db, 'matches', matchId, subName));
+    snap.forEach(d => batch.delete(d.ref));
+    return snap.size;
+}
+
+/**
+ * Delete global events linked to a matchId.
+ */
+async function queueEventsForMatch(batch, matchId) {
+    const snap = await getDocs(
+        query(collection(db, 'events'), where('matchId', '==', matchId))
+    );
+    snap.forEach(d => batch.delete(d.ref));
+    return snap.size;
+}
+
+async function resetStats(team) {
+    const snap = await getDocs(collection(db, 'users'));
+    const batch = writeBatch(db);
+    let count = 0;
+    snap.forEach(d => {
+        const data = d.data();
+        if (team !== 'all' && data.categorie !== team) return;
+        batch.update(d.ref, {
+            goals: 0, assists: 0, matchen: 0,
+            minuten: 0, geelKaarten: 0, roodKaarten: 0
+        });
+        count++;
+    });
+    if (count === 0) return 0;
+    await batch.commit();
+    return count;
+}
+
+async function resetMatches(team) {
+    const matchSnap = await getDocs(collection(db, 'matches'));
+    const toDelete = [];
+    matchSnap.forEach(d => {
+        const data = d.data();
+        if (team === 'all' || data.categorie === team || data.ploeg === team) {
+            toDelete.push(d);
+        }
+    });
+
+    if (toDelete.length === 0) return 0;
+
+    // Firestore batches are limited to 500 ops — chunk if needed
+    const MAX_BATCH = 400;
+    let ops = [];
+
+    for (const matchDoc of toDelete) {
+        const mid = matchDoc.id;
+        // Collect all sub-doc refs
+        for (const sub of SUBCOLLECTIONS) {
+            const subSnap = await getDocs(collection(db, 'matches', mid, sub));
+            subSnap.forEach(d => ops.push(d.ref));
+        }
+        // Global events collection
+        const evSnap = await getDocs(
+            query(collection(db, 'events'), where('matchId', '==', mid))
+        );
+        evSnap.forEach(d => ops.push(d.ref));
+        // The match doc itself (last so subcollections go first)
+        ops.push(matchDoc.ref);
+    }
+
+    // Commit in chunks of MAX_BATCH
+    for (let i = 0; i < ops.length; i += MAX_BATCH) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + MAX_BATCH).forEach(ref => batch.delete(ref));
+        await batch.commit();
+    }
+
+    return toDelete.length;
+}
+
+async function resetRanking(team) {
+    const snap = await getDocs(collection(db, 'ranking'));
+    const batch = writeBatch(db);
+    let count = 0;
+    snap.forEach(d => {
+        const data = d.data();
+        if (team !== 'all' && data.categorie !== team && data.ploeg !== team) return;
+        batch.delete(d.ref);
+        count++;
+    });
+    if (count === 0) return 0;
+    await batch.commit();
+    return count;
+}
+
+// Wire up reset buttons
+document.querySelectorAll('.data-reset-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const action = btn.dataset.action;
+        const team   = btn.dataset.team;
+        const teamLabel = team === 'all' ? 'alle ploegen' : team;
+
+        const actionLabels = {
+            stats:   'spelersstatistieken',
+            matches: 'wedstrijden & events',
+            ranking: 'rangschikking'
+        };
+
+        showDataResetConfirm({
+            label:      actionLabels[action],
+            teamLabel,
+            onConfirmed: async () => {
+                const statusEl = document.getElementById('dataResetStatus');
+                statusEl.innerHTML = '<p style="color:var(--text-gray)">Bezig…</p>';
+                document.querySelectorAll('.data-reset-btn').forEach(b => b.disabled = true);
+                try {
+                    let count = 0;
+                    if (action === 'stats')   count = await resetStats(team);
+                    if (action === 'matches') count = await resetMatches(team);
+                    if (action === 'ranking') count = await resetRanking(team);
+                    statusEl.innerHTML = `<p style="color:var(--success);font-weight:600;">✓ Klaar — ${count} record(s) verwijderd/gereset.</p>`;
+                    showToast('Reset geslaagd', 'success');
+                } catch (e) {
+                    console.error('Reset error:', e);
+                    statusEl.innerHTML = `<p style="color:var(--danger);font-weight:600;">Fout: ${e.message}</p>`;
+                    showToast('Fout bij reset', 'error');
+                } finally {
+                    document.querySelectorAll('.data-reset-btn').forEach(b => b.disabled = false);
+                }
+            }
+        });
+    });
+});

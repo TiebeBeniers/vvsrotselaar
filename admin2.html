@@ -47,10 +47,17 @@
 
     <main class="admin-page">
         <div class="admin-container">
-            <h2>Administratie</h2>
+            <div class="admin-header-row">
+                <h2>Administratie</h2>
+                <div class="admin-page-nav">
+                    <a class="page-nav-btn" href="admin.html" title="Pagina 1">1</a>
+                    <a class="page-nav-btn active" href="admin2.html" title="Pagina 2">2</a>
+                </div>
+            </div>
 
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="werklijst">Werklijst Beheren</button>
+                <button class="tab-btn" data-tab="data">Data</button>
             </div>
 
             <!-- ══ Werklijst tab ════════════════════════════════════════════════ -->
@@ -90,11 +97,67 @@
 
             </div><!-- /werklijstTab -->
 
-            <!-- ── Pagina navigatie ── -->
-            <div class="admin-page-nav">
-                <a class="page-nav-btn" href="admin.html" title="Pagina 1">1</a>
-                <a class="page-nav-btn active" href="admin2.html" title="Pagina 2">2</a>
-            </div>
+            <!-- ══ Data tab ════════════════════════════════════════════════ -->
+            <div class="tab-content" id="dataTab">
+                <div class="section-header">
+                    <h3>Data Resetten</h3>
+                </div>
+                <p class="wl-admin-hint" style="margin-bottom:1.5rem;">
+                    Alle acties hier zijn <strong>onomkeerbaar</strong>. Zorg dat je een back-up hebt voor je data verwijdert.
+                    Elke actie is atomisch — ofwel alles lukt, ofwel niets wordt verwijderd.
+                </p>
+
+                <!-- Spelersstatistieken -->
+                <div class="data-reset-card">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4>Spelersstatistieken</h4>
+                            <p>Verwijdert goals, assists, matchen, minuten, kaarten van alle leden.</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row">
+                        <button class="data-reset-btn" data-action="stats" data-team="all">Alle ploegen</button>
+                        <button class="data-reset-btn" data-action="stats" data-team="veteranen">Veteranen</button>
+                        <button class="data-reset-btn" data-action="stats" data-team="zaterdag">Zaterdag</button>
+                        <button class="data-reset-btn" data-action="stats" data-team="zondag">Zondag</button>
+                    </div>
+                </div>
+
+                <!-- Wedstrijden + events -->
+                <div class="data-reset-card">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4>Wedstrijden &amp; Events</h4>
+                            <p>Verwijdert alle wedstrijden inclusief hun tijdlijn-events, availability, playerMinutes en lineup-data.</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row">
+                        <button class="data-reset-btn" data-action="matches" data-team="all">Alle ploegen</button>
+                        <button class="data-reset-btn" data-action="matches" data-team="veteranen">Veteranen</button>
+                        <button class="data-reset-btn" data-action="matches" data-team="zaterdag">Zaterdag</button>
+                        <button class="data-reset-btn" data-action="matches" data-team="zondag">Zondag</button>
+                    </div>
+                </div>
+
+                <!-- Rangschikking -->
+                <div class="data-reset-card">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4>Rangschikking</h4>
+                            <p>Verwijdert de opgeslagen rangschikkingsdata (klassement-tabel).</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row">
+                        <button class="data-reset-btn" data-action="ranking" data-team="all">Alle ploegen</button>
+                        <button class="data-reset-btn" data-action="ranking" data-team="veteranen">Veteranen</button>
+                        <button class="data-reset-btn" data-action="ranking" data-team="zaterdag">Zaterdag</button>
+                        <button class="data-reset-btn" data-action="ranking" data-team="zondag">Zondag</button>
+                    </div>
+                </div>
+
+                <div id="dataResetStatus"></div>
+            </div><!-- /dataTab -->
+
         </div>
     </main>
 

@@ -132,12 +132,15 @@ tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
         const targetTab = btn.getAttribute('data-tab');
         console.log('Switching to tab:', targetTab);
-        
+
         tabButtons.forEach(b => b.classList.remove('active'));
         tabContents.forEach(c => c.classList.remove('active'));
-        
+
         btn.classList.add('active');
         document.getElementById(`${targetTab}Tab`).classList.add('active');
+
+        // Lazy-load announcements tab
+        if (targetTab === 'announcements') loadAnnouncementTab();
     });
 });
 
@@ -168,6 +171,38 @@ async function initializeAdminPage() {
     } catch (error) {
         console.error('Error initializing admin page:', error);
     }
+}
+
+// ===============================================
+// ANNOUNCEMENTS
+// ===============================================
+
+async function loadAnnouncementTab() {
+    const field = document.getElementById('announcementText');
+    if (!field || field.dataset.loaded) return;
+    field.dataset.loaded = 'true';
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'announcement'));
+        if (snap.exists() && snap.data().text) field.value = snap.data().text;
+    } catch (e) { console.error('Error loading announcement:', e); }
+}
+
+const saveAnnouncementBtn = document.getElementById('saveAnnouncementBtn');
+if (saveAnnouncementBtn) {
+    saveAnnouncementBtn.addEventListener('click', async () => {
+        const field  = document.getElementById('announcementText');
+        const status = document.getElementById('announcementStatus');
+        const text   = field?.value.trim() || '';
+        saveAnnouncementBtn.disabled = true;
+        try {
+            await setDoc(doc(db, 'settings', 'announcement'), { text }, { merge: true });
+            if (status) { status.style.display = 'inline'; setTimeout(() => status.style.display = 'none', 3000); }
+        } catch (e) {
+            showToast('Fout bij opslaan: ' + e.message, 'error');
+        } finally {
+            saveAnnouncementBtn.disabled = false;
+        }
+    });
 }
 
 // ===============================================
@@ -283,7 +318,7 @@ if (memberForm) {
                     await updateDoc(doc(db, 'users', memberDoc.id), updateData);
                     console.log('Member updated successfully');
                     
-                    alert('Lid bijgewerkt!');
+                    showToast('Lid bijgewerkt!', 'success');
                     memberModal.classList.remove('active');
                     memberForm.reset();
                     await loadMembers();
@@ -327,7 +362,7 @@ if (memberForm) {
                 // Admin blijft ingelogd! 🎉
                 console.log('New user created successfully. Admin remains logged in.');
                 
-                alert('Nieuw lid succesvol toegevoegd!');
+                showToast('Nieuw lid succesvol aangemaakt!', 'success');
                 memberModal.classList.remove('active');
                 memberForm.reset();
                 await loadMembers();
@@ -351,7 +386,7 @@ if (memberForm) {
                 errorText = 'Geen toestemming. Controleer of je ingelogd bent als admin en of de Firebase Security Rules correct zijn.';
             }
             
-            alert(errorText);
+            showToast(errorText, 'error');
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -549,7 +584,7 @@ async function deleteMember(member) {
             await loadMembers();
         } catch (error) {
             console.error('Error deleting member:', error);
-            alert('Fout bij verwijderen: ' + error.message);
+            showToast('Fout bij verwijderen: ' + error.message, 'error');
         }
     };
 }
@@ -715,7 +750,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         
         // Check if secondary auth is available
         if (!secondaryAuth) {
-            alert('Fout: Secundaire authenticatie niet geïnitialiseerd');
+            showToast('Fout: Secundaire authenticatie niet geïnitialiseerd', 'error');
             return;
         }
         
@@ -727,7 +762,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
             console.log('Password decrypted successfully');
         } catch (decryptError) {
             console.error('Password decryption failed:', decryptError);
-            alert('Fout bij het decrypteren van het wachtwoord. Mogelijk is de aanvraag beschadigd.');
+            showToast('Fout bij decrypteren wachtwoord', 'error');
             return;
         }
         
@@ -766,7 +801,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         // Update badge count
         updateRequestsBadge();
         
-        alert(`Account succesvol aangemaakt voor ${naam}!`);
+        showToast(`Account aangemaakt voor ${naam}`, 'success');
         
     } catch (error) {
         console.error('Error accepting request:', error);
@@ -781,7 +816,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
             errorText = 'Wachtwoord is te zwak.';
         }
         
-        alert(errorText + '\n\nDetails: ' + error.message);
+        showToast(errorText, 'error');
     }
 };
 
@@ -805,11 +840,11 @@ window.rejectRequest = async function(requestId) {
         // Update badge count
         updateRequestsBadge();
         
-        alert('Aanvraag afgewezen en verwijderd.');
+        showToast('Aanvraag afgewezen en verwijderd', 'success');
         
     } catch (error) {
         console.error('Error rejecting request:', error);
-        alert('Er is een fout opgetreden bij het afwijzen van de aanvraag: ' + error.message);
+        showToast('Fout bij afwijzen: ' + error.message, 'error');
     }
 };
 
@@ -955,7 +990,7 @@ if (matchForm) {
             
             if (aangeduidePersonen.length === 0) {
                 console.warn('No designated persons selected');
-                alert('Selecteer minimaal één persoon die toegang heeft tot deze wedstrijd.');
+                showToast('Selecteer minstens één persoon met toegang', 'error');
                 return;
             }
             
@@ -1017,7 +1052,7 @@ if (matchForm) {
                 console.log('Match created with ID:', docRef.id);
             }
             
-            alert('Wedstrijd opgeslagen!');
+            showToast('Wedstrijd opgeslagen!', 'success');
             matchModal.classList.remove('active');
             matchForm.reset();
             await loadMatches();
@@ -1029,7 +1064,7 @@ if (matchForm) {
                 message: error.message,
                 stack: error.stack
             });
-            alert('Fout bij opslaan: ' + error.message + '\n\nControleer de Console (F12) voor meer details.');
+            showToast('Fout bij opslaan: ' + error.message, 'error');
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -1256,7 +1291,7 @@ async function deleteMatch(match) {
             await loadMatches();
         } catch (error) {
             console.error('Error deleting match:', error);
-            alert('Fout bij verwijderen: ' + error.message);
+            showToast('Fout bij verwijderen: ' + error.message, 'error');
         }
     };
 }
@@ -1432,7 +1467,7 @@ if (evenementForm) {
                 console.log('Evenement created with ID:', docRef.id);
             }
             
-            alert('Evenement opgeslagen!');
+            showToast('Evenement opgeslagen!', 'success');
             evenementModal.classList.remove('active');
             evenementForm.reset();
             await loadEvenementen();
@@ -1444,7 +1479,7 @@ if (evenementForm) {
                 message: error.message,
                 stack: error.stack
             });
-            alert('Fout bij opslaan: ' + error.message + '\n\nControleer de Console (F12) voor meer details.');
+            showToast('Fout bij opslaan: ' + error.message, 'error');
         } finally {
             if (submitBtn) {
                 submitBtn.disabled = false;
@@ -1590,7 +1625,7 @@ async function deleteEvenement(evenement) {
             await loadEvenementen();
         } catch (error) {
             console.error('Error deleting evenement:', error);
-            alert('Fout bij verwijderen: ' + error.message);
+            showToast('Fout bij verwijderen: ' + error.message, 'error');
         }
     };
 }
@@ -1971,7 +2006,7 @@ async function markAsRead(berichtId) {
         await updateContactberichtenBadge(); // Update badge after marking as read
     } catch (error) {
         console.error('Error marking message as read:', error);
-        alert('Fout bij markeren als gelezen: ' + error.message);
+        showToast('Fout bij markeren: ' + error.message, 'error');
     }
 }
 
@@ -1989,7 +2024,7 @@ async function deleteMessage(berichtId) {
         await updateContactberichtenBadge(); // Update badge after deleting
     } catch (error) {
         console.error('Error deleting message:', error);
-        alert('Fout bij verwijderen: ' + error.message);
+        showToast('Fout bij verwijderen: ' + error.message, 'error');
     }
 }
 
@@ -2355,3 +2390,24 @@ async function loadCurrentRankingView() {
 }
 
 console.log('Admin.js (FINAL FIX) initialization complete');
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);
+            padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;
+            transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+            box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}
