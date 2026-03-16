@@ -607,3 +607,144 @@
     .availability-actions { flex-direction: row; width: 100%; }
     .availability-btn { padding: 0.7rem 1rem; font-size: 0.9rem; }
 }
+
+/* ── Planned match navigation (pijltjes + swipe) ── */
+.planned-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.planned-nav-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background: var(--white);
+    color: var(--primary-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.planned-nav-btn:hover:not(:disabled) {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+}
+
+.planned-nav-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.planned-nav-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    min-width: 40px;
+    text-align: center;
+}
+
+/* ── Modal fallback: availability + lineup ── */
+.modal-fallback-section {
+    margin-bottom: 1.5rem;
+}
+
+.modal-fallback-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-fallback-lineup {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.modal-fallback-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.modal-fallback-col strong {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-gray);
+    margin-bottom: 0.15rem;
+}
+
+.modal-fallback-player {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.modal-fallback-player.bench {
+    color: var(--text-gray);
+    font-weight: 400;
+}
+
+.modal-fallback-avlist {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.modal-fallback-avrow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.2rem 0;
+}
+
+.modal-fallback-avrow.av-yes { color: var(--success); }
+.modal-fallback-avrow.av-no  { color: var(--danger); }
+
+/* ── Availability toggle button in modal (when timeline exists) ── */
+.av-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1.5px solid var(--primary-blue);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--primary-blue);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+}
+
+.av-toggle-btn:hover,
+.av-toggle-btn.active {
+    background: var(--primary-blue);
+    color: var(--white);
+}
+
+.av-toggle-panel {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    background: var(--off-white);
+}

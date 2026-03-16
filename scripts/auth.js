@@ -534,7 +534,7 @@ logoutBtn.addEventListener('click', async () => {
         // Auth state listener will handle the UI update
     } catch (error) {
         console.error('Logout error:', error);
-        alert('Er is een fout opgetreden bij het uitloggen.');
+        showToast('Fout bij uitloggen', 'error');
     }
 });
 
@@ -620,12 +620,12 @@ onAuthStateChanged(auth, async (user) => {
             } else {
                 console.error('No user data found in Firestore for UID:', user.uid);
                 // Show error and logout
-                alert('Gebruikersgegevens niet gevonden. Neem contact op met de beheerder.');
+                showToast('Gebruikersgegevens niet gevonden', 'error');
                 await signOut(auth);
             }
         } catch (error) {
             console.error('Error fetching user data:', error);
-            alert('Fout bij ophalen gebruikersgegevens: ' + error.message);
+            showToast('Fout bij ophalen gegevens: ' + error.message, 'error');
         }
     } else {
         // User is logged out
@@ -669,3 +669,21 @@ onAuthStateChanged(auth, async (user) => {
         if (requestErrorMessage) requestErrorMessage.style.display = 'none';
     }
 });
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}

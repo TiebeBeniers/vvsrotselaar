@@ -126,7 +126,7 @@ async function loadLiveMatch() {
         }
     } catch (e) {
         console.error('Error loading live match:', e);
-        alert('Fout bij laden wedstrijd: ' + e.message);
+        showToast('Fout bij laden wedstrijd: ' + e.message, 'error');
     }
 }
 
@@ -431,7 +431,7 @@ async function handlePause() {
             matchId: currentMatchId, minuut: minute, half: phase,
             type: 'rust', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
-    } catch (e) { console.error('Error pausing:', e); alert('Fout bij pauze: ' + e.message); }
+    } catch (e) { console.error('Error pausing:', e); showToast('Fout bij pauze: ' + e.message, 'error'); }
 }
 
 // ── Resume handler ────────────────────────────────────────────────────────────
@@ -448,7 +448,7 @@ async function handleResume() {
         else if (phase === 4 && !currentMatch.etResumeStartedAt) upd.etResumeStartedAt = now;
 
         await updateDoc(matchRef, upd);
-    } catch (e) { console.error('Error resuming:', e); alert('Fout bij hervatten: ' + e.message); }
+    } catch (e) { console.error('Error resuming:', e); showToast('Fout bij hervatten: ' + e.message, 'error'); }
 }
 
 // ── Extra time handler ────────────────────────────────────────────────────────
@@ -467,7 +467,7 @@ async function handleExtraTime() {
             matchId: currentMatchId, minuut: minute, half: 2,
             type: 'einde-regulier', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
-    } catch (e) { console.error('Error starting extra time:', e); alert('Fout bij verlengingen: ' + e.message); }
+    } catch (e) { console.error('Error starting extra time:', e); showToast('Fout bij verlengingen: ' + e.message, 'error'); }
 }
 
 // ── End match handler — with stat finalization ────────────────────────────────
@@ -502,9 +502,9 @@ async function handleEndMatch() {
             localStorage.removeItem(`vvs_next_match_${team}`);
         } catch (_) {}
 
-        alert('Wedstrijd beëindigd!');
+        showToast('Wedstrijd beëindigd', 'success');
         window.location.href = 'index.html';
-    } catch (e) { console.error('Error ending match:', e); alert('Fout bij beëindigen: ' + e.message); }
+    } catch (e) { console.error('Error ending match:', e); showToast('Fout bij beëindigen: ' + e.message, 'error'); }
 }
 
 // ── Finalize stats on match end ───────────────────────────────────────────────
@@ -881,7 +881,7 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
 
     } catch (e) {
         console.error('Error executing action:', e);
-        alert('Fout bij uitvoeren actie: ' + e.message);
+        showToast('Fout bij uitvoeren actie: ' + e.message, 'error');
     }
 }
 
@@ -952,7 +952,7 @@ if (scoreModalConfirm) {
         try {
             await updateDoc(doc(db, 'matches', currentMatchId), { scoreThuis: h, scoreUit: a });
             document.getElementById('scoreModal').classList.remove('active');
-        } catch (e) { console.error('Score correction error:', e); alert('Fout: ' + e.message); }
+        } catch (e) { console.error('Score correction error:', e); showToast('Fout: ' + e.message, 'error'); }
     });
 }
 if (scoreModalCancel) {
@@ -1098,3 +1098,21 @@ window.addEventListener('beforeunload', () => {
 });
 
 console.log('Live.js initialization complete');
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}

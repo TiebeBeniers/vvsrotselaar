@@ -542,7 +542,7 @@ async function openLineupForDraft(matchData, isEdit = false) {
         });
         lineupAvailablePlayers.sort((a, b) => a.name.localeCompare(b.name));
     } catch (e) {
-        alert('Fout bij laden spelers: ' + e.message);
+        showToast('Fout bij laden spelers: ' + e.message, 'error');
         return;
     }
 
@@ -670,7 +670,7 @@ function renderLineupModal(modal, initialStarters = new Set()) {
             await checkForStartMatch();
 
         } catch (e) {
-            alert('Fout bij opslaan opstelling: ' + e.message);
+            showToast('Fout bij opslaan opstelling: ' + e.message, 'error');
             confirmBtn.disabled    = false;
             confirmBtn.textContent = 'Bevestigen';
         }
@@ -684,7 +684,7 @@ async function finalizeMatchStart(matchData) {
         // Use the saved draft lineup
         const lineup = matchData.lineupDraft || {};
         if (Object.keys(lineup).length === 0) {
-            alert('Geen opgeslagen opstelling gevonden. Sla eerst een lineup op.');
+            showToast('Geen opgeslagen opstelling gevonden', 'error');
             return;
         }
 
@@ -745,7 +745,7 @@ async function finalizeMatchStart(matchData) {
 
     } catch (e) {
         console.error('Error finalizing match start:', e);
-        alert('Fout bij starten wedstrijd: ' + e.message);
+        showToast('Fout bij starten wedstrijd: ' + e.message, 'error');
         // Re-enable start button if something went wrong
         await checkForStartMatch();
     }
@@ -761,3 +761,21 @@ window.addEventListener('beforeunload', () => {
 });
 
 console.log('App.js initialization complete');
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}

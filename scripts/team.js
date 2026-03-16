@@ -135,6 +135,8 @@ onAuthStateChanged(auth, async (user) => {
 // ===============================================
 
 let liveMatchListener = null;
+let allPlannedMatches  = [];   // alle geplande wedstrijden van dit team
+let currentPlannedIdx  = 0;   // index van de huidige weergegeven geplande wedstrijd
 let liveUpdateInterval = null;
 
 async function loadNextMatch() {
@@ -188,75 +190,102 @@ async function loadNextMatch() {
 }
 
 async function loadPlannedMatch(container) {
-    console.log('Loading planned match for team:', TEAM_TYPE);
+    console.log('Loading planned matches for team:', TEAM_TYPE);
 
     // ── Cache check ──────────────────────────────────────────────────────────
-    const cacheKey = `next_match_${TEAM_TYPE}`;
+    const cacheKey = `planned_matches_${TEAM_TYPE}`;
     const cached = tcGet(cacheKey, CACHE_TTL.nextMatch);
-    if (cached) {
-        console.log('[cache] next match geladen');
-        displayPlannedMatch(cached, container);
+    if (cached && cached.length > 0) {
+        console.log('[cache] planned matches geladen:', cached.length);
+        allPlannedMatches = cached;
+        currentPlannedIdx = 0;
+        displayPlannedMatch(allPlannedMatches[0], container);
+        renderPlannedNav(container);
         return;
     }
 
     try {
-        // First, try without date filter to see if there are ANY planned matches
-        const plannedQuery = query(
+        const snapshot = await getDocs(query(
             collection(db, 'matches'),
             where('team', '==', TEAM_TYPE),
             where('status', '==', 'planned')
-        );
-        
-        console.log('Querying matches with team:', TEAM_TYPE, 'status: planned');
-        const snapshot = await getDocs(plannedQuery);
-        console.log('Found', snapshot.size, 'planned matches');
-        
+        ));
+
         if (snapshot.empty) {
-            console.log('No planned matches found for', TEAM_TYPE);
             container.innerHTML = '<p class="no-matches">Geen geplande wedstrijden gevonden.</p>';
             return;
         }
-        
-        // Get all matches and sort by date
+
         const matches = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            console.log('Found match:', data.thuisploeg, 'vs', data.uitploeg, 'on', data.datum);
-            matches.push({ id: doc.id, ...data });
-        });
-        
-        // Sort matches by date and time
-        matches.sort((a, b) => {
-            const dateA = new Date(`${a.datum}T${a.uur || '00:00'}`);
-            const dateB = new Date(`${b.datum}T${b.uur || '00:00'}`);
-            return dateA - dateB;
-        });
-        
-        // Filter to only future matches
+        snapshot.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
+
+        matches.sort((a, b) =>
+            new Date(`${a.datum}T${a.uur || '00:00'}`) - new Date(`${b.datum}T${b.uur || '00:00'}`)
+        );
+
         const now = new Date();
-        const futureMatches = matches.filter(match => {
-            const matchDate = new Date(`${match.datum}T${match.uur || '00:00'}`);
-            return matchDate >= now;
-        });
-        
-        if (futureMatches.length === 0) {
-            // Show most recent match even if in the past
-            console.log('No future matches, showing most recent');
-            const nextMatch = matches[matches.length - 1];
-            tcSet(cacheKey, nextMatch);
-            displayPlannedMatch(nextMatch, container);
-        } else {
-            console.log('Showing next future match');
-            const nextMatch = futureMatches[0];
-            tcSet(cacheKey, nextMatch);
-            displayPlannedMatch(nextMatch, container);
-        }
-        
+        const futureMatches = matches.filter(m => new Date(`${m.datum}T${m.uur || '00:00'}`) >= now);
+        allPlannedMatches = futureMatches.length > 0 ? futureMatches : [matches[matches.length - 1]];
+
+        tcSet(cacheKey, allPlannedMatches);
+
+        currentPlannedIdx = 0;
+        displayPlannedMatch(allPlannedMatches[0], container);
+        renderPlannedNav(container);
+
     } catch (error) {
-        console.error('Error loading planned match:', error);
-        console.error('Error details:', error.message);
-        container.innerHTML = `<p class="error">Fout bij laden van wedstrijd: ${error.message}</p>`;
+        console.error('Error loading planned matches:', error);
+        container.innerHTML = `<p class="error">Fout bij laden: ${error.message}</p>`;
     }
+}
+
+function renderPlannedNav(container) {
+    // Remove existing nav if any
+    container.parentElement?.querySelector('.planned-nav')?.remove();
+
+    if (allPlannedMatches.length <= 1) return;
+
+    const nav = document.createElement('div');
+    nav.className = 'planned-nav';
+    nav.innerHTML = `
+        <button class="planned-nav-btn prev" id="plannedPrev" aria-label="Vorige wedstrijd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="planned-nav-label" id="plannedNavLabel"></span>
+        <button class="planned-nav-btn next" id="plannedNext" aria-label="Volgende wedstrijd">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+    `;
+    container.parentElement.appendChild(nav);
+    updatePlannedNavState();
+
+    nav.querySelector('#plannedPrev').addEventListener('click', () => navigatePlanned(-1, container));
+    nav.querySelector('#plannedNext').addEventListener('click', () => navigatePlanned(1, container));
+
+    // Touch/swipe on the card container
+    let touchStartX = 0;
+    container.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+    container.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].screenX - touchStartX;
+        if (Math.abs(dx) > 50) navigatePlanned(dx < 0 ? 1 : -1, container);
+    }, { passive: true });
+}
+
+function updatePlannedNavState() {
+    const label = document.getElementById('plannedNavLabel');
+    const prev  = document.getElementById('plannedPrev');
+    const next  = document.getElementById('plannedNext');
+    if (label) label.textContent = `${currentPlannedIdx + 1} / ${allPlannedMatches.length}`;
+    if (prev)  prev.disabled  = currentPlannedIdx === 0;
+    if (next)  next.disabled  = currentPlannedIdx === allPlannedMatches.length - 1;
+}
+
+function navigatePlanned(dir, container) {
+    const newIdx = currentPlannedIdx + dir;
+    if (newIdx < 0 || newIdx >= allPlannedMatches.length) return;
+    currentPlannedIdx = newIdx;
+    displayPlannedMatch(allPlannedMatches[currentPlannedIdx], container);
+    updatePlannedNavState();
 }
 
 function displayPlannedMatch(match, container) {
@@ -302,6 +331,9 @@ function displayPlannedMatch(match, container) {
                     </div>
                 </div>
         ` : '';
+        
+        // Cancel any running availability listener from previous card
+        if (availabilityListener) { availabilityListener(); availabilityListener = null; }
         
         container.innerHTML = `
             <div class="next-match-card planned">
@@ -808,10 +840,11 @@ async function showMatchTimeline(match) {
     if (cachedEvents) {
         console.log('[cache] timeline geladen voor', match.id);
         if (cachedEvents.length === 0) {
-            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
+            await renderModalFallback(modalTimeline, match, matchUidMap);
         } else {
             modalTimeline.innerHTML = '';
             renderTimelineTeam(cachedEvents, modalTimeline, matchUidMap);
+            addAvailabilityToggle(modalTimeline, match);
         }
         return;
     }
@@ -824,14 +857,13 @@ async function showMatchTimeline(match) {
 
         if (eventsSnapshot.empty) {
             tcSet(tlKey, []);
-            modalTimeline.innerHTML = '<p class="no-events">Geen tijdslijn beschikbaar.</p>';
+            await renderModalFallback(modalTimeline, match, matchUidMap);
             return;
         }
 
         const events = [];
         eventsSnapshot.forEach(d => events.push({ id: d.id, ...d.data() }));
 
-        // Sla op in cache — Timestamp objecten zijn niet serialiseerbaar, zet om naar ms
         const serializableEvents = events.map(e => ({
             ...e,
             timestamp: e.timestamp?.toMillis ? e.timestamp.toMillis() : e.timestamp
@@ -840,11 +872,108 @@ async function showMatchTimeline(match) {
 
         modalTimeline.innerHTML = '';
         renderTimelineTeam(events, modalTimeline, matchUidMap);
+        addAvailabilityToggle(modalTimeline, match);
 
     } catch (error) {
         console.error('Error loading match timeline:', error);
         modalTimeline.innerHTML = '<p class="error">Fout bij laden van timeline.</p>';
     }
+}
+
+// ── Modal fallback: availability + lineup when no events ──────────────────────
+
+async function renderModalFallback(container, match, matchUidMap) {
+    container.innerHTML = '';
+
+    // ── Lineup ───────────────────────────────────────────────────────────────
+    const lineup = match.lineup || match.lineupDraft || null;
+    if (lineup && Object.keys(lineup).length > 0) {
+        const starters = Object.entries(lineup).filter(([, v]) => v.status === 'starter');
+        const bench    = Object.entries(lineup).filter(([, v]) => v.status === 'bench');
+
+        const lineupEl = document.createElement('div');
+        lineupEl.className = 'modal-fallback-section';
+        lineupEl.innerHTML = `
+            <h4 class="modal-fallback-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                Opstelling
+            </h4>
+            <div class="modal-fallback-lineup">
+                <div class="modal-fallback-col">
+                    <strong>Basis</strong>
+                    ${starters.map(([uid, v]) => `<span class="modal-fallback-player">${v.name || uid}</span>`).join('')}
+                </div>
+                ${bench.length > 0 ? `<div class="modal-fallback-col">
+                    <strong>Bank</strong>
+                    ${bench.map(([uid, v]) => `<span class="modal-fallback-player bench">${v.name || uid}</span>`).join('')}
+                </div>` : ''}
+            </div>`;
+        container.appendChild(lineupEl);
+    }
+
+    // ── Availability ──────────────────────────────────────────────────────────
+    try {
+        const avSnap = await getDocs(collection(db, 'matches', match.id, 'availability'));
+        if (!avSnap.empty) {
+            const players = [];
+            avSnap.forEach(d => players.push(d.data()));
+            players.sort((a, b) => {
+                if (a.available !== b.available) return b.available - a.available;
+                const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return tsB - tsA;
+            });
+
+            const avEl = document.createElement('div');
+            avEl.className = 'modal-fallback-section';
+            avEl.innerHTML = `
+                <h4 class="modal-fallback-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    Beschikbaarheid
+                </h4>
+                <div class="modal-fallback-avlist">
+                    ${players.map(p => `
+                        <div class="modal-fallback-avrow ${p.available ? 'av-yes' : 'av-no'}">
+                            <span>${p.available ? '✓' : '✗'}</span>
+                            <span>${p.displayName || p.naam || '—'}</span>
+                        </div>`).join('')}
+                </div>`;
+            container.appendChild(avEl);
+        }
+    } catch (_) {}
+
+    if (container.children.length === 0) {
+        container.innerHTML = '<p class="no-events">Geen tijdslijn, opstelling of beschikbaarheid beschikbaar.</p>';
+    }
+}
+
+function addAvailabilityToggle(timelineEl, match) {
+    // Don't add if already present
+    if (timelineEl.parentElement?.querySelector('.av-toggle-btn')) return;
+
+    const btn = document.createElement('button');
+    btn.className = 'av-toggle-btn';
+    btn.textContent = 'Beschikbaarheid / Opstelling';
+    btn.title = 'Toon beschikbaarheid en opstelling';
+
+    let panel = null;
+    btn.addEventListener('click', async () => {
+        if (panel) {
+            panel.remove();
+            panel = null;
+            btn.classList.remove('active');
+            return;
+        }
+        btn.classList.add('active');
+        panel = document.createElement('div');
+        panel.className = 'av-toggle-panel';
+        panel.innerHTML = '<div class="loading"><div class="loader"></div></div>';
+        timelineEl.parentElement.appendChild(panel);
+        await renderModalFallback(panel, match, {});
+    });
+
+    // Insert before the timeline div
+    timelineEl.insertAdjacentElement('beforebegin', btn);
 }
 
 /**
@@ -1413,7 +1542,7 @@ function showAddExtraPlayerModal(matchId) {
                       where('displayName', '==', selectedUser.naam))
             );
             if (!existing.empty) {
-                alert(`${selectedUser.naam} staat al op de beschikbaarheidslijst.`);
+                showToast(`${selectedUser.naam} staat al op de lijst`, 'error');
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = 'Toevoegen';
                 return;
@@ -1431,7 +1560,7 @@ function showAddExtraPlayerModal(matchId) {
             modal.remove();
         } catch (error) {
             console.error('Error adding extra player:', error);
-            alert('Fout bij toevoegen speler: ' + error.message);
+            showToast('Fout bij toevoegen speler: ' + error.message, 'error');
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Toevoegen';
         }
@@ -1480,7 +1609,7 @@ function showManualFallback(modal, matchId, prefillName = '') {
     newConfirm.addEventListener('click', async () => {
         const name = document.getElementById('manualFallbackName')?.value.trim();
         const team = document.getElementById('manualFallbackTeam')?.value;
-        if (!name) { alert('Voer een naam in.'); return; }
+        if (!name) { showToast('Voer een naam in', 'error'); return; }
 
         newConfirm.disabled = true;
         newConfirm.textContent = 'Bezig…';
@@ -1491,7 +1620,7 @@ function showManualFallback(modal, matchId, prefillName = '') {
                       where('displayName', '==', name))
             );
             if (!existing.empty) {
-                alert(`${name} staat al op de beschikbaarheidslijst.`);
+                showToast(`${name} staat al op de lijst`, 'error');
                 newConfirm.disabled = false;
                 newConfirm.textContent = 'Toevoegen';
                 return;
@@ -1509,7 +1638,7 @@ function showManualFallback(modal, matchId, prefillName = '') {
             modal.remove();
         } catch (err) {
             console.error('Error adding manual player:', err);
-            alert('Fout bij toevoegen: ' + err.message);
+            showToast('Fout bij toevoegen: ' + err.message, 'error');
             newConfirm.disabled = false;
             newConfirm.textContent = 'Toevoegen';
         }
@@ -1604,7 +1733,7 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
                             await deleteDoc(doc(db, 'matches', mid, 'availability', uid));
                         } catch (err) {
                             console.error('Error removing extra player:', err);
-                            alert('Fout bij verwijderen: ' + err.message);
+                            showToast('Fout bij verwijderen: ' + err.message, 'error');
                         }
                     });
                 });
@@ -1621,7 +1750,7 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
 
 async function setAvailability(matchId, available, userName) {
     if (!currentUser) {
-        alert('Je moet ingelogd zijn om je beschikbaarheid aan te geven');
+        showToast('Je moet ingelogd zijn', 'error');
         return;
     }
     
@@ -1645,7 +1774,7 @@ async function setAvailability(matchId, available, userName) {
         
     } catch (error) {
         console.error('Error setting availability:', error);
-        alert('Fout bij opslaan van beschikbaarheid. Probeer opnieuw.');
+        showToast('Fout bij opslaan beschikbaarheid', 'error');
     } finally {
         // Re-enable buttons
         if (availableBtn) availableBtn.disabled = false;
@@ -1673,3 +1802,20 @@ window.addEventListener('beforeunload', () => {
 });
 
 console.log('Team.js initialization complete');
+// ── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}
