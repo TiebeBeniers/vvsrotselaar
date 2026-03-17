@@ -9,8 +9,8 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, doc, addDoc, getDocs, setDoc, deleteDoc,
-    query, where, onSnapshot, serverTimestamp, writeBatch
+    collection, doc, addDoc, getDocs, getDoc, setDoc, deleteDoc,
+    query, where, onSnapshot, serverTimestamp, writeBatch, updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── Hamburger ──────────────────────────────────────────────────────────────────
@@ -98,9 +98,9 @@ function renderWerklijstenList() {
             </div>
             <div class="wl-list-actions">
                 ${!wl.active ? `<button class="icon-btn activate-btn" data-id="${wl.id}">✔ Activeren</button>` : ''}
-                <button class="icon-btn rename-btn" data-id="${wl.id}">✏️ Naam</button>
+                <button class="icon-btn rename-btn" data-id="${wl.id}"><img src="assets/edit.png" class="icon" alt=""> Naam</button>
                 <button class="icon-btn shifts-btn" data-id="${wl.id}">Shiften Beheren</button>
-                <button class="icon-btn delete delete-wl-btn" data-id="${wl.id}">🗑</button>
+                <button class="icon-btn delete delete-wl-btn" data-id="${wl.id}"><img src="assets/delete.png" class="icon-lg" alt=""></button>
             </div>
         `;
 
@@ -274,8 +274,8 @@ function createShiftCard(shift) {
                 ${shift.note ? `<div class="shift-admin-note">${shift.note}</div>` : ''}
             </div>
             <div class="shift-admin-actions-header">
-                <button class="icon-btn edit sac-edit" title="Bewerken">✏️</button>
-                <button class="icon-btn delete sac-delete" title="Verwijderen">🗑</button>
+                <button class="icon-btn edit sac-edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
+                <button class="icon-btn delete sac-delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
             </div>
         </div>
         <div class="shift-admin-body">
@@ -492,7 +492,7 @@ function confirmDeleteWerklijst(wl) {
                 const shiftsSnap = await getDocs(collection(db, 'werklijsten', wl.id, 'shifts'));
                 await Promise.all(shiftsSnap.docs.map(d => deleteDoc(d.ref)));
                 await deleteDoc(doc(db, 'werklijsten', wl.id));
-                showToast('🗑 Werklijst verwijderd.', 'success');
+                showToast('<img src="assets/delete.png" class="icon-lg" alt=""> Werklijst verwijderd.', 'success');
             } catch (err) {
                 console.error('Delete werklijst error:', err);
                 showToast('❌ Fout: ' + err.message, 'error');
@@ -784,4 +784,214 @@ document.querySelectorAll('.data-reset-btn').forEach(btn => {
             }
         });
     });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPONSORS BEHEREN
+// Firestore: sponsors/{id} → { naam, beschrijving, website, websiteLabel,
+//                               afbeeldingNaam, volgorde }
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let sponsorsCache = {};   // id → sponsor data
+let unsubSponsors = null;
+
+// ── Start real-time listener when tab is opened ─────────────────────────────
+function startSponsorsListener() {
+    if (unsubSponsors) return;   // already listening
+    unsubSponsors = onSnapshot(
+        collection(db, 'sponsors'),
+        (snap) => {
+            sponsorsCache = {};
+            snap.forEach(d => { sponsorsCache[d.id] = { id: d.id, ...d.data() }; });
+            renderSponsorsList();
+        },
+        (err) => {
+            console.error('Sponsors snapshot error:', err);
+            showToast('❌ Fout bij laden sponsors: ' + err.message, 'error');
+        }
+    );
+}
+
+// ── Render list ─────────────────────────────────────────────────────────────
+function renderSponsorsList() {
+    const container = document.getElementById('sponsorsList');
+    if (!container) return;
+
+    const items = Object.values(sponsorsCache)
+        .sort((a, b) => (a.volgorde ?? 999) - (b.volgorde ?? 999));
+
+    if (items.length === 0) {
+        container.innerHTML = `
+            <div class="werklijst-empty-state">
+                <p>Nog geen sponsors. Klik op "+ Sponsor Toevoegen" om te beginnen.</p>
+            </div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    items.forEach((sponsor, idx) => {
+        const card = document.createElement('div');
+        card.className = 'sponsor-admin-card';
+        card.innerHTML = `
+            <div class="sponsor-admin-logo">
+                ${sponsor.afbeeldingNaam
+                    ? `<img src="assets/${sponsor.afbeeldingNaam}" alt="${htmlEscAdmin(sponsor.naam)}" onerror="this.style.display='none'">`
+                    : `<div class="sponsor-admin-logo-placeholder">📷</div>`}
+            </div>
+            <div class="sponsor-admin-info">
+                <strong class="sponsor-admin-name">${htmlEscAdmin(sponsor.naam)}</strong>
+                ${sponsor.beschrijving
+                    ? `<p class="sponsor-admin-desc">${htmlEscAdmin(sponsor.beschrijving)}</p>`
+                    : ''}
+                ${sponsor.website
+                    ? `<a href="${htmlEscAdmin(sponsor.website)}" target="_blank" rel="noopener noreferrer"
+                          class="sponsor-admin-link">${htmlEscAdmin(sponsor.websiteLabel || sponsor.website)}</a>`
+                    : ''}
+                ${sponsor.afbeeldingNaam
+                    ? `<span class="sponsor-admin-img-tag">🖼 ${htmlEscAdmin(sponsor.afbeeldingNaam)}</span>`
+                    : ''}
+            </div>
+            <div class="sponsor-admin-actions">
+                <button class="icon-btn" title="Omhoog" data-move="up"   ${idx === 0 ? 'disabled' : ''}>▲</button>
+                <button class="icon-btn" title="Omlaag" data-move="down" ${idx === items.length - 1 ? 'disabled' : ''}>▼</button>
+                <button class="icon-btn edit"   title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
+                <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
+            </div>`;
+
+        card.querySelector('[data-move="up"]')?.addEventListener('click',
+            () => moveSponsor(sponsor.id, items, idx, -1));
+        card.querySelector('[data-move="down"]')?.addEventListener('click',
+            () => moveSponsor(sponsor.id, items, idx, +1));
+        card.querySelector('.edit').addEventListener('click',
+            () => openSponsorModal(sponsor));
+        card.querySelector('.delete').addEventListener('click',
+            () => confirmDeleteSponsor(sponsor));
+
+        container.appendChild(card);
+    });
+}
+
+// ── Move sponsor (reorder) ───────────────────────────────────────────────────
+async function moveSponsor(id, items, idx, delta) {
+    const newIdx = idx + delta;
+    if (newIdx < 0 || newIdx >= items.length) return;
+
+    // Swap volgorde values
+    const a = items[idx];
+    const b = items[newIdx];
+    try {
+        await Promise.all([
+            setDoc(doc(db, 'sponsors', a.id), { volgorde: newIdx }, { merge: true }),
+            setDoc(doc(db, 'sponsors', b.id), { volgorde: idx   }, { merge: true }),
+        ]);
+    } catch (e) {
+        console.error('moveSponsor error:', e);
+        showToast('❌ Volgorde aanpassen mislukt: ' + e.message, 'error');
+    }
+}
+
+// ── Delete sponsor ────────────────────────────────────────────────────────────
+function confirmDeleteSponsor(sponsor) {
+    const confirmModal   = document.getElementById('confirmModal');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmDelete  = document.getElementById('confirmDelete');
+    const confirmCancel  = document.getElementById('confirmCancel');
+    if (!confirmModal) return;
+
+    confirmMessage.textContent = `Sponsor "${sponsor.naam}" definitief verwijderen?`;
+    confirmModal.classList.add('active');
+
+    const cleanup = () => confirmModal.classList.remove('active');
+    confirmCancel.onclick = cleanup;
+    confirmModal.onclick  = e => { if (e.target === confirmModal) cleanup(); };
+
+    confirmDelete.onclick = async () => {
+        cleanup();
+        try {
+            await deleteDoc(doc(db, 'sponsors', sponsor.id));
+            showToast('↩️ Sponsor verwijderd.', 'success');
+            localStorage.removeItem('vvs_sponsors_cache');
+        } catch (e) {
+            console.error('deleteSponsor error:', e);
+            showToast('❌ ' + e.message, 'error');
+        }
+    };
+}
+
+// ── Sponsor modal (nieuw / bewerken) ─────────────────────────────────────────
+const sponsorModal  = document.getElementById('sponsorModal');
+const sponsorForm   = document.getElementById('sponsorForm');
+
+function openSponsorModal(sponsor = null) {
+    document.getElementById('sponsorModalTitle').textContent = sponsor ? 'Sponsor Bewerken' : 'Sponsor Toevoegen';
+    document.getElementById('sponsorId').value             = sponsor ? sponsor.id              : '';
+    document.getElementById('sponsorNaam').value           = sponsor ? (sponsor.naam           || '') : '';
+    document.getElementById('sponsorBeschrijving').value   = sponsor ? (sponsor.beschrijving   || '') : '';
+    document.getElementById('sponsorWebsite').value        = sponsor ? (sponsor.website        || '') : '';
+    document.getElementById('sponsorWebsiteLabel').value   = sponsor ? (sponsor.websiteLabel   || '') : '';
+    document.getElementById('sponsorAfbeelding').value     = sponsor ? (sponsor.afbeeldingNaam || '') : '';
+    sponsorModal.classList.add('active');
+}
+
+document.getElementById('addSponsorBtn')?.addEventListener('click', () => openSponsorModal());
+document.getElementById('sponsorModalCancel')?.addEventListener('click', () => sponsorModal.classList.remove('active'));
+sponsorModal?.addEventListener('click', e => { if (e.target === sponsorModal) sponsorModal.classList.remove('active'); });
+
+sponsorForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id              = document.getElementById('sponsorId').value.trim();
+    const naam            = document.getElementById('sponsorNaam').value.trim();
+    const beschrijving    = document.getElementById('sponsorBeschrijving').value.trim();
+    const website         = document.getElementById('sponsorWebsite').value.trim();
+    const websiteLabel    = document.getElementById('sponsorWebsiteLabel').value.trim();
+    const afbeeldingNaam  = document.getElementById('sponsorAfbeelding').value.trim();
+
+    if (!naam) return;
+
+    const btn = sponsorForm.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Bezig…';
+
+    try {
+        if (id) {
+            // Update bestaande sponsor
+            await setDoc(doc(db, 'sponsors', id), {
+                naam, beschrijving, website, websiteLabel, afbeeldingNaam
+            }, { merge: true });
+            showToast('✅ Sponsor bijgewerkt!', 'success');
+        // Cache op sponsors.html ongeldig maken
+        localStorage.removeItem('vvs_sponsors_cache');
+        } else {
+            // Nieuwe sponsor — volgorde = einde van de lijst
+            const maxVolgorde = Object.values(sponsorsCache)
+                .reduce((m, s) => Math.max(m, s.volgorde ?? 0), -1);
+            await addDoc(collection(db, 'sponsors'), {
+                naam, beschrijving, website, websiteLabel, afbeeldingNaam,
+                volgorde: maxVolgorde + 1,
+                createdAt: serverTimestamp()
+            });
+            showToast('✅ Sponsor toegevoegd!', 'success');
+        // Cache op sponsors.html ongeldig maken
+        localStorage.removeItem('vvs_sponsors_cache');
+        }
+        sponsorModal.classList.remove('active');
+    } catch (err) {
+        console.error('Sponsor save error:', err);
+        showToast('❌ Fout: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Opslaan';
+    }
+});
+
+// ── HTML escape helper ────────────────────────────────────────────────────────
+function htmlEscAdmin(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Hook into tab switching to lazily start the listener ─────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'sponsors') {
+        btn.addEventListener('click', startSponsorsListener);
+    }
 });

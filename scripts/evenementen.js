@@ -180,15 +180,19 @@ async function updateInschrijfButton(wrap) {
 
         btn.onclick = null;
 
+        // Verwijder altijd een eventuele btn-row van een vorige toestand en
+        // zorg dat btn terug een directe child van wrap is.
+        const existingRow = wrap.querySelector('.inschrijf-btn-row');
+        if (existingRow) {
+            wrap.insertBefore(btn, existingRow); // btn uit de row halen
+            existingRow.remove();
+        }
+
         if (isIn) {
             const extraVelden = JSON.parse(wrap.dataset.extraVelden || '[]');
-            // Check if any veld has wijzigbaar:true
             const heeftWijzigbareVelden = extraVelden.some(v => v.wijzigbaar);
 
-            // Clean up old btn row
-            wrap.querySelector('.inschrijf-btn-row')?.remove();
-
-            // Build a flex row with both buttons
+            // Bouw een flex-rij met ingeschreven-knop (+ evt. extra-knop)
             const row = document.createElement('div');
             row.className = 'inschrijf-btn-row';
 
@@ -198,7 +202,6 @@ async function updateInschrijfButton(wrap) {
             btn.disabled    = false;
             btn.onclick     = () => handleUitschrijven(wrap);
 
-            // Move btn into row (it's already in wrap, so we move it)
             row.appendChild(btn);
 
             if (heeftWijzigbareVelden) {

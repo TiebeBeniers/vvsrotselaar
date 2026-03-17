@@ -819,6 +819,9 @@ async function showMatchTimeline(match) {
     modalMatchLocation.textContent = match.locatie;
 
     modal.classList.add('active');
+    // Verwijder eventuele knop + panel van een vorige wedstrijd (die als sibling
+    // naast modalTimeline staan en dus niet meegaan met een innerHTML-reset).
+    modal.querySelectorAll('.av-toggle-btn, .av-toggle-panel').forEach(el => el.remove());
     modalTimeline.innerHTML = '<div class="loading"><div class="loader"></div></div>';
 
     // Bepaal welke kant VVS is en markeer de timeline voor CSS-kleuring
@@ -882,14 +885,22 @@ async function showMatchTimeline(match) {
 
 // ── Modal fallback: availability + lineup when no events ──────────────────────
 
-async function renderModalFallback(container, match, matchUidMap) {
+function renderModalFallback(container, match, uidMap) {
     container.innerHTML = '';
 
-    // ── Lineup ───────────────────────────────────────────────────────────────
-    const lineup = match.lineup || match.lineupDraft || null;
-    if (lineup && Object.keys(lineup).length > 0) {
-        const starters = Object.entries(lineup).filter(([, v]) => v.status === 'starter');
-        const bench    = Object.entries(lineup).filter(([, v]) => v.status === 'bench');
+    // Uitsluitend lineupDraft — de key is de echte Firebase UID (of 'manual_...')
+    const playerLink = (uid, v) => {
+        const name = v.name || uid;
+        if (!uid.startsWith('manual_')) {
+            return `<a href="speler.html?uid=${uid}" class="modal-fallback-player">${name}</a>`;
+        }
+        return `<span class="modal-fallback-player">${name}</span>`;
+    };
+
+    const draft = match.lineupDraft || null;
+    if (draft && Object.keys(draft).length > 0) {
+        const starters = Object.entries(draft).filter(([, v]) => v.status === 'starter');
+        const bench    = Object.entries(draft).filter(([, v]) => v.status === 'bench');
 
         const lineupEl = document.createElement('div');
         lineupEl.className = 'modal-fallback-section';
@@ -901,63 +912,32 @@ async function renderModalFallback(container, match, matchUidMap) {
             <div class="modal-fallback-lineup">
                 <div class="modal-fallback-col">
                     <strong>Basis</strong>
-                    ${starters.map(([uid, v]) => `<span class="modal-fallback-player">${v.name || uid}</span>`).join('')}
+                    ${starters.map(([uid, v]) => playerLink(uid, v)).join('')}
                 </div>
                 ${bench.length > 0 ? `<div class="modal-fallback-col">
                     <strong>Bank</strong>
-                    ${bench.map(([uid, v]) => `<span class="modal-fallback-player bench">${v.name || uid}</span>`).join('')}
+                    ${bench.map(([uid, v]) => playerLink(uid, v)).join('')}
                 </div>` : ''}
             </div>`;
         container.appendChild(lineupEl);
     }
 
-    // ── Availability ──────────────────────────────────────────────────────────
-    try {
-        const avSnap = await getDocs(collection(db, 'matches', match.id, 'availability'));
-        if (!avSnap.empty) {
-            const players = [];
-            avSnap.forEach(d => players.push(d.data()));
-            players.sort((a, b) => {
-                if (a.available !== b.available) return b.available - a.available;
-                const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-                const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-                return tsB - tsA;
-            });
-
-            const avEl = document.createElement('div');
-            avEl.className = 'modal-fallback-section';
-            avEl.innerHTML = `
-                <h4 class="modal-fallback-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    Beschikbaarheid
-                </h4>
-                <div class="modal-fallback-avlist">
-                    ${players.map(p => `
-                        <div class="modal-fallback-avrow ${p.available ? 'av-yes' : 'av-no'}">
-                            <span>${p.available ? '✓' : '✗'}</span>
-                            <span>${p.displayName || p.naam || '—'}</span>
-                        </div>`).join('')}
-                </div>`;
-            container.appendChild(avEl);
-        }
-    } catch (_) {}
-
     if (container.children.length === 0) {
-        container.innerHTML = '<p class="no-events">Geen tijdslijn, opstelling of beschikbaarheid beschikbaar.</p>';
+        container.innerHTML = '<p class="no-events">Geen opstelling beschikbaar.</p>';
     }
 }
 
 function addAvailabilityToggle(timelineEl, match) {
-    // Don't add if already present
-    if (timelineEl.parentElement?.querySelector('.av-toggle-btn')) return;
+    // Toon knop alleen als er een lineupDraft is
+    if (!match.lineupDraft || Object.keys(match.lineupDraft).length === 0) return;
 
     const btn = document.createElement('button');
     btn.className = 'av-toggle-btn';
-    btn.textContent = 'Beschikbaarheid / Opstelling';
-    btn.title = 'Toon beschikbaarheid en opstelling';
+    btn.textContent = 'Opstelling';
+    btn.title = 'Toon opstelling';
 
     let panel = null;
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
         if (panel) {
             panel.remove();
             panel = null;
@@ -967,9 +947,9 @@ function addAvailabilityToggle(timelineEl, match) {
         btn.classList.add('active');
         panel = document.createElement('div');
         panel.className = 'av-toggle-panel';
-        panel.innerHTML = '<div class="loading"><div class="loader"></div></div>';
-        timelineEl.parentElement.appendChild(panel);
-        await renderModalFallback(panel, match, {});
+        // Direct na de knop invoegen (vóór de tijdslijn) — meteen zichtbaar
+        btn.insertAdjacentElement('afterend', panel);
+        renderModalFallback(panel, match, {});
     });
 
     // Insert before the timeline div

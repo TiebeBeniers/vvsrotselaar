@@ -1959,7 +1959,7 @@ function createMessageCard(bericht) {
                 </button>
             ` : ''}
             <button class="message-action-btn delete" data-id="${bericht.id}">
-                🗑 Verwijderen
+                <img src="assets/delete.png" class="icon-lg" alt=""> Verwijderen
             </button>
         </div>
     `;

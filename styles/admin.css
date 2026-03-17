@@ -2104,3 +2104,91 @@
     border: 1px solid #f5c6cb;
     user-select: all;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SPONSOR ADMIN CARDS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.sponsor-admin-card {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    transition: box-shadow 0.2s;
+}
+.sponsor-admin-card:hover {
+    box-shadow: 0 2px 10px var(--shadow-lg);
+}
+
+.sponsor-admin-logo {
+    flex: 0 0 80px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--off-white);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.sponsor-admin-logo img {
+    max-width: 80px;
+    max-height: 60px;
+    object-fit: contain;
+}
+.sponsor-admin-logo-placeholder {
+    font-size: 1.5rem;
+    color: var(--text-gray);
+}
+
+.sponsor-admin-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.sponsor-admin-name {
+    font-size: 1rem;
+    color: var(--primary-blue);
+}
+.sponsor-admin-desc {
+    font-size: 0.85rem;
+    color: var(--text-gray);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sponsor-admin-link {
+    font-size: 0.82rem;
+    color: var(--accent-blue);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sponsor-admin-link:hover { text-decoration: underline; }
+.sponsor-admin-img-tag {
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    font-style: italic;
+}
+
+.sponsor-admin-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+@media (max-width: 600px) {
+    .sponsor-admin-card {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .sponsor-admin-logo { flex: 0 0 60px; height: 50px; }
+    .sponsor-admin-actions { flex: 1 0 100%; justify-content: flex-end; }
+}
