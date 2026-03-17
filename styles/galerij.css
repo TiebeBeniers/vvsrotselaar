@@ -56,8 +56,8 @@
 
 /* Heights */
 .gallery-item:not(.large):not(.tall) { height: 250px; }
-.gallery-item.tall  { height: 500px; }
-.gallery-item.large { height: 500px; }
+.gallery-item.tall  { height: 520px; }
+.gallery-item.large { height: 520px; }
 
 /* ── Lightbox ── */
 .lightbox {

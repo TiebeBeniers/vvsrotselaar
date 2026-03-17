@@ -10,7 +10,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, doc, addDoc, getDocs, getDoc, setDoc, deleteDoc,
-    query, where, onSnapshot, serverTimestamp, writeBatch, updateDoc
+    query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── Hamburger ──────────────────────────────────────────────────────────────────
@@ -507,7 +507,7 @@ function confirmDeleteShift(shift) {
         async () => {
             try {
                 await deleteDoc(doc(db, 'werklijsten', editingWerklijstId, 'shifts', shift.id));
-                showToast('🗑 Shift verwijderd.', 'success');
+                showToast('<img src="assets/delete.png" class="icon-lg" alt=""> Shift verwijderd.', 'success');
             } catch (err) {
                 console.error('Delete shift error:', err);
                 showToast('❌ Fout: ' + err.message, 'error');
@@ -993,5 +993,291 @@ function htmlEscAdmin(str) {
 document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'sponsors') {
         btn.addEventListener('click', startSponsorsListener);
+    }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GALERIJ BEHEREN
+// Firestore: galerij/{id} → { bestandsnaam, grootte, volgorde }
+// grootte: 'normal' | 'wide' | 'tall' | 'large'
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const GROOTTE_LABELS = { normal: 'Normaal', wide: 'Breed', tall: 'Hoog', large: 'Groot' };
+const RANDOM_GROOTTES = ['normal', 'normal', 'normal', 'wide', 'tall', 'large'];
+
+let galerijItems  = [];     // working copy (sorted by volgorde)
+let galerijDirty  = false;  // unsaved changes pending
+let dragSrcIdx    = null;   // index of dragged item
+
+// ── Start listener on tab open ────────────────────────────────────────────────
+let galerijLoaded = false;
+function startGalerijTab() {
+    if (galerijLoaded) return;
+    galerijLoaded = true;
+    loadGalerijAdmin();
+}
+
+async function loadGalerijAdmin() {
+    const grid = document.getElementById('galerijAdminGrid');
+    if (!grid) return;
+    grid.innerHTML = '<div class="loading">Laden…</div>';
+    try {
+        const snap = await getDocs(
+            query(collection(db, 'galerij'), orderBy('volgorde', 'asc'))
+        );
+        galerijItems = [];
+        snap.forEach(d => galerijItems.push({ id: d.id, ...d.data() }));
+        renderGalerijAdminGrid();
+    } catch (e) {
+        console.error('Galerij laden error:', e);
+        grid.innerHTML = `<p class="error-text text-center">Fout bij laden: ${e.message}</p>`;
+    }
+}
+
+// ── Render admin grid ─────────────────────────────────────────────────────────
+function renderGalerijAdminGrid() {
+    const grid = document.getElementById('galerijAdminGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    if (galerijItems.length === 0) {
+        grid.innerHTML = `<div class="werklijst-empty-state" style="grid-column:1/-1;">
+            <p>Nog geen foto's. Klik op "+ Foto Toevoegen" om te beginnen.</p>
+        </div>`;
+        return;
+    }
+
+    galerijItems.forEach((item, idx) => {
+        const cell = buildGalerijAdminCell(item, idx);
+        grid.appendChild(cell);
+    });
+
+    updateSaveBtn();
+}
+
+function buildGalerijAdminCell(item, idx) {
+    const cell = document.createElement('div');
+    cell.className = 'galerij-admin-cell' + (item.grootte && item.grootte !== 'normal' ? ' ' + item.grootte : '');
+    cell.dataset.idx = idx;
+    cell.draggable = true;
+
+    const imgPath = 'assets/galerij/' + item.bestandsnaam;
+    cell.innerHTML = `
+        <div class="galerij-admin-img-wrap">
+            <img src="${imgPath}" alt="${item.bestandsnaam}"
+                 onerror="this.parentElement.classList.add('img-error');this.style.display='none'">
+            <div class="galerij-admin-missing">⚠️ Niet gevonden</div>
+        </div>
+        <div class="galerij-admin-overlay">
+            <span class="galerij-size-badge">${GROOTTE_LABELS[item.grootte] || 'Normaal'}</span>
+            <div class="galerij-admin-actions">
+                <button class="ga-btn ga-edit"   title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
+                <button class="ga-btn ga-delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
+            </div>
+            <span class="galerij-filename">${item.bestandsnaam}</span>
+        </div>`;
+
+    // Drag events
+    cell.addEventListener('dragstart', (e) => {
+        dragSrcIdx = idx;
+        cell.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+    });
+    cell.addEventListener('dragend', () => {
+        cell.classList.remove('dragging');
+        document.querySelectorAll('.galerij-admin-cell').forEach(c => c.classList.remove('drag-over'));
+    });
+    cell.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        document.querySelectorAll('.galerij-admin-cell').forEach(c => c.classList.remove('drag-over'));
+        cell.classList.add('drag-over');
+    });
+    cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+    cell.addEventListener('drop', (e) => {
+        e.preventDefault();
+        cell.classList.remove('drag-over');
+        if (dragSrcIdx === null || dragSrcIdx === idx) return;
+        // Reorder in working copy
+        const moved = galerijItems.splice(dragSrcIdx, 1)[0];
+        galerijItems.splice(idx, 0, moved);
+        dragSrcIdx = null;
+        markDirty();
+        renderGalerijAdminGrid();
+    });
+
+    cell.querySelector('.ga-edit').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openFotoModal(item);
+    });
+    cell.querySelector('.ga-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        confirmDeleteFoto(item, idx);
+    });
+
+    return cell;
+}
+
+function markDirty() {
+    galerijDirty = true;
+    updateSaveBtn();
+}
+
+function updateSaveBtn() {
+    const btn = document.getElementById('saveGalerijBtn');
+    if (btn) btn.style.display = galerijDirty ? 'inline-flex' : 'none';
+}
+
+// ── Save all (batch write volgorde) ──────────────────────────────────────────
+document.getElementById('saveGalerijBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('saveGalerijBtn');
+    btn.disabled = true;
+    btn.textContent = 'Bezig…';
+    try {
+        const batch = writeBatch(db);
+        galerijItems.forEach((item, idx) => {
+            batch.update(doc(db, 'galerij', item.id), { volgorde: idx });
+            item.volgorde = idx;
+        });
+        await batch.commit();
+        galerijDirty = false;
+        updateSaveBtn();
+        btn.textContent = '✅ Opgeslagen';
+        setTimeout(() => {
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Opslaan';
+            btn.disabled = false;
+        }, 1500);
+        showToast('✅ Volgorde opgeslagen!', 'success');
+    } catch (e) {
+        console.error('Save galerij error:', e);
+        showToast('❌ Fout bij opslaan: ' + e.message, 'error');
+        btn.disabled = false;
+        updateSaveBtn();
+    }
+});
+
+// ── Randomize order ───────────────────────────────────────────────────────────
+document.getElementById('randomizeOrderBtn')?.addEventListener('click', () => {
+    for (let i = galerijItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [galerijItems[i], galerijItems[j]] = [galerijItems[j], galerijItems[i]];
+    }
+    markDirty();
+    renderGalerijAdminGrid();
+    showToast('🔀 Volgorde gerandomiseerd — klik Opslaan om te bewaren.', '');
+});
+
+// ── Randomize sizes ───────────────────────────────────────────────────────────
+document.getElementById('randomizeSizeBtn')?.addEventListener('click', async () => {
+    if (!confirm('Alle groottes willekeurig aanpassen? Dit wordt direct opgeslagen.')) return;
+    try {
+        const batch = writeBatch(db);
+        galerijItems.forEach(item => {
+            const g = RANDOM_GROOTTES[Math.floor(Math.random() * RANDOM_GROOTTES.length)];
+            item.grootte = g;
+            batch.update(doc(db, 'galerij', item.id), { grootte: g });
+        });
+        await batch.commit();
+        renderGalerijAdminGrid();
+        showToast('🎲 Groottes gerandomiseerd!', 'success');
+    } catch (e) {
+        console.error('Randomize size error:', e);
+        showToast('❌ ' + e.message, 'error');
+    }
+});
+
+// ── Delete foto ───────────────────────────────────────────────────────────────
+function confirmDeleteFoto(item, idx) {
+    const confirmModal   = document.getElementById('confirmModal');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmDelete  = document.getElementById('confirmDelete');
+    const confirmCancel  = document.getElementById('confirmCancel');
+    if (!confirmModal) return;
+
+    confirmMessage.textContent = `Foto "${item.bestandsnaam}" verwijderen uit de galerij?`;
+    confirmModal.classList.add('active');
+
+    const cleanup = () => confirmModal.classList.remove('active');
+    confirmCancel.onclick = cleanup;
+    confirmModal.onclick  = e => { if (e.target === confirmModal) cleanup(); };
+
+    confirmDelete.onclick = async () => {
+        cleanup();
+        try {
+            await deleteDoc(doc(db, 'galerij', item.id));
+            galerijItems.splice(idx, 1);
+            renderGalerijAdminGrid();
+            showToast('↩️ Foto verwijderd.', 'success');
+        } catch (e) {
+            console.error('Delete foto error:', e);
+            showToast('❌ ' + e.message, 'error');
+        }
+    };
+}
+
+// ── Foto modal (toevoegen / bewerken) ─────────────────────────────────────────
+const fotoModal = document.getElementById('fotoModal');
+const fotoForm  = document.getElementById('fotoForm');
+
+function openFotoModal(item = null) {
+    document.getElementById('fotoModalTitle').textContent = item ? 'Foto Bewerken' : 'Foto Toevoegen';
+    document.getElementById('fotoId').value           = item ? item.id : '';
+    document.getElementById('fotoBestandsnaam').value = item ? (item.bestandsnaam || '') : '';
+
+    const grootte = item?.grootte || 'normal';
+    fotoForm.querySelectorAll('input[name="fotoGrootte"]').forEach(r => {
+        r.checked = (r.value === grootte);
+    });
+
+    fotoModal.classList.add('active');
+}
+
+document.getElementById('addFotoBtn')?.addEventListener('click', () => openFotoModal());
+document.getElementById('fotoModalCancel')?.addEventListener('click', () => fotoModal.classList.remove('active'));
+fotoModal?.addEventListener('click', e => { if (e.target === fotoModal) fotoModal.classList.remove('active'); });
+
+fotoForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id          = document.getElementById('fotoId').value.trim();
+    const bestandsnaam = document.getElementById('fotoBestandsnaam').value.trim();
+    const grootte     = fotoForm.querySelector('input[name="fotoGrootte"]:checked')?.value || 'normal';
+
+    if (!bestandsnaam) return;
+
+    const btn = fotoForm.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Bezig…';
+
+    try {
+        if (id) {
+            // Bewerk bestaande foto
+            await setDoc(doc(db, 'galerij', id), { bestandsnaam, grootte }, { merge: true });
+            const item = galerijItems.find(i => i.id === id);
+            if (item) { item.bestandsnaam = bestandsnaam; item.grootte = grootte; }
+            showToast('✅ Foto bijgewerkt!', 'success');
+        } else {
+            // Nieuwe foto — volgorde achteraan
+            const volgorde = galerijItems.length;
+            const ref = await addDoc(collection(db, 'galerij'), {
+                bestandsnaam, grootte, volgorde, createdAt: serverTimestamp()
+            });
+            galerijItems.push({ id: ref.id, bestandsnaam, grootte, volgorde });
+            showToast('✅ Foto toegevoegd!', 'success');
+        }
+        fotoModal.classList.remove('active');
+        renderGalerijAdminGrid();
+    } catch (err) {
+        console.error('Foto save error:', err);
+        showToast('❌ Fout: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Opslaan';
+    }
+});
+
+// ── Hook into tab switching ───────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'galerij') {
+        btn.addEventListener('click', startGalerijTab);
     }
 });

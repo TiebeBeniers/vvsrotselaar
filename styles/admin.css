@@ -2192,3 +2192,217 @@
     .sponsor-admin-logo { flex: 0 0 60px; height: 50px; }
     .sponsor-admin-actions { flex: 1 0 100%; justify-content: flex-end; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GALERIJ ADMIN
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Toolbar ── */
+.galerij-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.galerij-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    background: var(--off-white);
+    border: 2px solid var(--border-color);
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+.galerij-tool-btn:hover {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    background: #e8f0ff;
+}
+.galerij-tool-btn.danger {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: var(--white);
+}
+.galerij-tool-btn.danger:hover {
+    background: var(--dark-blue);
+    border-color: var(--dark-blue);
+    color: var(--white);
+}
+
+/* ── Admin grid — mirrors the public gallery layout ── */
+.galerij-admin-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    grid-auto-flow: dense;
+    margin-top: 1.25rem;
+}
+
+/* ── Individual cell ── */
+.galerij-admin-cell {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: grab;
+    transition: box-shadow 0.2s, transform 0.15s;
+    background: var(--off-white);
+    border: 2px solid transparent;
+    height: 140px;
+}
+.galerij-admin-cell:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.18); }
+.galerij-admin-cell.wide  { grid-column: span 2; }
+.galerij-admin-cell.tall  { grid-row: span 2; height: 290px; }
+.galerij-admin-cell.large { grid-column: span 2; grid-row: span 2; height: 290px; }
+
+/* Drag states */
+.galerij-admin-cell.dragging {
+    opacity: 0.4;
+    cursor: grabbing;
+    transform: scale(0.97);
+}
+.galerij-admin-cell.drag-over {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(0,71,171,0.25);
+}
+
+/* Dirty (unsaved) indicator */
+.galerij-admin-cell.dirty {
+    border-color: var(--warning);
+}
+
+/* ── Image wrapper ── */
+.galerij-admin-img-wrap {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e8edf5;
+}
+.galerij-admin-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+}
+.galerij-admin-missing { display: none; font-size: 0.75rem; color: var(--danger); }
+.galerij-admin-img-wrap.img-error .galerij-admin-missing { display: block; }
+
+/* ── Overlay (shown on hover) ── */
+.galerij-admin-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 8px 10px;
+    gap: 4px;
+}
+.galerij-admin-cell:hover .galerij-admin-overlay { opacity: 1; }
+
+.galerij-size-badge {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(0,71,171,0.85);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    pointer-events: none;
+}
+
+.galerij-filename {
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.galerij-admin-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.ga-btn {
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #fff;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+}
+.ga-btn:hover { background: rgba(255,255,255,0.3); }
+.ga-btn.ga-delete:hover { background: rgba(220,53,69,0.7); }
+
+/* ── Size picker in foto modal ── */
+.size-picker {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.size-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+}
+.size-option input[type="radio"] { display: none; }
+.size-option span {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-gray);
+}
+.size-option input:checked ~ span { color: var(--primary-blue); }
+
+.size-preview {
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px;
+    transition: border-color 0.15s;
+    background: var(--off-white);
+    display: flex;
+    align-items: flex-end;
+}
+.size-option input:checked ~ .size-preview {
+    border-color: var(--primary-blue);
+    background: #e8f0ff;
+}
+.size-block { background: var(--light-blue); border-radius: 3px; }
+
+.size-normal  .size-block { width: 36px; height: 36px; }
+.size-wide    .size-block { width: 72px; height: 36px; }
+.size-tall    .size-block { width: 36px; height: 72px; }
+.size-large   .size-block { width: 72px; height: 72px; }
+
+@media (max-width: 768px) {
+    .galerij-admin-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .galerij-admin-cell.large,
+    .galerij-admin-cell.wide {
+        grid-column: span 2;
+    }
+    .section-header { flex-wrap: wrap; gap: 0.5rem; }
+    .galerij-toolbar { width: 100%; }
+}
