@@ -70,3 +70,10 @@
     margin-right: 0.3rem;
     font-size: 0.8rem;
 }
+
+/* ── Privacy pagina ── */
+html.dark .privacy-main             { color: var(--text-dark); }
+html.dark .info-card                { background: var(--white); border-color: var(--border-color); }
+html.dark .info-card-title          { color: var(--text-dark); }
+html.dark .info-card-meta           { color: var(--text-gray); }
+html.dark .info-card-meta span      { background: #2d3148; color: var(--text-gray); }

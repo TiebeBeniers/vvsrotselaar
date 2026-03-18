@@ -703,3 +703,307 @@ img {
 /* Groottevarianten — optioneel */
 .icon-sm { width: 0.85em; height: 0.85em; }
 .icon-lg { width: 1.25em; height: 1.25em; }
+/* ===============================================
+   FOOTER — layout voor dark mode toggle rechts
+   =============================================== */
+
+.main-footer {
+    position: relative;
+}
+
+/* Dark mode toggle — rechts in de footer, verticaal gecentreerd */
+.theme-toggle-wrap {
+    position: absolute;
+    right: 1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+    .theme-toggle-wrap {
+        right: 0.75rem;
+    }
+    .theme-toggle-label { display: none; }
+}
+
+.theme-toggle-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    user-select: none;
+    color: var(--white);
+}
+
+.theme-toggle {
+    position: relative;
+    width: 46px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.theme-toggle input {
+    opacity: 0;
+    width: 0; height: 0;
+    position: absolute;
+}
+
+.theme-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.25);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.3s;
+    display: flex;
+    align-items: center;
+    padding: 3px;
+}
+
+.theme-toggle input:checked + .theme-toggle-slider {
+    background: rgba(255,255,255,0.45);
+}
+
+.theme-toggle-thumb {
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    line-height: 1;
+}
+
+.theme-toggle input:checked + .theme-toggle-slider .theme-toggle-thumb {
+    transform: translateX(22px);
+}
+
+/* ===============================================
+   DARK MODE
+   Activeer via: <html class="dark">
+   Opgeslagen in localStorage via theme.js
+   =============================================== */
+
+html.dark {
+    --primary-blue:  #4A90E2;
+    --dark-blue:     #2d6bc4;
+    --light-blue:    #5ba0f0;
+    --accent-blue:   #29b6e8;
+    --white:         #1e2130;
+    --off-white:     #13151f;
+    --text-dark:     #e8eaf0;
+    --text-gray:     #9da3b4;
+    --border-color:  #2d3148;
+    --success:       #2db554;
+    --warning:       #f0b429;
+    --danger:        #e55353;
+    --shadow:        rgba(0, 0, 0, 0.35);
+    --shadow-lg:     rgba(0, 0, 0, 0.5);
+}
+
+/* ── Base ── */
+html.dark body                 { background-color: var(--off-white); color: var(--text-dark); }
+
+/* ── Header & nav ── */
+html.dark .main-header         { background: var(--white); border-bottom: 1px solid var(--border-color); }
+html.dark .nav-menu            { background: var(--white); }
+html.dark .nav-menu li a       { color: var(--text-dark); }
+html.dark .nav-dropdown-menu   { background: var(--white); border-color: var(--border-color); }
+html.dark .nav-dropdown-btn    { color: var(--text-dark); }
+
+/* ── Footer — tekst altijd wit, ook in dark mode ── */
+html.dark .main-footer              { background: #0a0c14; }
+html.dark .main-footer p            { color: #ffffff; opacity: 1; }
+html.dark .main-footer a            { color: rgba(255,255,255,0.7); }
+html.dark .theme-toggle-label       { color: #ffffff; }
+
+/* ── Team buttons — overlay tekst altijd wit ── */
+.team-overlay h2,                   
+html.dark .team-title,
+html.dark .availability-btn.available span,
+html.dark .wl-day-header-inner,
+html.dark .wl-btn.btn-sign-in,
+html.dark .werklijst-hero,
+html.dark .event-tag { color: #ffffff !important; }
+
+/* ── Ranking table ── */
+html.dark .ranking-table            { background: var(--white); }
+html.dark .ranking-table th         { background: #1a1e35; color: var(--text-dark); border-color: var(--border-color); }
+html.dark .ranking-table td         { border-color: var(--border-color); color: var(--text-dark); }
+html.dark .ranking-table .vvs-row   { background: #244a949d; }
+html.dark .ranking-table .even-row  { background: #3b414dc7; }
+html.dark .ranking-table .odd-row   { background: #3c4454;; }
+
+html.dark .ranking-table .even-row:hover  { background: #3b414d83;; }
+html.dark .ranking-table .odd-row:hover   { background: #3c44546b;; }
+
+/* ── Next match / planned match cards ── */
+html.dark .next-match-card          { background: var(--white); }
+html.dark .recent-match-card        { background: var(--white); }
+html.dark .recent-match-card.result-win  { border-left-color: var(--success); }
+html.dark .recent-match-card.result-loss { border-left-color: var(--danger); }
+html.dark .recent-match-card.result-draw { border-left-color: var(--warning); }
+
+/* ── Modals ── */
+html.dark .modal-content            { background: var(--white); }
+html.dark .modal-btn.cancel         { background: #2d3148; color: var(--text-dark); }
+html.dark .av-toggle-panel          { background: var(--white); border: 1px solid var(--border-color); }
+
+/* Saldo kleuren */
+.saldo-pos { color: #28a745 !important;}
+.saldo-neg { color: #dc3545 !important;}
+
+/* ── Werklijst — shift cards ── */
+html.dark .wl-shift-card            { background: var(--white); border-color: var(--border-color); }
+html.dark .wl-shift-card.is-signed  { background: #1a2a4a; border-color: var(--primary-blue); }
+html.dark .wl-shift-card.is-full    { background: #2a1a1a; border-color: var(--danger); }
+
+/* ── Rockwerchter — cash input ── */
+html.dark .cash-input-wrapper       { background: var(--white); border-color: var(--border-color); }
+html.dark .cash-input-wrapper input { background: var(--white); color: var(--text-dark); }
+html.dark .euro-sign                { background: var(--off-white); color: var(--text-gray); border-color: var(--border-color); }
+html.dark .wisselgeld-display       { background: var(--off-white); border-color: var(--border-color); }
+
+/* ── Forms ── */
+html.dark .form-group input,
+html.dark .form-group textarea,
+html.dark .form-group select,
+html.dark .modal-body input         { background: #252840; color: var(--text-dark); border-color: var(--border-color); }
+html.dark .form-group input::placeholder,
+html.dark .form-group textarea::placeholder { color: var(--text-gray); }
+html.dark .form-group label         { color: var(--text-dark); }
+
+/* ── Load more / misc buttons ── */
+html.dark .load-more-btn            { background: #252840; color: var(--text-dark); border-color: var(--border-color); }
+html.dark code                      { background: #252840; color: var(--accent-blue); padding: 1px 5px; border-radius: 3px; }
+
+/* ── Notification banner ── */
+.notif-banner {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(140px);
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-top: 4px solid var(--warning);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem 1.25rem;
+    box-shadow: 0 12px 40px var(--shadow-lg);
+    z-index: 4000;
+    max-width: 460px;
+    width: calc(100vw - 2rem);
+    opacity: 0;
+    transition: transform 0.45s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    pointer-events: none;
+}
+.notif-banner.visible {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Header row: icon + title + close */
+.notif-banner-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.35rem;
+}
+.notif-banner-icon  { font-size: 1.2rem; flex-shrink: 0; }
+.notif-banner-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    flex: 1;
+}
+.notif-banner-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-gray); font-size: 1.1rem;
+    padding: 2px 4px; flex-shrink: 0;
+    line-height: 1; transition: color 0.2s; border-radius: 4px;
+}
+.notif-banner-close:hover { color: var(--text-dark); background: var(--off-white); }
+
+/* Subtitle */
+.notif-banner-text {
+    font-size: 0.85rem;
+    color: var(--text-gray);
+    margin-bottom: 0.85rem;
+    line-height: 1.4;
+}
+
+/* Match cards list */
+.notif-banner-matches {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+/* Individual match card */
+.notif-match-card {
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.notif-match-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.notif-urgency      { font-size: 0.9rem; flex-shrink: 0; }
+.notif-match-teams  {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: var(--text-dark);
+    line-height: 1.25;
+}
+
+/* Meta row: datum · uur · ploeg */
+.notif-match-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem 1rem;
+    align-items: center;
+}
+.notif-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    font-weight: 500;
+}
+.notif-meta-item svg { flex-shrink: 0; opacity: 0.7; }
+
+/* CTA button */
+.notif-match-btn {
+    display: inline-block;
+    margin-top: 0.2rem;
+    padding: 0.5rem 0.9rem;
+    background: var(--primary-blue);
+    color: #fff !important;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border-radius: 6px;
+    text-decoration: none !important;
+    text-align: center;
+    transition: background 0.2s, transform 0.1s;
+    align-self: flex-start;
+}
+.notif-match-btn:hover {
+    background: var(--dark-blue);
+    transform: translateY(-1px);
+}
+
+/* Mobile: full-width button */
+@media (max-width: 480px) {
+    .notif-banner { padding: 1rem; }
+    .notif-match-btn { align-self: stretch; text-align: center; }
+    .notif-match-meta { gap: 0.4rem 0.75rem; }
+}

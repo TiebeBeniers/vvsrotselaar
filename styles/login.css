@@ -99,6 +99,8 @@
     margin-top: 0.5rem;
 }
 
+html.dark .user-role {color: white !important}
+
 .logout-btn,
 .admin-btn {
     width: 100%;
@@ -108,6 +110,11 @@
     border-radius: 8px;
     transition: all 0.3s ease;
     margin-top: 1rem;
+}
+
+html.dark .logout-btn,
+html.dark .admin-btn {
+    color: white
 }
 
 .logout-btn { background: var(--danger); color: var(--white); }

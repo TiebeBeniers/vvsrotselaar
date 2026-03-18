@@ -761,3 +761,27 @@
 .guest-banner--public svg {
     stroke: #94a3b8;
 }
+
+/* ── Spelersprofiel ── */
+html.dark .state-card               { background: transparent; }
+html.dark .state-card p             { color: var(--text-gray); }
+html.dark .player-content .stat-card { background: var(--white); }
+html.dark .player-content .stat-value { color: var(--text-dark); }
+html.dark .player-content .stat-label { color: var(--text-gray); }
+html.dark .info-card                { background: var(--white); }
+html.dark .info-row                 { border-color: var(--border-color); }
+html.dark .info-key                 { color: var(--text-gray); }
+html.dark .info-val                 { color: var(--text-dark); }
+html.dark .uid-val                  { color: var(--text-gray); }
+html.dark .match-history-card       { background: var(--white); }
+html.dark .match-history-teams      { color: var(--text-dark); }
+html.dark .match-history-score      { color: var(--text-dark); }
+html.dark .coming-soon              { background: var(--white); border-color: var(--border-color); }
+html.dark .coming-soon p            { color: var(--text-gray); }
+html.dark .section-title            { color: var(--primary-blue); }
+html.dark .guest-banner             { background: var(--white); border-color: var(--border-color); }
+html.dark .profile-info p           { color: var(--text-dark); }
+html.dark .profile-info .user-role  { background: var(--dark-blue); color: var(--white); }
+html.dark .password-card            { background: var(--white); }
+html.dark .password-intro           { color: var(--text-gray); }
+html.dark .uid-tooltip              { background: var(--dark-blue); }

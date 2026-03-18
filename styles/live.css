@@ -56,6 +56,7 @@
 .current-minute {
     font-size: 2rem;
     font-weight: 800;
+    color: white !important;
 }
 
 .match-status {
@@ -396,6 +397,12 @@ a.tl-player-link.sub-name { display: inline; }
     margin-bottom: 0.4rem;
     box-sizing: border-box;
     appearance: auto;
+}
+
+html.dark .modal-select {
+    background: #2d3148af;
+    border: 1px solid #575a6d;
+    color: #ffffff;
 }
 
 .modal-select:focus {

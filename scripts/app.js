@@ -409,6 +409,9 @@ async function checkForStartMatch() {
             where('status', '==', 'planned')
         ));
 
+        // Grace period: toon lineup/start-knop ook tot START_LATE_THRESHOLD_MINUTES na geplande aftrap
+        const graceCutoff = new Date(now.getTime() - START_LATE_THRESHOLD_MINUTES * 60 * 1000);
+
         let todayMatch = null;
 
         snap.forEach(docSnap => {
@@ -416,9 +419,9 @@ async function checkForStartMatch() {
             const matchDateTime = new Date(`${d.datum}T${d.uur}`);
             const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
 
-            // Match must be within the next 24 hours and user must be allowed
-            if ((isBestuurslid || isDesignated) && matchDateTime <= in24Hours && matchDateTime >= now) {
-                // Pick the soonest qualifying match
+            // Match moet binnen de volgende 24 uur vallen OF binnen de grace period liggen
+            if ((isBestuurslid || isDesignated) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
+                // Kies de eerstvolgende kwalificerende wedstrijd
                 if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
                     todayMatch = { id: docSnap.id, ...d };
                 }
@@ -430,10 +433,18 @@ async function checkForStartMatch() {
             return;
         }
 
-        const matchDateTime = new Date(`${todayMatch.datum}T${todayMatch.uur}`);
+        const matchDateTime  = new Date(`${todayMatch.datum}T${todayMatch.uur}`);
+        const graceEnd       = new Date(matchDateTime.getTime() + START_LATE_THRESHOLD_MINUTES * 60 * 1000);
+        const pastGraceWindow = now > graceEnd;
+
+        // Na de grace period alles verbergen — de match had al gestart moeten zijn
+        if (pastGraceWindow) {
+            container.style.display = 'none';
+            return;
+        }
+
         const thirtyBefore  = new Date(matchDateTime.getTime() - 30 * 60 * 1000);
-        const thirtyAfter   = new Date(matchDateTime.getTime() + 30 * 60 * 1000);
-        const inStartWindow = now >= thirtyBefore && now <= thirtyAfter;
+        const inStartWindow = now >= thirtyBefore; // tot 10 min na aftrap (grace period bewaakt de bovengrens)
         const lineupSaved   = !!todayMatch.lineupDraftConfirmed;
 
         container.style.display = 'flex';

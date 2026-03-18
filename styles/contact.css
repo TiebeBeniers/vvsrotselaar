@@ -164,3 +164,14 @@
     .bestuur-grid { grid-template-columns: 1fr; gap: 1.5rem; }
     .contact-form-section h2 { font-size: 1.6rem; }
 }
+
+/* ── Contact section ── */
+html.dark .contact-section          { background: var(--white); }
+html.dark .club-info h3             { color: var(--text-dark); }
+html.dark .club-info p              { color: var(--text-dark); }
+html.dark .bestuur-title            { color: var(--primary-blue); }
+html.dark .bestuur-name             { color: var(--text-dark); }
+html.dark .faq-section              { background: var(--white); }
+html.dark .faq-answer               { color: var(--text-dark); }
+html.dark .contact-info-section     { background: var(--white); }
+html.dark .contact-form-section     { background: var(--off-white); }

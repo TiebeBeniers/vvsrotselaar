@@ -517,3 +517,26 @@
 .inschrijf-btn-wrap {
     margin-top: 1rem;
 }
+
+/* ── Evenementen ── */
+html.dark .evenementen-page         { background: var(--off-white); }
+html.dark .featured-evenement       { background: var(--white); }
+html.dark .featured-evenement-content h2 { color: var(--text-dark); }
+html.dark .evenement-beschrijving   { color: var(--text-dark); }
+html.dark #upcomingEvenementen .evenement-card { background: var(--white); }
+html.dark .evenement-card-content   { background: var(--white); }
+html.dark .evenement-card-content h3 { color: var(--primary-blue); }
+html.dark .evenement-date           { color: var(--text-dark); }
+html.dark .evenement-preview        { color: var(--text-gray); }
+
+/* ── Inschrijf popup ── */
+html.dark .inschrijf-popup-card     { background: var(--white); }
+html.dark .inschrijf-popup-beschrijving { background: var(--off-white); color: var(--text-gray); }
+html.dark .inschrijf-popup-jijzelf  { background: #1a3a2a; color: #4caf74; }
+html.dark .inschrijf-popup-extra-sectie { background: #252840; border-color: var(--border-color); }
+html.dark .inschrijf-popup-extra-header { color: var(--text-dark); }
+html.dark .inschrijf-popup-veld label { color: var(--text-dark); }
+html.dark .inschrijf-popup-samenvatting.neutraal { background: var(--off-white); color: var(--text-gray); }
+html.dark .inschrijf-popup-kosten   { background: #1a3a2a; color: #4caf74; }
+html.dark .aantal-minus, html.dark .aantal-plus { background: #2d3148; color: var(--primary-blue); }
+html.dark .inschrijf-popup-input    { background: var(--white); color: var(--text-dark); border-color: var(--border-color); }

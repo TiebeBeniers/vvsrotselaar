@@ -1402,7 +1402,7 @@ function showAddExtraPlayerModal(matchId) {
                     id="extraPlayerResults"
                     style="margin-top:0.4rem; max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:8px; display:none;"
                 ></div>
-                <div id="extraPlayerSelected" style="display:none; margin-top:0.75rem; padding:0.5rem 0.75rem; background:#f0f7f0; border:1px solid #b2d8b2; border-radius:8px; font-size:0.9rem;"></div>
+                <div id="extraPlayerSelected" style="display:none; margin-top:0.75rem; padding:0.5rem 0.75rem; background: #e0e0e06e; border:2px solid #b2d8b2; border-radius:8px; font-size:0.9rem;"></div>
             </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="extraPlayerCancel">Annuleren</button>
@@ -1496,7 +1496,7 @@ function showAddExtraPlayerModal(matchId) {
         resultsBox.style.display = 'block';
 
         resultsBox.querySelectorAll('.extra-player-result:not(.extra-player-manual-opt)').forEach((row, i) => {
-            row.addEventListener('mouseenter', () => row.style.background = '#f5f5f5');
+            row.addEventListener('mouseenter', () => row.style.background = '#f5f5f554');
             row.addEventListener('mouseleave', () => row.style.background = '');
             row.addEventListener('click', () => selectUser(matches[i]));
         });

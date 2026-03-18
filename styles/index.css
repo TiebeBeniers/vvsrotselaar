@@ -25,6 +25,7 @@
     padding: 0 4rem;
     font-weight: 600;
     font-size: 1rem;
+    color : white !important;
 }
 
 .announcement-item::before {
@@ -166,7 +167,7 @@
     font-size: 0.95rem;
     font-weight: 600;
     background: transparent;
-    color: var(--white);
+    color: var(--white) !important;
     border: 2px solid rgba(255,255,255,0.6);
     border-radius: 8px;
     cursor: pointer;

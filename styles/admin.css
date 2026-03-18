@@ -1184,6 +1184,10 @@
     line-height: 1.5;
 }
 
+html.dark .wl-admin-hint {
+    background: var(--off-white);
+}
+
 /* ── Werklijsten lijst ── */
 .werklijsten-list {
     display: flex;
@@ -1785,6 +1789,8 @@
 .detail-section {
     margin-bottom: 1.5rem;
 }
+html.dark .detail-val {color: var(--text-gray)}
+html.dark .detail-val.uid-mono {background: #2d3148;}
 
 .detail-section-title {
     font-size: 0.78rem;
@@ -1817,6 +1823,8 @@
     flex-shrink: 0;
 }
 
+html.dark .detail-key, .detail-section-title {color: #ffffff}
+
 .detail-val {
     color: #1a1a1a;
     word-break: break-all;
@@ -1844,6 +1852,11 @@
     padding: 0.75rem 0.5rem;
     text-align: center;
     border: 1px solid #eee;
+}
+
+html.dark .detail-stat-card {
+    background: #2d3148;
+    border: 1px solid #1c1f2e;
 }
 
 .detail-stat-val {
@@ -2406,3 +2419,70 @@
     .section-header { flex-wrap: wrap; gap: 0.5rem; }
     .galerij-toolbar { width: 100%; }
 }
+
+.ranking-view-meta {
+    font-size: 0.82rem;
+    color: var(--text-gray);
+    margin-bottom: 0.75rem;
+}
+
+.ranking-view-scroll {
+    overflow-x: auto;
+}
+
+.ranking-view-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.ranking-view-table thead tr {
+    background: var(--primary-blue);
+    color: white;
+}
+
+.ranking-view-table th,
+.ranking-view-table td {
+    padding: 0.4rem 0.6rem;
+}
+
+.rv-center { text-align: center; }
+.rv-left   { text-align: left; }
+.rv-bold   { font-weight: 700; }
+
+/* Row kleuren — light mode */
+.ranking-view-table .even-row { background: #ffffff; }
+.ranking-view-table .odd-row  { background: #f8fafc; }
+.ranking-view-table .vvs-row  { background: #fff3cd; font-weight: 600; }
+
+/* Row kleuren — dark mode */
+html.dark .ranking-view-table thead tr { background: #1a1e35; }
+html.dark .ranking-view-table .even-row { background: #1e2240; }
+html.dark .ranking-view-table .odd-row  { background: #252850; }
+html.dark .ranking-view-table .vvs-row  { background: #2555b49d; color: var(--text-dark); }
+html.dark .ranking-view-table td        { color: var(--text-dark); }
+html.dark .saldo-pos { color: #2db554; }
+html.dark .saldo-neg { color: #e55353; }
+/* ── Admin ── */
+html.dark .admin-container          { background: var(--white); }
+html.dark .tab-btn                  { color: var(--text-gray); }
+html.dark .tab-btn.active           { color: var(--primary-blue); }
+html.dark .admin-tabs               { border-color: var(--border-color); }
+html.dark .wl-list-card             { background: var(--white); border-color: var(--border-color); }
+html.dark .wl-list-card.wl-active   { background: #1a2a4a; border-color: var(--primary-blue); }
+html.dark .data-reset-card          { background: var(--white); border-color: var(--border-color); }
+html.dark .data-reset-card h4       { color: var(--text-dark); }
+html.dark .data-reset-card p        { color: var(--text-gray); }
+html.dark .shift-admin-card         { background: var(--white); border-color: var(--border-color); }
+html.dark .sponsor-admin-card       { background: var(--white); border-color: var(--border-color); }
+html.dark .galerij-admin-cell       { background: var(--off-white); border-color: var(--border-color); }
+html.dark .galerij-admin-img-wrap   { background: #252840; }
+html.dark .ranking-instructions div      { background: #2d3148; color: var(--text-gray); }
+html.dark .ranking-instructions {
+    background: #2d3148;
+    border-left: 4px solid var(--primary-blue);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+}
+html.dark .footer-text {color: var(--text-gray) !important}

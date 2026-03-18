@@ -2341,43 +2341,41 @@ async function loadCurrentRankingView() {
         const updated = snap.data().updatedAt?.toDate?.()?.toLocaleDateString('nl-BE') || '?';
 
         container.innerHTML = `
-            <p style="font-size:0.82rem;color:#888;margin-bottom:0.75rem;">
+            <p class="ranking-view-meta">
                 Laatste update: ${updated} · ${teams.length} ploegen
             </p>
-            <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <div class="ranking-view-scroll">
+            <table class="ranking-view-table">
                 <thead>
-                    <tr style="background:var(--primary-blue);color:white;">
-                        <th style="padding:0.5rem 0.6rem;text-align:center;">#</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:left;">Ploeg</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Punten">Pnt</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gespeeld">Sp</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gewonnen">W</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Gelijk">G</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;" title="Verlies">V</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;">Voor</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;">Tgn</th>
-                        <th style="padding:0.5rem 0.6rem;text-align:center;">Saldo</th>
+                    <tr>
+                        <th class="rv-center">#</th>
+                        <th class="rv-left">Ploeg</th>
+                        <th class="rv-center" title="Punten">Pnt</th>
+                        <th class="rv-center" title="Gespeeld">Sp</th>
+                        <th class="rv-center" title="Gewonnen">W</th>
+                        <th class="rv-center" title="Gelijk">G</th>
+                        <th class="rv-center" title="Verlies">V</th>
+                        <th class="rv-center">Voor</th>
+                        <th class="rv-center">Tgn</th>
+                        <th class="rv-center">Saldo</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${teams.map((t, i) => {
                         const isVVS = t.team.includes('V.V.S');
-                        const bg = isVVS ? 'background:#fff3cd;font-weight:600;'
-                                        : i % 2 === 0 ? '' : 'background:#f8fafc;';
-                        return `<tr style="${bg}">
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.pos}</td>
-                            <td style="padding:0.4rem 0.6rem;">${t.team}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;font-weight:700;">${t.pnt}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.played}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.won}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.draw}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.lost}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.goals_for}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;">${t.goals_against}</td>
-                            <td style="padding:0.4rem 0.6rem;text-align:center;color:${t.saldo >= 0 ? 'green' : 'red'};">
-                                ${t.saldo >= 0 ? '+' : ''}${t.saldo}
-                            </td>
+                        const rowClass = isVVS ? 'vvs-row' : (i % 2 === 0 ? 'even-row' : 'odd-row');
+                        const saldoClass = t.saldo >= 0 ? 'saldo-pos' : 'saldo-neg';
+                        return `<tr class="${rowClass}">
+                            <td class="rv-center">${t.pos}</td>
+                            <td class="rv-left">${t.team}</td>
+                            <td class="rv-center rv-bold">${t.pnt}</td>
+                            <td class="rv-center">${t.played}</td>
+                            <td class="rv-center">${t.won}</td>
+                            <td class="rv-center">${t.draw}</td>
+                            <td class="rv-center">${t.lost}</td>
+                            <td class="rv-center">${t.goals_for}</td>
+                            <td class="rv-center">${t.goals_against}</td>
+                            <td class="rv-center ${saldoClass}">${t.saldo >= 0 ? '+' : ''}${t.saldo}</td>
                         </tr>`;
                     }).join('')}
                 </tbody>

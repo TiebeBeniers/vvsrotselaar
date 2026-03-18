@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles/styles.css">
     <link rel="stylesheet" href="styles/admin.css">
+    <script>if(localStorage.getItem('vvs_theme')==='dark')document.documentElement.classList.add('dark');</script>
 </head>
 <body>
     <header class="main-header">
@@ -138,7 +139,7 @@
                 </div>
                 <p class="wl-admin-hint">
                     Sleep foto's om de volgorde te wijzigen. Klik op een foto voor opties.
-                    Niet-opgeslagen wijzigingen worden getoond met een gele rand.
+                    Vergeet niet op te slaan!
                 </p>
                 <div id="galerijAdminGrid" class="galerij-admin-grid">
                     <div class="loading">Laden…</div>
@@ -419,5 +420,7 @@
     <script type="module" src="scripts/firebase-config.js"></script>
     <script type="module" src="scripts/admin2.js"></script>
     <script type="module" src="scripts/header.js"></script>
+    <script type="module" src="scripts/theme.js"></script>
+    <script type="module" src="scripts/notifications.js"></script>
 </body>
 </html>

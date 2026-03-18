@@ -244,9 +244,11 @@
 
 .vvs-row { background: rgba(0,71,171,0.164) !important; font-weight: 600; }
 .vvs-row td { color: var(--primary-blue); }
+html.dark .vvs-row {background: #2555b4;}
+html.dark .vvs-row td {background: #2555b49d;}
 
-.positive { color: var(--success); }
-.negative { color: var(--danger); }
+.positive { color: var(--success) !important; }
+.negative { color: var(--danger) !important; }
 
 /* ── Recent Matches ── */
 .recent-matches-list { display: grid; gap: 1.5rem; }
