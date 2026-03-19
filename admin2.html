@@ -60,6 +60,7 @@
                 <button class="tab-btn active" data-tab="werklijst">Werklijst Beheren</button>
                 <button class="tab-btn" data-tab="sponsors">Sponsors</button>
                 <button class="tab-btn" data-tab="galerij">Galerij</button>
+                <button class="tab-btn" data-tab="meldingen">Meldingen</button>
                 <button class="tab-btn" data-tab="data">Data</button>
             </div>
 
@@ -145,6 +146,22 @@
                     <div class="loading">Laden…</div>
                 </div>
             </div><!-- /galerijTab -->
+
+
+            <!-- ══ Meldingen tab ════════════════════════════════════════════════ -->
+            <div class="tab-content" id="meldingenTab">
+                <div class="section-header">
+                    <h3>Meldingen Beheren</h3>
+                    <button class="add-btn" id="addMeldingBtn">+ Melding Toevoegen</button>
+                </div>
+                <p class="wl-admin-hint">
+                    Maak aangepaste meldingen aan die aan specifieke groepen getoond worden.
+                    Een melding aanpassen reset automatisch de weergave voor alle ontvangers.
+                </p>
+                <div id="meldingenList">
+                    <div class="loading">Laden…</div>
+                </div>
+            </div><!-- /meldingenTab -->
 
             <!-- ══ Data tab ════════════════════════════════════════════════ -->
             <div class="tab-content" id="dataTab">
@@ -411,6 +428,105 @@
                 <input type="hidden" id="fotoId">
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="fotoModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════
+         Modal: Melding toevoegen / bewerken
+    ════════════════════════════════════════════ -->
+    <div class="modal" id="meldingModal">
+        <div class="modal-content large">
+            <h3 id="meldingModalTitle">Melding Toevoegen</h3>
+            <form id="meldingForm" class="admin-form">
+
+                <div class="form-group">
+                    <label for="meldingTitel">Titel *</label>
+                    <input type="text" id="meldingTitel" required placeholder="bv. Trainingsvrij deze week">
+                </div>
+
+                <div class="form-group">
+                    <label for="meldingTekst">Tekst *</label>
+                    <textarea id="meldingTekst" required rows="3"
+                        placeholder="Volledige tekst van de melding…"
+                        style="resize:vertical;padding:0.75rem;border:2px solid var(--border-color);border-radius:8px;font-size:1rem;font-family:inherit;width:100%;"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="meldingDoelgroep">Doelgroep *</label>
+                        <select id="meldingDoelgroep" required>
+                            <option value="iedereen">Iedereen (ook niet ingelogd)</option>
+                            <option value="ingelogd">Enkel ingelogde leden</option>
+                            <option value="zaterdag">Zaterdag</option>
+                            <option value="zondag">Zondag</option>
+                            <option value="veteranen">Veteranen</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="meldingType">Type</label>
+                        <select id="meldingType">
+                            <option value="info">ℹ️ Info</option>
+                            <option value="warning">⚠️ Waarschuwing</option>
+                            <option value="success">✅ Succes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="meldingVanDatum">Tonen vanaf (optioneel)</label>
+                        <input type="date" id="meldingVanDatum">
+                    </div>
+                    <div class="form-group">
+                        <label for="meldingTotDatum">Tonen tot en met (optioneel)</label>
+                        <input type="date" id="meldingTotDatum">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="meldingKleur">Accentkleur</label>
+                        <div class="melding-kleur-row">
+                            <input type="color" id="meldingKleur" value="#0047AB" class="melding-kleur-input">
+                            <div class="melding-kleur-presets">
+                                <button type="button" class="kleur-preset" data-kleur="#0047AB" style="background:#0047AB" title="Blauw"></button>
+                                <button type="button" class="kleur-preset" data-kleur="#FFC107" style="background:#FFC107" title="Geel"></button>
+                                <button type="button" class="kleur-preset" data-kleur="#28A745" style="background:#28A745" title="Groen"></button>
+                                <button type="button" class="kleur-preset" data-kleur="#DC3545" style="background:#DC3545" title="Rood"></button>
+                                <button type="button" class="kleur-preset" data-kleur="#6f42c1" style="background:#6f42c1" title="Paars"></button>
+                                <button type="button" class="kleur-preset" data-kleur="#fd7e14" style="background:#fd7e14" title="Oranje"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="meldingDuur">Weergaveduur: <strong id="meldingDuurLabel">5 sec</strong></label>
+                        <input type="range" id="meldingDuur" min="0" max="9" step="1" value="3"
+                               class="melding-duur-slider">
+                        <small style="color:var(--text-gray);font-size:0.8rem;">
+                            ← 2 sec &nbsp;·&nbsp; aanbevolen: 5 sec &nbsp;·&nbsp; ∞ →
+                        </small>
+                    </div>
+                </div>
+
+                <label class="toggle-setting-row" style="margin-bottom:1rem;">
+                    <div class="toggle-setting-label">
+                        <strong>Melding actief</strong>
+                        <small>Zet uit om de melding tijdelijk te verbergen zonder te verwijderen.</small>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="meldingActief" checked>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </label>
+
+                <input type="hidden" id="meldingId">
+                <input type="hidden" id="meldingVersie" value="1">
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="meldingModalCancel">Annuleren</button>
                     <button type="submit" class="modal-btn confirm">Opslaan</button>
                 </div>
             </form>

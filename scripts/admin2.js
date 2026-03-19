@@ -1281,3 +1281,243 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', startGalerijTab);
     }
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MELDINGEN BEHEREN
+// Firestore: notificaties/{id} → {
+//   titel, tekst, doelgroep, type, vanDatum, totDatum, actief, versie, createdAt
+// }
+//
+// Versie-mechanisme: bij elke aanpassing wordt versie + 1. De dismiss-key in
+// localStorage bevat de versie → oude dismissals worden automatisch ongeldig
+// zodat iedereen de gewijzigde melding opnieuw krijgt.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let meldingenCache = {};
+let unsubMeldingen = null;
+
+const DOELGROEP_LABELS = {
+    iedereen:  'Iedereen',
+    ingelogd:  'Ingelogde leden',
+    zaterdag:  'Zaterdag',
+    zondag:    'Zondag',
+    veteranen: 'Veteranen',
+};
+const TYPE_ICONS = { info: 'ℹ️', warning: '⚠️', success: '✅' };
+
+// ── Listener starten bij openen tab ──────────────────────────────────────────
+let meldingenLoaded = false;
+function startMeldingenTab() {
+    if (meldingenLoaded) return;
+    meldingenLoaded = true;
+
+    if (unsubMeldingen) unsubMeldingen();
+    unsubMeldingen = onSnapshot(
+        collection(db, 'notificaties'),
+        (snap) => {
+            meldingenCache = {};
+            snap.forEach(d => { meldingenCache[d.id] = { id: d.id, ...d.data() }; });
+            renderMeldingenList();
+        },
+        (err) => showToast('❌ Fout bij laden meldingen: ' + err.message, 'error')
+    );
+}
+
+// ── Render lijst ──────────────────────────────────────────────────────────────
+function renderMeldingenList() {
+    const container = document.getElementById('meldingenList');
+    if (!container) return;
+
+    const items = Object.values(meldingenCache)
+        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+
+    if (items.length === 0) {
+        container.innerHTML = `<div class="werklijst-empty-state">
+            <p>Nog geen meldingen. Klik op "+ Melding Toevoegen".</p></div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    items.forEach(m => container.appendChild(buildMeldingCard(m)));
+}
+
+function buildMeldingCard(m) {
+    const card = document.createElement('div');
+    card.className = `melding-admin-card${m.actief ? '' : ' melding-inactive'}`;
+
+    const icon      = TYPE_ICONS[m.type] || 'ℹ️';
+    const doelLabel = DOELGROEP_LABELS[m.doelgroep] || m.doelgroep;
+    const periode   = m.vanDatum || m.totDatum
+        ? `${m.vanDatum || '…'} → ${m.totDatum || '…'}`
+        : 'Altijd';
+
+    card.innerHTML = `
+        <div class="melding-card-left">
+            <span class="melding-type-icon">${icon}</span>
+            <span class="melding-kleur-dot" style="background:${m.kleur || '#0047AB'}"></span>
+            <div class="melding-card-info">
+                <div class="melding-card-titel">${htmlEscAdmin(m.titel)}</div>
+                <div class="melding-card-tekst">${htmlEscAdmin(m.tekst)}</div>
+                <div class="melding-card-meta">
+                    <span class="melding-badge">${doelLabel}</span>
+                    <span class="melding-periode">📅 ${periode}</span>
+                    <span class="melding-versie">v${m.versie ?? 1}</span>
+                    ${!m.actief ? '<span class="melding-badge melding-badge-off">Inactief</span>' : ''}
+                </div>
+            </div>
+        </div>
+        <div class="melding-card-actions">
+            <button class="icon-btn" title="${m.actief ? 'Deactiveren' : 'Activeren'}" data-toggle>
+                ${m.actief ? '⏸' : '▶'}
+            </button>
+            <button class="icon-btn edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
+            <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
+        </div>`;
+
+    card.querySelector('[data-toggle]').addEventListener('click', () => toggleMelding(m));
+    card.querySelector('.edit').addEventListener('click', () => openMeldingModal(m));
+    card.querySelector('.delete').addEventListener('click', () => confirmDeleteMelding(m));
+
+    return card;
+}
+
+// ── Toggle actief ─────────────────────────────────────────────────────────────
+async function toggleMelding(m) {
+    try {
+        await setDoc(doc(db, 'notificaties', m.id), { actief: !m.actief }, { merge: true });
+        showToast(m.actief ? '⏸ Melding gedeactiveerd.' : '▶ Melding geactiveerd.', 'success');
+    } catch (e) {
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+// ── Verwijderen ───────────────────────────────────────────────────────────────
+function confirmDeleteMelding(m) {
+    const confirmModal   = document.getElementById('confirmModal');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmDelete  = document.getElementById('confirmDelete');
+    const confirmCancel  = document.getElementById('confirmCancel');
+    if (!confirmModal) return;
+
+    confirmMessage.textContent = `Melding "${m.titel}" definitief verwijderen?`;
+    confirmModal.classList.add('active');
+    const cleanup = () => confirmModal.classList.remove('active');
+    confirmCancel.onclick = cleanup;
+    confirmModal.onclick  = e => { if (e.target === confirmModal) cleanup(); };
+
+    confirmDelete.onclick = async () => {
+        cleanup();
+        try {
+            await deleteDoc(doc(db, 'notificaties', m.id));
+            showToast('↩️ Melding verwijderd.', 'success');
+        } catch (e) {
+            showToast('❌ ' + e.message, 'error');
+        }
+    };
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+const meldingModal = document.getElementById('meldingModal');
+const meldingForm  = document.getElementById('meldingForm');
+
+function openMeldingModal(m = null) {
+    document.getElementById('meldingModalTitle').textContent = m ? 'Melding Bewerken' : 'Melding Toevoegen';
+    document.getElementById('meldingId').value        = m ? m.id            : '';
+    document.getElementById('meldingVersie').value    = m ? (m.versie ?? 1) : 1;
+    document.getElementById('meldingTitel').value     = m ? (m.titel   || '') : '';
+    document.getElementById('meldingTekst').value     = m ? (m.tekst   || '') : '';
+    document.getElementById('meldingDoelgroep').value = m ? (m.doelgroep || 'iedereen') : 'iedereen';
+    document.getElementById('meldingType').value      = m ? (m.type    || 'info') : 'info';
+    document.getElementById('meldingVanDatum').value  = m ? (m.vanDatum || '') : '';
+    document.getElementById('meldingTotDatum').value  = m ? (m.totDatum || '') : '';
+    document.getElementById('meldingActief').checked  = m ? (m.actief !== false) : true;
+    // Kleur
+    const kleurEl = document.getElementById('meldingKleur');
+    if (kleurEl) kleurEl.value = m?.kleur || '#0047AB';
+    // Duur: sla op als slider-index (0–9), waarbij index 9 = oneindig
+    const duurIdxEl = document.getElementById('meldingDuur');
+    if (duurIdxEl) {
+        const opgeslagen = m?.duur ?? 5;       // seconden, 0 = oneindig
+        const idx = opgeslagen === 0 ? 9
+                  : Math.max(0, Math.min(8, opgeslagen - 2)); // 2s→0 … 10s→8
+        duurIdxEl.value = idx;
+        updateDuurLabel(idx);
+    }
+    meldingModal.classList.add('active');
+}
+
+document.getElementById('addMeldingBtn')?.addEventListener('click', () => openMeldingModal());
+document.getElementById('meldingModalCancel')?.addEventListener('click', () => meldingModal.classList.remove('active'));
+meldingModal?.addEventListener('click', e => { if (e.target === meldingModal) meldingModal.classList.remove('active'); });
+
+// Live label voor duur-slider
+const duurSlider = document.getElementById('meldingDuur');
+const duurLabel  = document.getElementById('meldingDuurLabel');
+const DUUR_WAARDEN = [2,3,4,5,6,7,8,9,10,0]; // 0 = oneindig
+function updateDuurLabel(val) {
+    const w = DUUR_WAARDEN[parseInt(val)] ?? 5;
+    if (duurLabel) duurLabel.textContent = w === 0 ? '∞' : `${w} sec`;
+}
+duurSlider?.addEventListener('input', () => updateDuurLabel(duurSlider.value));
+
+// Preset kleur-knoppen
+document.querySelectorAll('.kleur-preset').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const kleurInput = document.getElementById('meldingKleur');
+        if (kleurInput) kleurInput.value = btn.dataset.kleur;
+    });
+});
+
+meldingForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id         = document.getElementById('meldingId').value.trim();
+    const oudeVersie = parseInt(document.getElementById('meldingVersie').value) || 1;
+    const titel      = document.getElementById('meldingTitel').value.trim();
+    const tekst      = document.getElementById('meldingTekst').value.trim();
+    const doelgroep  = document.getElementById('meldingDoelgroep').value;
+    const type       = document.getElementById('meldingType').value;
+    const vanDatum   = document.getElementById('meldingVanDatum').value || '';
+    const totDatum   = document.getElementById('meldingTotDatum').value || '';
+    const actief     = document.getElementById('meldingActief').checked;
+    const kleur      = document.getElementById('meldingKleur')?.value || '#0047AB';
+    const duurIdx    = parseInt(document.getElementById('meldingDuur')?.value ?? 3);
+    const DUUR_W     = [2,3,4,5,6,7,8,9,10,0];
+    const duur       = DUUR_W[duurIdx] ?? 5; // seconden, 0 = oneindig
+
+    if (!titel || !tekst) return;
+
+    const btn = meldingForm.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Bezig…';
+
+    try {
+        if (id) {
+            // Bewerken: versie ophogen → iedereen ziet de melding opnieuw
+            const nieuweVersie = oudeVersie + 1;
+            await setDoc(doc(db, 'notificaties', id), {
+                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur,
+                versie: nieuweVersie,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            showToast(`✅ Melding bijgewerkt (v${nieuweVersie}) — iedereen ziet ze opnieuw.`, 'success');
+        } else {
+            // Nieuw
+            await addDoc(collection(db, 'notificaties'), {
+                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur,
+                versie: 1,
+                createdAt: serverTimestamp()
+            });
+            showToast('✅ Melding aangemaakt!', 'success');
+        }
+        meldingModal.classList.remove('active');
+    } catch (err) {
+        showToast('❌ Fout: ' + err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Opslaan';
+    }
+});
+
+// ── Hook tab switching ────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'meldingen') btn.addEventListener('click', startMeldingenTab);
+});

@@ -1007,3 +1007,73 @@ html.dark code                      { background: #252840; color: var(--accent-b
     .notif-match-btn { align-self: stretch; text-align: center; }
     .notif-match-meta { gap: 0.4rem 0.75rem; }
 }
+
+/* ── Notification stack container ── */
+#notifStack {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 4000;
+    display: flex;
+    flex-direction: column; /* oudste bovenaan, nieuwste onderaan */
+    justify-content: flex-end;
+    gap: 0;                  /* gap via margin-top zodat collapse ook gap meeneemt */
+    width: calc(100vw - 2rem);
+    max-width: 460px;
+    pointer-events: none;
+}
+
+/* Banners in de stack zijn niet meer fixed (de stack is het) */
+#notifStack .notif-banner {
+    position: static;
+    left: auto;
+    bottom: auto;
+    width: 100%;
+    max-width: 100%;
+    pointer-events: auto;
+    /* Slide-in: van onzichtbaar + iets naar beneden naar zichtbaar */
+    transform: translateY(20px);
+    opacity: 0;
+    /* Collapse-animatie via max-height + padding */
+    max-height: 600px;
+    overflow: hidden;
+    margin-top: 0.65rem;
+    transition:
+        transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.3s ease,
+        max-height 0.35s ease,
+        margin-top 0.35s ease,
+        padding-top 0.35s ease,
+        padding-bottom 0.35s ease;
+}
+
+/* Eerste banner heeft geen top-margin */
+#notifStack .notif-banner:first-child { margin-top: 0; }
+
+/* Zichtbare toestand */
+#notifStack .notif-banner.visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Inklapanimatie: neem geen ruimte meer in zodat de rest omlaag valt */
+#notifStack .notif-banner.collapsing {
+    max-height: 0;
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+}
+
+/* Custom (admin) melding — accentkleur via CSS variabele */
+.notif-custom {
+    border-top-color: var(--notif-accent, var(--primary-blue));
+}
+
+/* ── Gecentreerde tekst in admin-melding ── */
+.notif-text-center {
+    text-align: center;
+}
