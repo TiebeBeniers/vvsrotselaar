@@ -5,7 +5,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, getDoc, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Team.js loaded');
 
@@ -127,6 +127,13 @@ onAuthStateChanged(auth, async (user) => {
     } else {
         currentUser = null;
         if (loginLink) loginLink.textContent = 'LOGIN';
+    }
+
+    // Fix 5: re-render MOTM section when auth state resolves.
+    // loadRecentMatches may have already run before currentUser was set,
+    // so we re-render without a new Firestore fetch.
+    if (allRecentMatches.length > 0) {
+        renderMotmSection();
     }
 });
 
@@ -692,6 +699,7 @@ async function loadRecentMatches() {
         currentlyShowing = INITIAL_SHOW;
         renderRecentMatches(container);
         renderFormBarFromMatches();
+        renderMotmSection();
         return;
     }
 
@@ -727,6 +735,7 @@ async function loadRecentMatches() {
         currentlyShowing = INITIAL_SHOW;
         renderRecentMatches(container);
         renderFormBarFromMatches();
+        renderMotmSection();
 
     } catch (error) {
         console.error('Error loading recent matches:', error);
@@ -774,6 +783,12 @@ function createRecentMatchCard(match) {
     if (result === 'loss') card.classList.add('result-loss');
     if (result === 'draw') card.classList.add('result-draw');
 
+    const now       = new Date();
+    const dayEnd    = new Date(matchDate);
+    dayEnd.setHours(23, 59, 59, 999);
+    const motmVotingOpen = now >= matchDate && now <= dayEnd;
+    const motmResults    = match.motmResults || null;
+
     card.innerHTML = `
         <div class="recent-match-date">${formattedDate} - ${match.uur}</div>
         <div class="recent-match-teams">
@@ -782,6 +797,9 @@ function createRecentMatchCard(match) {
             <div class="recent-team">${match.uitploeg}</div>
         </div>
         ${match.beschrijving ? `<div class="recent-match-desc">${match.beschrijving}</div>` : ''}
+        ${motmResults && currentUser && motmResultsVisible(match) ? `<div class="motm-result">
+            🏆 Man van de Match: ${motmResults.slice(0,3).map((r,i) => `<span class="motm-pos">${['🥇','🥈','🥉'][i]} ${r.name} (${r.points}pnt)</span>`).join('')}
+        </div>` : ''}
     `;
 
     card.addEventListener('click', () => showMatchTimeline(match));
@@ -1072,9 +1090,23 @@ function createTimelineItem(event, uidMap = {}) {
             const injuryIcon = event.injured
                 ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
-            if (event.spelerUit && event.spelerIn) {
-                description = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(event.spelerUit, 'sub-name')}${injuryIcon}</span>`
-                            + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(event.spelerIn, 'sub-name')}</span>`;
+            const outsArr = event.spelersUit?.length ? event.spelersUit : (event.spelerUit ? [event.spelerUit] : []);
+            const insArr  = event.spelersIn?.length  ? event.spelersIn  : (event.spelerIn  ? [event.spelerIn]  : []);
+            const maxLen  = Math.max(outsArr.length, insArr.length);
+            if (maxLen > 0) {
+                description = '';
+                outsArr.forEach((pOut, _i) => {
+                    if (pOut) {
+                        const inj = _i === 0 ? injuryIcon : '';
+                        description += `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(pOut, 'sub-name')}${inj}</span>`;
+                    }
+                });
+                if (outsArr.some(Boolean) && insArr.some(Boolean)) {
+                    description += '<span class="sub-pair-sep"></span>';
+                }
+                insArr.forEach(pIn => {
+                    if (pIn) description += `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(pIn, 'sub-name')}</span>`;
+                });
             } else {
                 description = `Wissel${injuryIcon}`;
             }
@@ -1780,6 +1812,265 @@ window.addEventListener('beforeunload', () => {
     }
     stopLiveUpdate();
 });
+
+
+// ===============================================
+// MAN VAN DE MATCH
+// Firestore: matches/{id}/motm/{uid} → { votes: [uid1, uid2, uid3] }
+// motmResults op het match-document na bekendmaking
+// ===============================================
+
+
+// ── MOTM standalone sectie (net onder team-hero) ─────────────────────────────
+// Toont de stem/bekendmaak knop voor de meest recente wedstrijd waarvoor
+// de stemperiode open is. Als er niets is om te tonen blijft de sectie leeg.
+
+function motmResultsVisible(match) {
+    // Resultaten zijn 24u zichtbaar na bekendmaking
+    if (!match.motmResults || !match.motmRevealedAt) return false;
+    return Date.now() - new Date(match.motmRevealedAt).getTime() < 24 * 60 * 60 * 1000;
+}
+
+function renderMotmSection() {
+    const section = document.getElementById('motmSection');
+    if (!section) return;
+
+    section.innerHTML = '';
+
+    if (!allRecentMatches.length) return;
+    if (!currentUser) return; // niet ingelogd
+
+    const now = new Date();
+
+    // Zoek de meest recente afgelopen wedstrijd op dezelfde dag (stemperiode)
+    const match = allRecentMatches.find(m => {
+        const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
+        const dayEnd = new Date(dt);
+        dayEnd.setHours(23, 59, 59, 999);
+        return now >= dt && now <= dayEnd;
+    });
+
+    if (!match) return; // geen stemperiode actief
+
+    const motmResults    = match.motmResults || null;
+    const isDesignated   = match.aangeduidePersonen?.includes(currentUser.uid);
+    const resultVisible  = motmResults && motmResultsVisible(match);
+
+    // Zodra resultaten 24u zichtbaar zijn geweest: niets tonen bovenaan
+    if (motmResults && !resultVisible) return;
+
+    // Wrapper die de sectie zichtbaar maakt
+    section.classList.add('motm-section--active');
+
+    if (!motmResults) {
+        // ── Stem-knop (iedereen die ingelogd is)
+        const voteBtn = document.createElement('button');
+        voteBtn.className = 'motm-section-vote-btn';
+        voteBtn.innerHTML = '🏆 Stem Man van de Match';
+        voteBtn.addEventListener('click', () => openMotmModal(match));
+        section.appendChild(voteBtn);
+
+        // ── Extra knoppen voor aangeduide persoon
+        if (isDesignated) {
+            const standBtn = document.createElement('button');
+            standBtn.className = 'motm-section-stand-btn';
+            standBtn.textContent = '📊 Bekijk huidige stand';
+            standBtn.addEventListener('click', () => openStandModal(match));
+            section.appendChild(standBtn);
+        }
+    }
+}
+
+async function openMotmModal(match) {
+    // Laad beschikbare spelers voor dit team uit het availability-subcollectie
+    let players = [];
+    try {
+        const avSnap = await getDocs(collection(db, 'matches', match.id, 'availability'));
+        avSnap.forEach(d => {
+            const av = d.data();
+            if (av.available && av.displayName) players.push({ uid: d.id, name: av.displayName });
+        });
+    } catch (_) {}
+
+    if (players.length === 0) {
+        showToast('Geen spelers gevonden om op te stemmen.', 'error');
+        return;
+    }
+
+    // Filter: can't vote for yourself
+    const selfPlayers = players.filter(p => p.uid !== currentUser.uid);
+
+    // Check if already voted
+    let alreadyVoted = false;
+    try {
+        const myVote = await getDoc(doc(db, 'matches', match.id, 'motm', currentUser.uid));
+        if (myVote.exists()) alreadyVoted = true;
+    } catch (_) {}
+
+    let modal = document.getElementById('motmModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'motmModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    const optionsHtml = selfPlayers.map(p =>
+        `<option value="${p.uid}" data-name="${p.name}">${p.name}</option>`
+    ).join('');
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>🏆 Man van de Match</h3>
+            <p style="color:var(--text-gray);font-size:0.9rem;margin-bottom:1.25rem;">
+                Geef je top 3 in volgorde van beste prestatie. Elke naam mag maar 1 keer voorkomen.
+                Je kan niet op jezelf stemmen.
+            </p>
+            ${alreadyVoted ? `<div class="success-message" style="margin-bottom:1rem;">✅ Je hebt al gestemd. Je kan je stem niet meer wijzigen.</div>` : ''}
+            <div class="motm-vote-rows">
+                ${[1,2,3].map(i => `
+                    <div class="motm-vote-row">
+                        <span class="motm-rank-badge">${['🥇','🥈','🥉'][i-1]}</span>
+                        <select class="modal-select motm-pick" data-rank="${i}" ${alreadyVoted ? 'disabled' : ''}>
+                            <option value="">— Kies speler ${i} —</option>
+                            ${optionsHtml}
+                        </select>
+                    </div>`).join('')}
+            </div>
+            <div id="motmVoteError" style="color:var(--danger);font-size:0.85rem;margin-top:0.5rem;"></div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="motmCancelBtn">Annuleren</button>
+                ${!alreadyVoted ? `<button class="modal-btn confirm" id="motmConfirmBtn">Stem bevestigen</button>` : ''}
+            </div>
+        </div>`;
+
+    modal.classList.add('active');
+    modal.querySelector('#motmCancelBtn').addEventListener('click', () => modal.classList.remove('active'));
+
+    if (!alreadyVoted) {
+        modal.querySelector('#motmConfirmBtn').addEventListener('click', async () => {
+            const picks = [...modal.querySelectorAll('.motm-pick')].map(s => ({
+                uid:  s.value,
+                name: s.options[s.selectedIndex]?.dataset.name || '',
+                rank: parseInt(s.dataset.rank)
+            })).filter(p => p.uid);
+
+            const errEl = modal.querySelector('#motmVoteError');
+            errEl.textContent = '';
+
+            if (picks.length < 1) { errEl.textContent = 'Kies minstens 1 speler.'; return; }
+            const uids = picks.map(p => p.uid);
+            if (new Set(uids).size !== uids.length) { errEl.textContent = 'Elke speler mag maar 1x voorkomen.'; return; }
+            if (uids.includes(currentUser.uid)) { errEl.textContent = 'Je kan niet op jezelf stemmen.'; return; }
+
+            const btn = modal.querySelector('#motmConfirmBtn');
+            btn.disabled = true; btn.textContent = 'Bezig…';
+            try {
+                await setDoc(doc(db, 'matches', match.id, 'motm', currentUser.uid), {
+                    votes: picks.map(p => ({ uid: p.uid, name: p.name, rank: p.rank })),
+                    timestamp: new Date().toISOString()
+                });
+                modal.classList.remove('active');
+                showToast('✅ Stem opgeslagen!', 'success');
+            } catch (e) {
+                errEl.textContent = 'Fout: ' + e.message;
+                btn.disabled = false; btn.textContent = 'Stem bevestigen';
+            }
+        });
+    }
+}
+
+async function computeTally(matchId) {
+    const votesSnap = await getDocs(collection(db, 'matches', matchId, 'motm'));
+    const tally = {};
+    votesSnap.forEach(d => {
+        const { votes } = d.data();
+        if (!Array.isArray(votes)) return;
+        votes.forEach(v => {
+            const pts = v.rank === 1 ? 3 : v.rank === 2 ? 2 : 1;
+            if (!tally[v.uid]) tally[v.uid] = { name: v.name, points: 0 };
+            tally[v.uid].points += pts;
+        });
+    });
+    return Object.values(tally).sort((a, b) => b.points - a.points);
+}
+
+async function openStandModal(match) {
+    let tally = [];
+    try { tally = await computeTally(match.id); } catch (_) {}
+
+    let modal = document.getElementById('motmStandModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'motmStandModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    const rows = tally.length
+        ? tally.map((r, i) => `
+            <div class="motm-stand-row">
+                <span class="motm-stand-pos">${i + 1}</span>
+                <span class="motm-stand-name">${r.name}</span>
+                <span class="motm-stand-pts">${r.points} pnt</span>
+            </div>`).join('')
+        : '<p style="color:var(--text-gray);text-align:center;padding:1rem;">Nog geen stemmen uitgebracht.</p>';
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>📊 Huidige stand</h3>
+            <p style="color:var(--text-gray);font-size:0.85rem;margin-bottom:1rem;">
+                ${tally.length} stem${tally.length !== 1 ? 'men' : ''} uitgebracht.
+            </p>
+            <div class="motm-stand-list">${rows}</div>
+            <div class="modal-actions" style="margin-top:1.5rem;">
+                <button class="modal-btn cancel" id="standCancelBtn">Annuleren</button>
+                <button class="modal-btn confirm" id="standRevealBtn"
+                    ${tally.length === 0 ? 'disabled' : ''}>
+                    🏆 Onthul Top 3
+                </button>
+            </div>
+        </div>`;
+
+    modal.classList.add('active');
+    modal.querySelector('#standCancelBtn').addEventListener('click', () => modal.classList.remove('active'));
+    modal.querySelector('#standRevealBtn').addEventListener('click', async () => {
+        modal.classList.remove('active');
+        await revealMotm(match, tally);
+    });
+}
+
+async function revealMotm(match, tallyArg = null) {
+    try {
+        const tally = tallyArg || await computeTally(match.id);
+        const top3  = tally.slice(0, 3);
+        if (top3.length === 0) { showToast('Nog geen stemmen uitgebracht.', 'error'); return; }
+
+        const revealedAt = new Date().toISOString();
+        await setDoc(doc(db, 'matches', match.id),
+            { motmResults: top3, motmRevealedAt: revealedAt }, { merge: true });
+
+        // Update in-memory array direct zodat de kaart meteen refresht zonder herlaad
+        const idx = allRecentMatches.findIndex(m => m.id === match.id);
+        if (idx !== -1) {
+            allRecentMatches[idx] = { ...allRecentMatches[idx], motmResults: top3, motmRevealedAt: revealedAt };
+        }
+
+        // Invalideer localStorage cache
+        localStorage.removeItem(`vvs_recent_matches_${TEAM_TYPE}`);
+
+        showToast('🏆 Top 3 bekendgemaakt!', 'success');
+
+        // Re-render kaarten en sectie direct
+        const container = document.getElementById('recentMatchesList');
+        if (container) renderRecentMatches(container);
+        renderMotmSection();
+    } catch (e) {
+        showToast('Fout: ' + e.message, 'error');
+    }
+}
 
 console.log('Team.js initialization complete');
 // ── Toast ────────────────────────────────────────────────────────────────────

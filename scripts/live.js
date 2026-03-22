@@ -406,7 +406,7 @@ function setupControlButtons() {
     const scoreCorrectBtn = document.getElementById('scoreCorrectBtn');
 
     if (pauseBtn)        pauseBtn.addEventListener('click', handlePause);
-    if (resumeBtn)       resumeBtn.addEventListener('click', handleResume);
+    if (resumeBtn)       resumeBtn.addEventListener('click', confirmResume);
     if (extraTimeBtn)    extraTimeBtn.addEventListener('click', handleExtraTime);
     if (endMatchBtn)     endMatchBtn.addEventListener('click', handleEndMatch);
     if (scoreCorrectBtn) scoreCorrectBtn.addEventListener('click', openScoreModal);
@@ -432,6 +432,43 @@ async function handlePause() {
             type: 'rust', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
     } catch (e) { console.error('Error pausing:', e); showToast('Fout bij pauze: ' + e.message, 'error'); }
+}
+
+// ── Resume confirm modal ─────────────────────────────────────────────────────
+
+function confirmResume() {
+    const phase = currentMatch.phase || 2;
+    const label = phase === 2 ? 'START 2E HELFT'
+                : phase === 3 ? 'START VERLENGINGEN'
+                :               'START 2E VERLENGING';
+
+    let modal = document.getElementById('resumeConfirmModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'resumeConfirmModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3 id="resumeConfirmTitle"></h3>
+                <p style="margin-bottom:1.5rem;color:var(--text-gray);">
+                    Weet je zeker? De timer start meteen na bevestiging.
+                </p>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" id="resumeConfirmCancel">Annuleren</button>
+                    <button class="modal-btn confirm" id="resumeConfirmOk">▶ Ja, hervatten</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('#resumeConfirmCancel').addEventListener('click',
+            () => modal.classList.remove('active'));
+        modal.addEventListener('click', e => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    }
+    modal.querySelector('#resumeConfirmTitle').textContent = label + '?';
+    const okBtn = modal.querySelector('#resumeConfirmOk');
+    okBtn.onclick = async () => { modal.classList.remove('active'); await handleResume(); };
+    modal.classList.add('active');
 }
 
 // ── Resume handler ────────────────────────────────────────────────────────────
@@ -720,27 +757,8 @@ function handleControlClick(e) {
 
     if (action === 'substitution') {
         subSection.style.display = 'block';
-        const outSel = document.getElementById('playerOutSelect');
-        const inSel  = document.getElementById('playerInSelect');
-
-        if (isVvs) {
-            const subPlayers = getPlayersForAction('substitution', true);
-            populateSelect(outSel, subPlayers.out, '— Speler uit —');
-            populateSelect(inSel,  subPlayers.in,  '— Speler in —');
-            outSel.style.display = '';
-            inSel.style.display  = '';
-        } else {
-            populateSelect(outSel, [], '— Speler uit —');
-            populateSelect(inSel,  [], '— Speler in —');
-            outSel.style.display = 'none';
-            inSel.style.display  = 'none';
-        }
-
-        document.getElementById('playerOutManualInput').placeholder = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
-        document.getElementById('playerInManualInput').placeholder  = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
-        document.getElementById('playerOutManualInput').value = '';
-        document.getElementById('playerInManualInput').value  = '';
-        if (injuryRow) injuryRow.style.display = 'flex';
+        // Build first pair, clear any previous pairs
+        buildSubPairs(isVvs, 1);
 
     } else {
         singleSection.style.display = 'block';
@@ -787,10 +805,12 @@ if (modalConfirm) {
         let injured = false;
 
         if (action === 'substitution') {
-            playerOut = getModalValue('playerOutSelect', 'playerOutManualInput', isOpponent);
-            playerIn  = getModalValue('playerInSelect',  'playerInManualInput',  isOpponent);
-            const injuryCheck = document.getElementById('injuryCheck');
-            injured = injuryCheck ? injuryCheck.checked : false;
+            // Collect all pairs from the multi-pair container
+            const pairs = collectSubPairs(isOpponent);
+            modal.classList.remove('active');
+            await executeMultiSub(team, pairs);
+            pendingAction = null;
+            return; // handled separately
         } else {
             playerName = getModalValue('playerSelect', 'playerManualInput', isOpponent);
             if (action === 'goal' || action === 'penalty') {
@@ -822,6 +842,163 @@ if (penaltyMissedBtn) {
         await executeAction(team, 'penalty-missed', playerName, '', '', '', {});
         pendingAction = null;
     });
+}
+
+
+// ── Multi-sub helpers ─────────────────────────────────────────────────────────
+
+let subPairCount = 0; // number of pairs currently rendered
+
+function buildSubPairs(isVvs, count = 1) {
+    const container = document.getElementById('subPairsContainer');
+    const addBtn    = document.getElementById('addSubPairBtn');
+    if (!container) return;
+    container.innerHTML = '';
+    subPairCount = 0;
+    for (let i = 0; i < count; i++) addSubPair(isVvs, container);
+    if (addBtn) {
+        addBtn.onclick = () => addSubPair(isVvs, container);
+        addBtn.style.display = '';
+    }
+}
+
+function addSubPair(isVvs, container) {
+    subPairCount++;
+    const idx = subPairCount;
+    const pair = document.createElement('div');
+    pair.className = 'sub-pair-block';
+    pair.dataset.idx = idx;
+
+    if (idx > 1) {
+        const divider = document.createElement('div');
+        divider.className = 'sub-pair-divider';
+        divider.innerHTML = `<span>Wissel ${idx}</span>
+            <button type="button" class="sub-remove-pair" data-idx="${idx}" title="Verwijder wissel">✕</button>`;
+        pair.appendChild(divider);
+        pair.querySelector('.sub-remove-pair').addEventListener('click', () => {
+            pair.remove();
+            subPairCount--;
+            // Re-index dividers
+            container.querySelectorAll('.sub-pair-divider span').forEach((el, i) => {
+                el.textContent = `Wissel ${i + 2}`;
+            });
+        });
+    }
+
+    const outOpts = isVvs ? buildSubOptions('out') : '';
+    const inOpts  = isVvs ? buildSubOptions('in')  : '';
+    const manualPh = isVvs ? 'Of typ naam handmatig...' : 'Rugnummer (bijv. 10)';
+
+    pair.innerHTML += `
+        <label class="modal-label">Speler UIT</label>
+        ${isVvs ? `<select class="modal-select sub-out-select" data-pair="${idx}">${outOpts}</select>` : ''}
+        <input type="text" class="modal-input-manual sub-out-manual" data-pair="${idx}" placeholder="${manualPh}">
+        <div class="sub-injury-row" style="display:flex;align-items:center;gap:0.5rem;margin:0.4rem 0 0.25rem;padding:0.4rem 0.5rem;background:rgba(255,80,80,0.07);border-radius:8px;border:1px solid rgba(255,80,80,0.2);">
+            <input type="checkbox" class="sub-injury-check" data-pair="${idx}" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;font-weight:600;">
+                <img src="assets/blessure.png" alt="" style="width:20px;height:20px;"> Geblesseerd uitgewisseld
+            </label>
+        </div>
+        <label class="modal-label" style="margin-top:0.75rem;">Speler IN</label>
+        ${isVvs ? `<select class="modal-select sub-in-select" data-pair="${idx}">${inOpts}</select>` : ''}
+        <input type="text" class="modal-input-manual sub-in-manual" data-pair="${idx}" placeholder="${manualPh}">
+    `;
+
+    container.appendChild(pair);
+}
+
+function buildSubOptions(direction) {
+    // Out: actieve spelers op het veld; In: enkel bankspelers
+    const players = direction === 'out'
+        ? [...activePlayers]
+        : [...benchPlayers];
+    let opts = `<option value="">— Speler ${direction === 'out' ? 'uit' : 'in'} —</option>`;
+    players.forEach(p => { opts += `<option value="${p.name}">${p.name}</option>`; });
+    return opts;
+}
+
+function collectSubPairs(isOpponent) {
+    const container = document.getElementById('subPairsContainer');
+    if (!container) return [];
+    const pairs = [];
+    const usedOut = new Set();
+    const usedIn  = new Set();
+
+    container.querySelectorAll('.sub-pair-block').forEach(block => {
+        const idx = block.dataset.idx;
+        let playerOut = '', playerIn = '';
+        const outSel  = block.querySelector('.sub-out-select');
+        const outMan  = block.querySelector('.sub-out-manual');
+        const inSel   = block.querySelector('.sub-in-select');
+        const inMan   = block.querySelector('.sub-in-manual');
+        const injCk   = block.querySelector('.sub-injury-check');
+
+        if (!isOpponent && outSel) {
+            playerOut = outSel.value || (outMan ? outMan.value.trim() : '');
+        } else if (outMan) {
+            playerOut = outMan.value.trim();
+        }
+        if (!isOpponent && inSel) {
+            playerIn = inSel.value || (inMan ? inMan.value.trim() : '');
+        } else if (inMan) {
+            playerIn = inMan.value.trim();
+        }
+
+        // Uniqueness guard
+        if (playerOut && usedOut.has(playerOut)) playerOut = '';
+        if (playerIn  && usedIn.has(playerIn))   playerIn  = '';
+        if (playerOut) usedOut.add(playerOut);
+        if (playerIn)  usedIn.add(playerIn);
+
+        pairs.push({ playerOut, playerIn, injured: injCk ? injCk.checked : false });
+    });
+
+    return pairs.filter(p => p.playerOut || p.playerIn);
+}
+
+async function executeMultiSub(team, pairs) {
+    if (!pairs.length) return;
+    const minute = getCurrentMinuteForEvent();
+    const phase  = currentMatch.phase || 1;
+
+    // Build a single combined event with arrays of names
+    const allOut     = pairs.map(p => p.playerOut).filter(Boolean);
+    const allIn      = pairs.map(p => p.playerIn).filter(Boolean);
+    const anyInjured = pairs.some(p => p.injured);
+
+    const eventData = {
+        matchId:   currentMatchId,
+        minuut:    minute,
+        half:      phase,
+        type:      'substitution',
+        ploeg:     team,
+        speler:    '',
+        // Store as arrays for multi-sub; single sub stays backward-compat via [0]
+        spelersUit: allOut,
+        spelersIn:  allIn,
+        // Keep legacy single fields for backward compat (first pair)
+        spelerUit:  allOut[0] || '',
+        spelerIn:   allIn[0]  || '',
+        injured:    anyInjured,
+        multiSub:   pairs.length > 1,
+        timestamp:  serverTimestamp()
+    };
+
+    try {
+        await addDoc(collection(db, 'events'), eventData);
+
+        // Update lineup + playerMinutes for each VVS pair
+        if (team === vvsSide) {
+            for (const { playerOut, playerIn, injured } of pairs) {
+                if (playerOut || playerIn) {
+                    await handleSubstitutionLineup(playerOut, playerIn, minute);
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Multi-sub error:', e);
+        showToast('Fout bij wissel: ' + e.message, 'error');
+    }
 }
 
 // ── Execute action ────────────────────────────────────────────────────────────
@@ -1039,6 +1216,7 @@ export function createEventElement(event, uidMap = {}) {
     if (event.ploeg === 'home') teamClass = 'home';
     else if (event.ploeg === 'away') teamClass = 'away';
     div.classList.add(teamClass);
+    div.dataset.eventId = event.id || '';
 
     // Only VVS players (known in uidMap) get a clickable link
     const n = (name, cls = '') => {
@@ -1067,9 +1245,25 @@ export function createEventElement(event, uidMap = {}) {
             const injuryIcon = event.injured
                 ? `<img src="assets/blessure.png" alt="Geblesseerd" class="sub-injury-icon" title="Geblesseerd">`
                 : '';
-            if (event.spelerUit && event.spelerIn) {
-                text = `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(event.spelerUit, 'sub-name')}${injuryIcon}</span>`
-                     + `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(event.spelerIn, 'sub-name')}</span>`;
+            // Multi-sub: spelersUit / spelersIn arrays; fallback to legacy single fields
+            const outsArr = event.spelersUit?.length ? event.spelersUit : (event.spelerUit ? [event.spelerUit] : []);
+            const insArr  = event.spelersIn?.length  ? event.spelersIn  : (event.spelerIn  ? [event.spelerIn]  : []);
+            const maxLen  = Math.max(outsArr.length, insArr.length);
+            if (maxLen > 0) {
+                text = '';
+                // Alle spelers UIT eerst, daarna alle spelers IN
+                outsArr.forEach((pOut, _i) => {
+                    if (pOut) {
+                        const inj = _i === 0 ? injuryIcon : '';
+                        text += `<span class="sub-row"><img src="assets/speler_uit.png" class="sub-player-icon" alt="Uit">${n(pOut, 'sub-name')}${inj}</span>`;
+                    }
+                });
+                if (outsArr.some(Boolean) && insArr.some(Boolean)) {
+                    text += '<span class="sub-pair-sep"></span>';
+                }
+                insArr.forEach(pIn => {
+                    if (pIn) text += `<span class="sub-row"><img src="assets/speler_in.png" class="sub-player-icon" alt="In">${n(pIn, 'sub-name')}</span>`;
+                });
             } else {
                 text = `Wissel${injuryIcon}`;
             }
@@ -1081,12 +1275,192 @@ export function createEventElement(event, uidMap = {}) {
         default:               text = event.type;
     }
 
+    const STRUCTURAL_TYPES = new Set(['aftrap','rust','einde-regulier','einde']);
+    const isEditable = hasAccess && event.id && !STRUCTURAL_TYPES.has(event.type);
+
+    if (isEditable) div.classList.add('tl-editable');
+
     div.innerHTML = `
         <span class="event-time">${event.minuut}'</span>
         <span class="event-icon">${eventIcon(event.type, event.half)}</span>
         <span class="event-text">${text}</span>
+        ${isEditable ? `<span class="tl-edit-hint"><img src="assets/edit.png" class="icon" alt=""></span>` : ''}
     `;
+
+    if (isEditable) {
+        div.style.cursor = 'pointer';
+        div.addEventListener('click', () => openEditEventModal(event));
+    }
     return div;
+}
+
+// ── Edit event modal ──────────────────────────────────────────────────────────
+
+async function openEditEventModal(event) {
+    const EDITABLE = new Set(['goal','penalty','penalty-missed','own-goal','yellow','yellow2red','red','substitution']);
+    if (!EDITABLE.has(event.type)) { showToast('Dit type event is niet aanpasbaar.', 'error'); return; }
+
+    const isVvs = event.ploeg === vvsSide;
+    const allPl = [...activePlayers, ...benchPlayers, ...outPlayers];
+    const opts  = allPl.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+
+    let modal = document.getElementById('editEventModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'editEventModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    const isSub     = event.type === 'substitution';
+    const hasAssist = event.type === 'goal' || event.type === 'penalty';
+    const outsArr   = event.spelersUit?.length ? event.spelersUit : (event.spelerUit ? [event.spelerUit] : []);
+    const insArr    = event.spelersIn?.length  ? event.spelersIn  : (event.spelerIn  ? [event.spelerIn]  : []);
+
+    const TYPE_LABELS = {
+        goal:'Goal', penalty:'Penalty', 'penalty-missed':'Penalty gemist',
+        'own-goal':'Eigen doelpunt', yellow:'Gele kaart', yellow2red:'2e Gele / Rood',
+        red:'Rode kaart', substitution:'Wissel'
+    };
+
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h3>
+                <img src="assets/edit.png" class="icon" alt="" style="width:20px;height:20px;vertical-align:middle;margin-right:0.4rem;">
+                ${TYPE_LABELS[event.type] || event.type} aanpassen
+            </h3>
+
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="modal-label">Minuut</label>
+                <input type="number" id="editMinuut" min="0" max="999" value="${event.minuut ?? 0}"
+                    style="width:90px;padding:0.5rem 0.75rem;border:2px solid var(--border-color);border-radius:8px;font-size:1rem;font-family:inherit;">
+            </div>
+
+            ${!isSub ? `
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="modal-label">Speler</label>
+                ${isVvs ? `<select id="editSpeler" class="modal-select">
+                    <option value="">— Geen —</option>${opts}
+                </select>` : ''}
+                <input type="text" id="editSpelerManual" class="modal-input-manual"
+                    value="${event.speler || ''}"
+                    placeholder="${isVvs ? 'Of typ naam handmatig...' : 'Naam / rugnummer'}">
+            </div>` : ''}
+
+            ${hasAssist ? `
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="modal-label">Assist (optioneel)</label>
+                ${isVvs ? `<select id="editAssist" class="modal-select">
+                    <option value="">— Geen assist —</option>${opts}
+                </select>` : ''}
+                <input type="text" id="editAssistManual" class="modal-input-manual"
+                    value="${event.assist || ''}" placeholder="Assistgever">
+            </div>` : ''}
+
+            ${isSub ? `
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="modal-label">Speler(s) UIT <small style="font-weight:400;color:var(--text-gray);">(komma-gescheiden)</small></label>
+                <input type="text" id="editSubUit" class="modal-select"
+                    value="${outsArr.join(', ')}" placeholder="Naam1, Naam2">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label class="modal-label">Speler(s) IN <small style="font-weight:400;color:var(--text-gray);">(komma-gescheiden)</small></label>
+                <input type="text" id="editSubIn" class="modal-select"
+                    value="${insArr.join(', ')}" placeholder="Naam1, Naam2">
+            </div>` : ''}
+
+            <div id="editEventError" style="color:var(--danger);font-size:0.85rem;margin-bottom:0.5rem;min-height:1.2em;"></div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" id="editEventCancel">Annuleren</button>
+                <button class="modal-btn confirm" id="editEventSave">
+                    <img src="assets/edit.png" class="icon" alt=""
+                        style="width:15px;height:15px;vertical-align:middle;margin-right:4px;filter:brightness(10);">
+                    Opslaan
+                </button>
+            </div>
+        </div>`;
+
+    modal.classList.add('active');
+
+    if (isVvs && !isSub) {
+        const selSp = modal.querySelector('#editSpeler');
+        if (selSp) selSp.value = event.speler || '';
+        const selAs = modal.querySelector('#editAssist');
+        if (selAs) selAs.value = event.assist || '';
+    }
+
+    modal.querySelector('#editEventCancel').addEventListener('click',
+        () => modal.classList.remove('active'));
+
+    modal.querySelector('#editEventSave').addEventListener('click', async () => {
+        const errEl = modal.querySelector('#editEventError');
+        errEl.textContent = '';
+        const newMinuut = parseInt(modal.querySelector('#editMinuut').value) || 0;
+
+        // Recalculate half based on new minute (regular time only)
+        let newHalf = event.half || 1;
+        if ((event.half || 1) <= 2) {
+            const halfDur = getRegularHalfDuration();
+            newHalf = newMinuut <= halfDur ? 1 : 2;
+        }
+        const updates = { minuut: newMinuut, half: newHalf };
+
+        if (!isSub) {
+            const selSp = modal.querySelector('#editSpeler');
+            const manSp = modal.querySelector('#editSpelerManual');
+            updates.speler = (isVvs && selSp?.value) ? selSp.value
+                           : (manSp?.value.trim() || '');
+            if (hasAssist) {
+                const selAs = modal.querySelector('#editAssist');
+                const manAs = modal.querySelector('#editAssistManual');
+                updates.assist = (isVvs && selAs?.value) ? selAs.value
+                               : (manAs?.value.trim() || '');
+            }
+        } else {
+            const rawUit = modal.querySelector('#editSubUit').value;
+            const rawIn  = modal.querySelector('#editSubIn').value;
+            const newOut = rawUit.split(',').map(s => s.trim()).filter(Boolean);
+            const newIn  = rawIn.split(',').map(s => s.trim()).filter(Boolean);
+            updates.spelersUit = newOut;
+            updates.spelersIn  = newIn;
+            updates.spelerUit  = newOut[0] || '';
+            updates.spelerIn   = newIn[0]  || '';
+
+            // Update playerMinutes if VVS sub changed
+            if (isVvs) {
+                const oldMin = event.minuut ?? 0;
+                const lineup = currentMatch.lineup || {};
+                const updatePM = async (name, fields) => {
+                    for (const [uid, info] of Object.entries(lineup)) {
+                        if (info.name === name && !uid.startsWith('manual_')) {
+                            await setDoc(
+                                doc(db, 'matches', currentMatchId, 'playerMinutes', uid),
+                                { uid, name, ...fields }, { merge: true }
+                            );
+                        }
+                    }
+                };
+                // Reverse old
+                for (const nm of outsArr) await updatePM(nm, { minuteOff: null });
+                for (const nm of insArr)  await updatePM(nm, { minuteOn: 0 });
+                // Apply new
+                for (const nm of newOut) await updatePM(nm, { minuteOff: newMinuut });
+                for (const nm of newIn)  await updatePM(nm, { minuteOn: newMinuut });
+            }
+        }
+
+        const btn = modal.querySelector('#editEventSave');
+        btn.disabled = true;
+        try {
+            await updateDoc(doc(db, 'events', event.id), updates);
+            modal.classList.remove('active');
+            showToast('✅ Event bijgewerkt!', 'success');
+        } catch (e) {
+            errEl.textContent = 'Fout: ' + e.message;
+            btn.disabled = false;
+        }
+    });
 }
 
 // ── Cleanup ───────────────────────────────────────────────────────────────────

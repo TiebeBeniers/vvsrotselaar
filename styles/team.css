@@ -750,3 +750,157 @@ html.dark .vvs-row td {background: #2555b49d;}
     margin-bottom: 1.25rem;
     background: var(--off-white);
 }
+
+/* ── Multi-sub: pair separator ── */
+.sub-pair-sep {
+    display: block;
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.4rem 0;
+    opacity: 0.5;
+}
+
+/* ── Man van de Match ── */
+.motm-btn-wrap {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding: 0.6rem 0 0.25rem;
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.motm-vote-btn {
+    flex: 1;
+    padding: 0.55rem 0.9rem;
+    background: var(--primary-blue);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, transform 0.1s;
+}
+.motm-vote-btn:hover { background: var(--dark-blue); transform: translateY(-1px); }
+
+.motm-reveal-btn {
+    padding: 0.55rem 0.9rem;
+    background: transparent;
+    color: var(--primary-blue);
+    border: 2px solid var(--primary-blue);
+    border-radius: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s;
+}
+.motm-reveal-btn:hover { background: var(--primary-blue); color: #fff; }
+
+.motm-result {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--text-dark);
+    font-weight: 600;
+    padding: 0.5rem 0.6rem;
+    background: linear-gradient(135deg, #fff8e1, #fff3cd);
+    border-radius: 7px;
+    border-left: 3px solid var(--warning);
+}
+.motm-pos {
+    display: inline-block;
+    margin-right: 0.5rem;
+    white-space: nowrap;
+}
+
+/* MOTM vote modal rows */
+.motm-vote-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.motm-vote-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.motm-rank-badge {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    width: 2rem;
+    text-align: center;
+}
+
+/* ── MOTM standalone sectie ── */
+.motm-section {
+    /* Leeg = geen ruimte */
+    display: none;
+}
+
+.motm-section--active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1.25rem 2rem 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.motm-section-vote-btn {
+    padding: 0.85rem 2rem;
+    background: var(--primary-blue);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, transform 0.1s;
+    box-shadow: 0 3px 12px var(--shadow-lg);
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+}
+.motm-section-vote-btn:hover { background: var(--dark-blue); transform: translateY(-1px); }
+
+.motm-section-stand-btn {
+    padding: 0.6rem 1.4rem;
+    background: transparent;
+    color: var(--primary-blue);
+    border: 2px solid var(--primary-blue);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s;
+}
+.motm-section-stand-btn:hover { background: var(--primary-blue); color: #fff; }
+
+/* Stand modal */
+.motm-stand-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.motm-stand-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 7px;
+    background: var(--off-white);
+}
+.motm-stand-row:first-child { background: #fff8e1; font-weight: 700; }
+.motm-stand-row:nth-child(2) { background: #f0f4ff; }
+.motm-stand-pos  { font-weight: 800; color: var(--primary-blue); min-width: 1.5rem; text-align: center; }
+.motm-stand-name { flex: 1; font-weight: 600; color: var(--text-dark); }
+.motm-stand-pts  { font-weight: 700; color: var(--text-gray); font-size: 0.88rem; white-space: nowrap; }

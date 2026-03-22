@@ -1,3 +1,4 @@
+
 /* ===============================================
    VVS ROTSELAAR - LIVE PAGE STYLES
    =============================================== */
@@ -144,9 +145,11 @@
 [data-vvs-side="home"] .timeline-event.away { border-right-color: #9ca3af; background: linear-gradient(to left, rgba(156,163,175,0.08), var(--off-white)); }
 [data-vvs-side="home"] .timeline-event.away .event-time { color: #6b7280; }
 
-.timeline-event.away .event-time  { order: 3; }
-.timeline-event.away .event-icon  { order: 2; }
-.timeline-event.away .event-text  { order: 1; text-align: right; }
+/* row-reverse: order 1 = rightmost, order 3 = leftmost
+   Correct layout: [text ... icon ... time'] */
+.timeline-event.away .event-time  { order: 1; }   /* rightmost — minuut rechts */
+.timeline-event.away .event-icon  { order: 2; }   /* midden */
+.timeline-event.away .event-text  { order: 3; text-align: right; }  /* leftmost, rechts uitgelijnd */
 
 .timeline-event.center {
     justify-content: center;
@@ -243,6 +246,19 @@
 
 .sub-name.tl-player-link,
 a.tl-player-link.sub-name { display: inline; }
+
+/* Away: icon sticks directly to name, group aligns right */
+.timeline-event.away .sub-row {
+    justify-content: flex-end;
+}
+.timeline-event.away .sub-name {
+    flex: none;  /* don't expand; keeps icon right next to name */
+}
+.timeline-event.away .sub-injury-icon {
+    margin-left: 0;
+    margin-right: 4px;
+    order: -1; /* injury icon before name for away */
+}
 
 /* ── Control Panel ── */
 .control-panel {
@@ -456,4 +472,100 @@ html.dark .modal-select {
     .current-minute { font-size: 1.2rem; }
     .match-time { padding: 0.5rem 0.6rem; min-width: 85px; }
     .match-status { font-size: 0.75rem; }
+}
+
+/* ── Multi-substitution UI ── */
+
+.sub-add-pair-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 2px dashed var(--primary-blue);
+    border-radius: 8px;
+    color: var(--primary-blue);
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s;
+    width: 100%;
+    justify-content: center;
+}
+.sub-add-pair-btn:hover {
+    background: var(--primary-blue);
+    color: #fff;
+}
+
+.sub-pair-block {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.6rem;
+    background: var(--off-white);
+}
+
+.sub-pair-divider {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    margin-bottom: 0.6rem;
+}
+
+.sub-remove-pair {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--danger);
+    font-size: 0.9rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+.sub-remove-pair:hover { background: rgba(220,53,69,0.1); }
+
+.sub-pair-sep {
+    display: block;
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.5rem 0;
+    opacity: 0.6;
+}
+
+/* ── Click-to-edit events ── */
+.tl-editable {
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.tl-editable:hover {
+    box-shadow: 0 0 0 2px var(--primary-blue);
+    transform: none;  /* override the translateX(4px) for editable rows */
+}
+
+.tl-edit-hint {
+    flex-shrink: 0;
+    margin-left: auto;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    padding: 2px 4px;
+}
+.tl-edit-hint .icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    display: block;
+}
+.tl-editable:hover .tl-edit-hint { opacity: 0.6; }
+
+/* Away editable: hint on the left (it's reversed) */
+.timeline-event.away .tl-edit-hint {
+    margin-left: 0;
+    margin-right: auto;
 }

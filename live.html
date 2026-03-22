@@ -166,27 +166,13 @@
                     <input type="text" id="assistManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
                 </div>
 
-                <!-- SUBSTITUTION: separate out/in pickers -->
+                <!-- SUBSTITUTION: dynamic multi-pair container -->
                 <div id="substitutionSection" style="display:none;">
-                    <label class="modal-label">Speler UIT</label>
-                    <select id="playerOutSelect" class="modal-select">
-                        <option value="">— Selecteer speler uit —</option>
-                    </select>
-                    <input type="text" id="playerOutManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
-
-                    <!-- INJURY checkbox — directly under "Speler UIT" -->
-                    <div id="injuryRow" style="display:none; align-items:center; gap:0.5rem; margin-top:0.5rem; margin-bottom:0.25rem; padding:0.4rem 0.5rem; background:rgba(255,80,80,0.07); border-radius:8px; border:1px solid rgba(255,80,80,0.2);">
-                        <input type="checkbox" id="injuryCheck" style="width:18px;height:18px;cursor:pointer;flex-shrink:0;">
-                        <label for="injuryCheck" style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; font-size:0.9rem; font-weight:600;">
-                            <img src="assets/blessure.png" alt="" style="width:20px;height:20px;"> Geblesseerd uitgewisseld
-                        </label>
-                    </div>
-
-                    <label class="modal-label" style="margin-top:0.75rem;">Speler IN</label>
-                    <select id="playerInSelect" class="modal-select">
-                        <option value="">— Selecteer speler in —</option>
-                    </select>
-                    <input type="text" id="playerInManualInput" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                    <div id="subPairsContainer"></div>
+                    <button type="button" id="addSubPairBtn" class="sub-add-pair-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Nog een wissel toevoegen
+                    </button>
                 </div>
 
             </div>

@@ -81,18 +81,30 @@
 
 .lineup-actions {
     display: flex;
-    justify-content: flex-end;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-start;
 }
 
 .lineup-actions .modal-btn {
-    min-width: 200px;
+    flex: 1 1 auto;
+}
+
+.modal-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 @media (max-width: 480px) {
     .lineup-columns {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .lineup-actions {
+        justify-content: stretch;
     }
 }
 
