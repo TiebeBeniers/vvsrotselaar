@@ -48,6 +48,22 @@
         </div>
     </header>
 
+    <!-- ── Sticky score bar (verschijnt als match-header uit beeld scrolt) ── -->
+    <div class="sticky-match-bar" id="stickyMatchBar" aria-hidden="true">
+        <div class="smb-team smb-home">
+            <span class="smb-name" id="smbHomeName">Thuis</span>
+            <span class="smb-score" id="smbHomeScore">0</span>
+        </div>
+        <div class="smb-center">
+            <div class="smb-minute" id="smbMinute">00:00</div>
+            <div class="smb-status" id="smbStatus">Live</div>
+        </div>
+        <div class="smb-team smb-away">
+            <span class="smb-score" id="smbAwayScore">0</span>
+            <span class="smb-name" id="smbAwayName">Uit</span>
+        </div>
+    </div>
+
     <main class="live-page">
         <!-- Match Header -->
         <section class="match-header">
@@ -219,5 +235,63 @@
     <script type="module" src="scripts/header.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>
+
+    <!-- ── Sticky bar sync (geen aanpassingen aan live.js nodig) ── -->
+    <script>
+    (function () {
+        const bar = document.getElementById('stickyMatchBar');
+        if (!bar) return;
+
+        // Positie sticky bar net onder de vaste header
+        function setTopOffset() {
+            const h = document.querySelector('.main-header');
+            bar.style.top = (h ? h.offsetHeight : 50) + 'px';
+        }
+        setTopOffset();
+        window.addEventListener('resize', setTopOffset);
+
+        // Sync tekst van de bron-elementen naar de sticky balk
+        const pairs = [
+            ['homeTeamName', 'smbHomeName'],
+            ['awayTeamName', 'smbAwayName'],
+            ['homeScore',    'smbHomeScore'],
+            ['awayScore',    'smbAwayScore'],
+            ['currentMinute','smbMinute'],
+            ['matchStatus',  'smbStatus'],
+        ];
+
+        function syncAll() {
+            pairs.forEach(([srcId, dstId]) => {
+                const src = document.getElementById(srcId);
+                const dst = document.getElementById(dstId);
+                if (src && dst && dst.textContent !== src.textContent) {
+                    dst.textContent = src.textContent;
+                }
+            });
+        }
+
+        // MutationObserver: reageert instant op elke update door live.js
+        const mo = new MutationObserver(syncAll);
+        pairs.forEach(([srcId]) => {
+            const el = document.getElementById(srcId);
+            if (el) mo.observe(el, { childList: true, characterData: true, subtree: true });
+        });
+        syncAll(); // initiële sync
+
+        // IntersectionObserver: toon de balk zodra match-header uit beeld scrolt
+        const matchHeader = document.querySelector('.match-header');
+        if (matchHeader) {
+            const io = new IntersectionObserver(
+                ([entry]) => {
+                    const visible = !entry.isIntersecting;
+                    bar.classList.toggle('smb-visible', visible);
+                    bar.setAttribute('aria-hidden', String(!visible));
+                },
+                { threshold: 0.15 }
+            );
+            io.observe(matchHeader);
+        }
+    })();
+    </script>
 </body>
 </html>

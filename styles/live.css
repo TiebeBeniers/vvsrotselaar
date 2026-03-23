@@ -569,3 +569,123 @@ html.dark .modal-select {
     margin-left: 0;
     margin-right: auto;
 }
+
+/* ═══════════════════════════════════════════════════
+   STICKY SCORE BAR
+   Verschijnt net onder de header zodra de match-header
+   uit het zichtbaar gebied scrolt.
+   ═══════════════════════════════════════════════════ */
+
+.sticky-match-bar {
+    position: sticky;
+    /* top wordt via JS gezet op basis van header hoogte */
+    top: 70px;
+    z-index: 800;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    background: linear-gradient(135deg, var(--dark-blue, #003580) 0%, var(--primary-blue, #0047AB) 100%);
+    color: #fff;
+    padding: 0.55rem 1.25rem;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.25);
+
+    /* Verborgen standaard: omhoog verschoven + onzichtbaar */
+    transform: translateY(-110%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity   0.22s ease;
+
+    /* Geen margin zodat het naadloos onder de header aansluit */
+    margin-bottom: 0;
+}
+
+/* Zichtbaar wanneer match-header uit beeld is */
+.sticky-match-bar.smb-visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Team blokken (thuis en uit) */
+.smb-team {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1;
+}
+
+.smb-home { justify-content: flex-start; }
+.smb-away { justify-content: flex-end;   }
+
+.smb-name {
+    font-size: 0.82rem;
+    font-weight: 700;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.smb-score {
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+    min-width: 1.2ch;
+    text-align: center;
+}
+
+/* Midden blok: minuut + status */
+.smb-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.3rem 0.85rem;
+    min-width: 72px;
+    line-height: 1.2;
+}
+
+.smb-minute {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+.smb-status {
+    font-size: 0.65rem;
+    font-weight: 600;
+    opacity: 0.85;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+    .sticky-match-bar {
+        padding: 0.45rem 0.75rem;
+        gap: 0.3rem;
+    }
+
+    .smb-name {
+        font-size: 0.7rem;
+        max-width: 70px;
+    }
+
+    .smb-score { font-size: 1.1rem; }
+
+    .smb-center {
+        padding: 0.25rem 0.6rem;
+        min-width: 58px;
+    }
+
+    .smb-minute { font-size: 0.9rem; }
+    .smb-status { font-size: 0.58rem; }
+}

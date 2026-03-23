@@ -166,8 +166,7 @@
     padding: 0.6rem 1.6rem;
     font-size: 0.95rem;
     font-weight: 600;
-    background: transparent;
-    color: var(--white) !important;
+    color: #000000 !important;
     border: 2px solid rgba(255,255,255,0.6);
     border-radius: 8px;
     cursor: pointer;
@@ -262,7 +261,7 @@
 
 .overlay-team h2 {
     font-size: 1.5rem;
-    color: var(--text-dark);
+    color: #13151f;
     font-weight: 700;
     margin: 0;
 }
@@ -318,25 +317,57 @@
 }
 
 @media (max-width: 768px) {
-    .live-overlay-card { padding: 30px 20px; }
-    .overlay-match-info { gap: 15px; }
-    .overlay-team h2 { font-size: 1.1rem; }
-    .overlay-score { font-size: 2rem; }
-    .overlay-time { font-size: 1.3rem; padding: 8px 16px; }
-    .overlay-separator { font-size: 1.5rem; }
-    .overlay-watch-btn { padding: 14px 35px; font-size: 1rem; width: 100%; }
+    .live-overlay-card {
+        padding: 18px 16px 16px;
+        border-radius: 12px;
+    }
+    .live-badge {
+        margin-bottom: 12px;
+        font-size: 0.85rem;
+        padding: 5px 14px;
+    }
+    .overlay-match-info {
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .overlay-team { gap: 6px; }
+    .overlay-team h2 { font-size: 0.95rem; }
+    .overlay-score { font-size: 1.8rem; }
+    .overlay-time { font-size: 1.1rem; padding: 6px 12px; }
+    .overlay-separator { font-size: 1.2rem; }
+    .overlay-watch-btn {
+        padding: 11px 24px;
+        font-size: 0.95rem;
+        width: 100%;
+    }
     .start-match-btn { padding: 1.2rem 2.5rem; font-size: 1.4rem; }
 }
 
 @media (max-width: 480px) {
-    .live-match-overlay { padding: 15px; }
-    .live-overlay-card { padding: 25px 15px; }
-    .overlay-match-info { gap: 10px; }
-    .overlay-team h2 { font-size: 0.9rem; }
-    .overlay-score { font-size: 1.6rem; }
-    .overlay-time { font-size: 1.1rem; padding: 6px 12px; }
-    .overlay-separator { font-size: 1.2rem; }
-    .live-badge { font-size: 0.9rem; padding: 6px 16px; }
+    .live-match-overlay { padding: 12px; }
+    .live-overlay-card {
+        padding: 14px 12px 12px;
+        border-radius: 10px;
+    }
+    .live-badge {
+        margin-bottom: 10px;
+        font-size: 0.8rem;
+        padding: 4px 12px;
+    }
+    .overlay-match-info {
+        gap: 6px;
+        margin-bottom: 12px;
+    }
+    .overlay-team { gap: 4px; }
+    .overlay-team h2 { font-size: 0.82rem; }
+    .overlay-score { font-size: 1.5rem; }
+    .overlay-time { font-size: 1rem; padding: 5px 10px; }
+    .overlay-separator { font-size: 1.1rem; }
+    .overlay-center { gap: 5px; }
+    .overlay-watch-btn {
+        padding: 10px 20px;
+        font-size: 0.88rem;
+    }
 }
 
 /* ── Team Buttons Section ── */
