@@ -32,6 +32,38 @@
     gap: 0;
 }
 
+/* Meerdere uitgelichte evenementen — responsive grid */
+.uitgelicht-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 24px;
+    margin-bottom: 40px;
+}
+
+/* Grid-variant van featured card: stacked (afbeelding boven, content onder) */
+.featured-evenement--grid {
+    grid-template-columns: 1fr;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.featured-evenement--grid .evenement-image {
+    /* Vierkant net als de kleine kaartjes */
+    aspect-ratio: 1 / 1;
+    min-height: unset;
+    max-height: unset;
+}
+
+.featured-evenement--grid .featured-evenement-content {
+    padding: 24px 28px;
+    justify-content: flex-start;
+}
+
+.featured-evenement--grid .featured-evenement-content h2 {
+    font-size: 1.5rem;
+}
+
 .evenement-image {
     width: 100%;
     height: 100%;
@@ -129,6 +161,8 @@
     opacity: 0.6;
     position: relative;
     transition: opacity 0.3s, transform 0.3s;
+    display: flex;
+    flex-direction: column;
 }
 
 #upcomingEvenementen .evenement-card:hover {
@@ -151,16 +185,18 @@
 
 .evenement-card-image {
     width: 100%;
-    height: auto;
+    /* Vierkant zodat alle foto's dezelfde hoogte krijgen */
+    aspect-ratio: 1 / 1;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: 8px 8px 0 0;
 }
 
 .evenement-card-image img {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
-    border-radius: 8px;
+    object-fit: cover;
+    object-position: center;
 }
 
 .evenement-placeholder {

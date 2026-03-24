@@ -14,20 +14,6 @@ import { collection, getDocs, query, orderBy }
 const CACHE_KEY = 'vvs_sponsors_cache';
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 uur
 
-// ── Hamburger ─────────────────────────────────────────────────────────────────
-const hamburger = document.getElementById('hamburger');
-const navMenu   = document.getElementById('navMenu');
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-    navMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
-        hamburger.classList.remove('active');
-        navMenu.classList.remove('active');
-    }));
-}
-
 // ── Cache helpers ─────────────────────────────────────────────────────────────
 function cacheGet() {
     try {

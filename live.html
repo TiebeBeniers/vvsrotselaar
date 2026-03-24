@@ -242,13 +242,16 @@
         const bar = document.getElementById('stickyMatchBar');
         if (!bar) return;
 
-        // Positie sticky bar net onder de vaste header
+        // Zet CSS custom property zodat sticky top exact aansluit op header
         function setTopOffset() {
             const h = document.querySelector('.main-header');
-            bar.style.top = (h ? h.offsetHeight : 50) + 'px';
+            const height = h ? h.getBoundingClientRect().height : 64;
+            document.documentElement.style.setProperty('--header-height', height + 'px');
         }
         setTopOffset();
         window.addEventListener('resize', setTopOffset);
+        // Herbereken na fonts/images laden (hoogte kan nog veranderen)
+        window.addEventListener('load', setTopOffset);
 
         // Sync tekst van de bron-elementen naar de sticky balk
         const pairs = [

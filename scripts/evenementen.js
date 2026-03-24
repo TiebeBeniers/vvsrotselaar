@@ -14,29 +14,15 @@ onAuthStateChanged(auth, (user) => {
     document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
 });
 
-// ── Hamburger ─────────────────────────────────────────────────────────
-const hamburger = document.getElementById('hamburger');
-const navMenu   = document.getElementById('navMenu');
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-    navMenu.querySelectorAll('a').forEach(l => l.addEventListener('click', () => {
-        hamburger.classList.remove('active');
-        navMenu.classList.remove('active');
-    }));
-}
-
 // ── Load evenementen ──────────────────────────────────────────────────
 async function loadEvenementen() {
-    const featured  = document.getElementById('featuredEvenement');
-    const upcoming  = document.getElementById('upcomingEvenementen');
-    const noEvents  = document.getElementById('noEvenementen');
+    const featuredEl = document.getElementById('featuredEvenement');
+    const upcomingEl = document.getElementById('upcomingEvenementen');
+    const noEvents   = document.getElementById('noEvenementen');
 
     try {
         const snap = await getDocs(collection(db, 'evenementen'));
-        if (snap.empty) { featured.style.display = 'none'; noEvents.style.display = 'block'; return; }
+        if (snap.empty) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
 
         const now  = new Date();
         const list = [];
@@ -46,28 +32,50 @@ async function loadEvenementen() {
             if (dt > now) list.push({ id: d.id, ...data, dateTime: dt });
         });
 
-        if (list.length === 0) { featured.style.display = 'none'; noEvents.style.display = 'block'; return; }
+        if (list.length === 0) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
+
+        // Altijd chronologisch sorteren
         list.sort((a, b) => a.dateTime - b.dateTime);
 
-        featured.innerHTML = '';
-        featured.classList.remove('loading');
-        featured.appendChild(buildFeaturedCard(list[0]));
+        // Split: uitgelicht (pinned) vs gewoon
+        const pinned  = list.filter(e => e.pinned === true);
+        const regular = list.filter(e => !e.pinned);
 
-        upcoming.innerHTML = '';
-        for (let i = 1; i < list.length; i++) upcoming.appendChild(buildSmallCard(list[i]));
+        // Geen uitgelicht: toon het eerstvolgende als enkel featured card
+        if (pinned.length === 0 && regular.length > 0) {
+            pinned.push(regular.shift());
+        }
+
+        featuredEl.innerHTML = '';
+        featuredEl.classList.remove('loading');
+
+        if (pinned.length === 1) {
+            // Enkel: groot split-layout
+            featuredEl.appendChild(buildFeaturedCard(pinned[0], false));
+        } else {
+            // Meerdere: responsive grid
+            const grid = document.createElement('div');
+            grid.className = 'uitgelicht-grid';
+            pinned.forEach(ev => grid.appendChild(buildFeaturedCard(ev, true)));
+            featuredEl.appendChild(grid);
+        }
+
+        upcomingEl.innerHTML = '';
+        regular.forEach(ev => upcomingEl.appendChild(buildSmallCard(ev)));
 
         document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
 
     } catch (err) {
         console.error(err);
-        featured.innerHTML = '<p class="error">Fout bij laden van evenementen.</p>';
+        featuredEl.innerHTML = '<p class="error">Fout bij laden van evenementen.</p>';
     }
 }
 
 // ── Card builders ─────────────────────────────────────────────────────
-function buildFeaturedCard(ev) {
+function buildFeaturedCard(ev, isGrid = false) {
     const wrap = document.createElement('div');
-    wrap.className = 'featured-evenement';
+    // isGrid: compact card in multi-uitgelicht grid; else: full-width split layout
+    wrap.className = isGrid ? 'featured-evenement featured-evenement--grid' : 'featured-evenement';
 
     const dateFmt = ev.dateTime.toLocaleDateString('nl-BE', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -79,11 +87,10 @@ function buildFeaturedCard(ev) {
     const linkHtml = ev.link
         ? '<a href="' + ev.link + '" target="_blank" rel="noopener noreferrer" class="evenement-link">Meer info &rarr;</a>'
         : '';
-    
+
     const content = document.createElement('div');
     content.className = 'featured-evenement-content';
     content.innerHTML =
-        '<span class="evenement-badge">Eerstvolgende Evenement</span>' +
         '<h2>' + htmlEsc(ev.titel) + '</h2>' +
         '<div class="evenement-meta">' +
             '<div class="meta-item">' +

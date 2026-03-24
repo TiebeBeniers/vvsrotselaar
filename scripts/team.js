@@ -92,27 +92,6 @@ const TEAM_TYPE = getTeamTypeFromURL();
 console.log('Team type:', TEAM_TYPE);
 
 // ===============================================
-// HAMBURGER MENU
-// ===============================================
-
-const hamburger = document.getElementById('hamburger');
-const navMenu = document.getElementById('navMenu');
-
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-
-    navMenu.querySelectorAll('a').forEach(link => {
-        link.addEventListener('click', () => {
-            hamburger.classList.remove('active');
-            navMenu.classList.remove('active');
-        });
-    });
-}
-
-// ===============================================
 // AUTH STATE
 // ===============================================
 

@@ -484,20 +484,6 @@ function showToast(msg, type = '') {
     toastTimer = setTimeout(() => { t.className = 'wl-toast'; }, 3000);
 }
 
-// ── Hamburger ──────────────────────────────────────────────────────────────────
-const hamburger = document.getElementById('hamburger');
-const navMenu   = document.getElementById('navMenu');
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-    navMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
-        hamburger.classList.remove('active');
-        navMenu.classList.remove('active');
-    }));
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function parseTimeStart(t) {
     if (!t) return '00:00';

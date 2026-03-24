@@ -24,27 +24,6 @@ let secondaryApp = null;
 let secondaryAuth = null;
 
 // ===============================================
-// HAMBURGER MENU
-// ===============================================
-
-const hamburger = document.getElementById('hamburger');
-const navMenu = document.getElementById('navMenu');
-
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-
-    navMenu.querySelectorAll('a').forEach(link => {
-        link.addEventListener('click', () => {
-            hamburger.classList.remove('active');
-            navMenu.classList.remove('active');
-        });
-    });
-}
-
-// ===============================================
 // GLOBAL VARIABLES
 // ===============================================
 
@@ -1489,6 +1468,17 @@ if (evenementForm) {
     });
 }
 
+async function togglePinEvenement(evenement, newPinned) {
+    try {
+        await setDoc(doc(db, 'evenementen', evenement.id),
+            { pinned: newPinned }, { merge: true });
+        showToast(newPinned ? '📌 Evenement uitgelicht!' : '📌 Uitlichting verwijderd.', 'success');
+        await loadEvenementen();
+    } catch (e) {
+        showToast('Fout: ' + e.message, 'error');
+    }
+}
+
 async function loadEvenementen() {
     const evenementenList = document.getElementById('evenementenList');
     if (!evenementenList) {
@@ -1546,6 +1536,8 @@ function createEvenementCard(evenement) {
            </span>`
         : '';
 
+    const isPinned = evenement.pinned === true;
+
     card.innerHTML = `
         <div class="evenement-info">
             <h4>${evenement.titel}</h4>
@@ -1555,6 +1547,11 @@ function createEvenementCard(evenement) {
             ${inschrijvBadge}
         </div>
         <div class="card-actions">
+            <label class="ev-pin-toggle" title="${isPinned ? 'Uitgelicht — klik om te deactiveren' : 'Niet uitgelicht — klik om te activeren'}">
+                <input type="checkbox" class="ev-pin-checkbox" ${isPinned ? 'checked' : ''}>
+                <span class="ev-pin-slider"></span>
+                <span class="ev-pin-label">${isPinned ? '📌 Uitgelicht' : 'Uitlichten'}</span>
+            </label>
             ${evenement.inschrijvingenAan ? `<button class="action-btn" style="background:#e8f5e9;color:#2e7d32;" id="viewInschrijv_${evenement.id}">Inschrijvingen</button>` : ''}
             <button class="action-btn edit">Bewerken</button>
             <button class="action-btn delete">Verwijderen</button>
@@ -1564,6 +1561,9 @@ function createEvenementCard(evenement) {
     card.querySelector('.evenement-info').addEventListener('click', () => editEvenement(evenement));
     card.querySelector('.edit').addEventListener('click', () => editEvenement(evenement));
     card.querySelector('.delete').addEventListener('click', () => deleteEvenement(evenement));
+    card.querySelector('.ev-pin-checkbox').addEventListener('change', (e) => {
+        togglePinEvenement(evenement, e.target.checked);
+    });
 
     if (evenement.inschrijvingenAan) {
         // Load count

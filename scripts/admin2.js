@@ -13,20 +13,6 @@ import {
     query, where, orderBy, onSnapshot, serverTimestamp, writeBatch, updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
-// ── Hamburger ──────────────────────────────────────────────────────────────────
-const hamburger = document.getElementById('hamburger');
-const navMenu   = document.getElementById('navMenu');
-if (hamburger && navMenu) {
-    hamburger.addEventListener('click', () => {
-        hamburger.classList.toggle('active');
-        navMenu.classList.toggle('active');
-    });
-    navMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
-        hamburger.classList.remove('active');
-        navMenu.classList.remove('active');
-    }));
-}
-
 // ── State ──────────────────────────────────────────────────────────────────────
 let werklijstenCache   = {};   // id → { id, naam, active, createdAt }
 let shiftsCache        = {};   // shiftId → shift data (for current editing werklijst)
