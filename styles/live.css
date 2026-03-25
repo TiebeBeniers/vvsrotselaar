@@ -209,20 +209,8 @@
     display: block;
     flex-shrink: 0;
 }
-
-/* Goal/penalty icon is donker — inverteer zodat het op de gekleurde achtergrond zichtbaar is */
-.timeline-event.home .event-icon .timeline-icon-img,
-.timeline-event.away .event-icon .timeline-icon-img {
-    filter: none;
-}
-
-/* Goal en penalty: wit icoon op blauwe/gekleurde achtergrond */
-.timeline-event.goal .timeline-icon-img,
-.timeline-event.penalty .timeline-icon-img {
-    filter: brightness(0) invert(1);
-    opacity: 0.9;
-}
-
+html.dark .timeline-icon-img.Goal {filter: invert(1);}
+html.dark .timeline-icon-img.Penalty {filter: invert(1);}
 .timeline-icon-fallback { font-size: 1.1rem; line-height: 1; }
 
 /* Assist text */
@@ -575,6 +563,7 @@ html.dark .modal-select {
     object-fit: contain;
     display: block;
 }
+
 .tl-editable:hover .tl-edit-hint { opacity: 0.6; }
 
 /* Away editable: hint on the left (it's reversed) */

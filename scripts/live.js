@@ -1174,7 +1174,7 @@ export function renderTimeline(events, container, uidMap = {}) {
 }
 
 function eventIcon(type, half) {
-    const img = (file, alt) => `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
+    const img = (file, alt) => `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img ${alt}">`;
     switch (type) {
         case 'aftrap':         return img('goal.png',           'Aftrap');
         case 'goal':           return img('goal.png',           'Goal');

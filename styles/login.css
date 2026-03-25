@@ -100,6 +100,8 @@
 }
 
 html.dark .user-role {color: white !important}
+.termsModal {background: #ffffff;}
+html.dark .termsModal {background: #1e2130;}
 
 .logout-btn,
 .admin-btn {

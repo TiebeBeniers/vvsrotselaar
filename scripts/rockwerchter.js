@@ -121,7 +121,7 @@ function voegToe(naam, n = 1) {
     if (!isLoggedIn) return;
     if (naam === 'Cup Refund') {
         const max = drankjes['Primus'].count + drankjes['Mystic'].count + drankjes['Cava of Wijn'].count;
-        if (drankjes['Cup Refund'].count + n > max) { alert('Max 1 refund per beker.'); return; }
+        if (drankjes['Cup Refund'].count + n > max) { showToast('Max 1 refund per beker.', 'error'); return; }
     }
     drankjes[naam].count += n;
     sync(naam);
@@ -204,7 +204,6 @@ function updateOverzicht() {
 }
 
 function resetAlles() {
-    if (!confirm('Weet je zeker dat je alles wilt resetten?')) return;
     for (const n in drankjes) { drankjes[n].count = 0; badge(n); }
     updateTotaal(); updateOverzicht(); updatePayBtns();
 }
@@ -629,7 +628,7 @@ function maakBestellingKaart(data, lijstEl) {
             }
         } catch (err) {
             console.error('Delete fout:', err);
-            alert('Fout bij verwijderen. Controleer je rechten.');
+            showToast('Fout bij verwijderen. Controleer je rechten.', 'error');
         }
     });
 
@@ -657,7 +656,7 @@ async function exportNaarExcel() {
         const snap = await getDocs(q);
 
         if (snap.empty) {
-            alert('Geen bestellingen om te exporteren.');
+            showToast('Geen bestellingen om te exporteren.');
             if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = '\u21E9 Exporteer naar Excel'; }
             return;
         }
@@ -723,7 +722,7 @@ async function exportNaarExcel() {
 
     } catch (err) {
         console.error('Export fout:', err);
-        alert('Fout bij exporteren: ' + err.message);
+        showToast('Fout bij exporteren: ' + err.message, 'error');
         if (exportBtn) { exportBtn.disabled = false; exportBtn.textContent = '\u21E9 Exporteer naar Excel'; }
     }
 }
@@ -788,5 +787,23 @@ document.getElementById('exportAnnuleer').addEventListener('click', () => {
     closeModal('exportModal');
 });
 document.getElementById('exportLeegBtn').addEventListener('click', leegDatabase);
+
+let toastTimer;
+function showToast(msg, type = '') {
+    let t = document.getElementById('adminToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
+    t.style.transform  = 'translateY(0)';
+    t.style.opacity    = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
+}
+
 
 console.log('Rockwerchter.js klaar');

@@ -95,7 +95,6 @@
 .reset-icon-btn { color: var(--danger); }
 .reset-icon-btn:hover {
     background: var(--danger); border-color: var(--danger); color: #fff;
-    transform: rotate(-20deg) scale(1.08);
 }
 
 .overzicht-container { display: flex; flex-direction: column; gap: 0.5rem; }

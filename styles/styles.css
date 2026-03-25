@@ -854,11 +854,6 @@ html.dark .av-toggle-panel          { background: var(--white); border: 1px soli
 .saldo-pos { color: #28a745 !important;}
 .saldo-neg { color: #dc3545 !important;}
 
-/* ── Werklijst — shift cards ── */
-html.dark .wl-shift-card            { background: var(--white); border-color: var(--border-color); }
-html.dark .wl-shift-card.is-signed  { background: #1a2a4a; border-color: var(--primary-blue); }
-html.dark .wl-shift-card.is-full    { background: #2a1a1a; border-color: var(--danger); }
-
 /* ── Rockwerchter — cash input ── */
 html.dark .cash-input-wrapper       { background: var(--white); border-color: var(--border-color); }
 html.dark .cash-input-wrapper input { background: var(--white); color: var(--text-dark); }

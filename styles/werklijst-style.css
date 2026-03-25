@@ -219,6 +219,7 @@
 /* ── Shift card ── */
 .wl-shift-card {
     border: 1.5px solid var(--border-color);
+    background: var(--white);
     border-radius: 10px;
     padding: 0.8rem 0.9rem;
     background: var(--off-white);
@@ -235,11 +236,15 @@
     background: #EFF6FF;
 }
 .wl-shift-card.is-full {
-    opacity: 0.55;
+    opacity: 0.45;
 }
 .wl-shift-card.is-full:hover {
     opacity: 0.8;
 }
+
+/* ── Werklijst — shift cards ── */
+html.dark .wl-shift-card            { background: var(--white); border-color: var(--border-color); }
+html.dark .wl-shift-card.is-signed  { background: #1a2a4a; border-color: var(--primary-blue); }
 
 /* Shift time label */
 .wl-shift-time {
