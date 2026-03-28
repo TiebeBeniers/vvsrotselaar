@@ -61,6 +61,7 @@
                 <button class="tab-btn" data-tab="sponsors">Sponsors</button>
                 <button class="tab-btn" data-tab="galerij">Galerij</button>
                 <button class="tab-btn" data-tab="meldingen">Meldingen</button>
+                <button class="tab-btn" data-tab="rockwerchter">Rock Werchter</button>
                 <button class="tab-btn" data-tab="data">Data</button>
             </div>
 
@@ -163,6 +164,36 @@
                 </div>
             </div>
 
+            <!-- ══ Rock Werchter tab ══════════════════════════════════════════════ -->
+            <div class="tab-content" id="rockwerchterTab">
+
+                <!-- Items beheren -->
+                <div class="section-header">
+                    <h3>Drankkaart Items</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="add-btn secondary upload" id="seedRwItemsBtn"><img src="assets/upload.png" style="filter: invert(1);"class="icon" alt=""> Standaard Items</button>
+                        <button class="add-btn" id="addRwItemBtn">+ Item Toevoegen</button>
+                    </div>
+                </div>
+                <p class="wl-admin-hint">Stel hier prijzen in, activeer items en configureer Cup Refund-vereisten. Wijzigingen zijn direct zichtbaar op de Rock Werchter pagina.</p>
+                <div id="rwItemsList"><div class="loading">Laden…</div></div>
+
+                <div class="section-header" style="margin-top:2rem;">
+                    <h3>Bestellingen</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                        <select id="rwFilterBetaalmethode" class="admin-select">
+                            <option value="">Alle betaalmethoden</option>
+                            <option value="kaart">Kaart</option>
+                            <option value="payconiq">Payconiq</option>
+                            <option value="cash">Cash</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="rwBestellingenList"><div class="loading">Laden…</div></div>
+                <div id="rwTotaalSummary" style="margin-top:1rem;"></div>
+
+            </div><!-- /rockwerchterTab -->
+
             <!-- ══ Data tab ════════════════════════════════════════════════ -->
             <div class="tab-content" id="dataTab">
                 <div class="section-header">
@@ -219,6 +250,22 @@
                         <button class="data-reset-btn" data-action="ranking" data-team="zaterdag">Zaterdag</button>
                         <button class="data-reset-btn" data-action="ranking" data-team="zondag">Zondag</button>
                     </div>
+                </div>
+
+                <!-- ── Export sectie ── -->
+                <div class="data-reset-card" style="border-left-color:#0047AB;">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4><img src="assets/upload.png" class="icon upload" alt=""> Data Exporteren (PDF)</h4>
+                            <p>Exporteer wedstrijden, spelersstatistieken of bestellingen als overzichtelijke PDF.</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row" style="flex-wrap:wrap;gap:0.5rem;">
+                        <button class="add-btn" id="exportMatchesPdf" data-export="matches">Wedstrijden PDF</button>
+                        <button class="add-btn" id="exportStatsPdf"   data-export="stats">Spelersstatistieken PDF</button>
+                        <button class="add-btn" id="exportRwPdf"      data-export="rw">Rock Werchter Bestellingen PDF</button>
+                    </div>
+                    <div id="exportStatus" style="margin-top:0.5rem;font-size:0.85rem;color:var(--text-gray);"></div>
                 </div>
 
                 <div id="dataResetStatus"></div>

@@ -156,6 +156,25 @@ async function initializeAdminPage() {
 // ANNOUNCEMENTS
 // ===============================================
 
+
+// ── Tab count badges ─────────────────────────────────────────────────────────
+function setTabCount(tabName, count) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    if (!btn) return;
+    let span = btn.querySelector('.tab-count');
+    if (!span) {
+        span = document.createElement('span');
+        span.className = 'tab-count';
+        btn.appendChild(span);
+    }
+    if (count !== null) {
+        span.textContent = ` (${count})`;
+        span.style.display = '';
+    } else {
+        span.style.display = 'none';
+    }
+}
+
 async function loadAnnouncementTab() {
     const field = document.getElementById('announcementText');
     if (!field || field.dataset.loaded) return;
@@ -407,6 +426,7 @@ async function loadMembers() {
             membersList.appendChild(memberCard);
         });
         
+        setTabCount('members', allMembers.length);
         console.log('Members loaded successfully');
         
     } catch (error) {
@@ -1101,6 +1121,7 @@ function displayMatches(matchesSnapshot) {
         allMatchesCache.push({ id: docSnap.id, ...docSnap.data() });
     });
 
+    setTabCount('matches', allMatchesCache.length);
     renderMatchList();
     console.log('Matches loaded successfully');
 }
@@ -1516,6 +1537,7 @@ async function loadEvenementen() {
             evenementenList.appendChild(card);
         });
         
+        setTabCount('evenementen', allEvenementen.length);
         console.log('Evenementen loaded successfully');
         
     } catch (error) {

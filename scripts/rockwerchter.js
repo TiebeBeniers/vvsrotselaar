@@ -35,9 +35,10 @@ const drankjes = {
 // ═══════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════
-onAuthStateChanged(auth, async (user) => {
-    initializeDrankjes();
+// Laad de drankkaart direct bij pagina-load (niet afhankelijk van auth)
+initializeDrankjes();
 
+onAuthStateChanged(auth, async (user) => {
     const $id = id => document.getElementById(id);
 
     if (user) {
@@ -80,10 +81,42 @@ function guestMode() {
 // ═══════════════════════════════════════════════
 // DRANKJES GRID
 // ═══════════════════════════════════════════════
-function initializeDrankjes() {
-    const c = document.getElementById('drankContainer');
-    c.innerHTML = '';
-    for (const naam in drankjes) c.appendChild(createDrankCard(naam, drankjes[naam]));
+async function initializeDrankjes() {
+    const container = document.getElementById('drankContainer');
+    if (!container) return;
+    container.innerHTML = '<p style="text-align:center;color:#888;padding:2rem;grid-column:1/-1;">Laden…</p>';
+
+    try {
+        const snap = await getDocs(query(collection(db, 'rw_items'), orderBy('volgorde', 'asc')));
+
+        // Wis bestaande state
+        for (const k in drankjes) delete drankjes[k];
+
+        snap.forEach(d => {
+            const item = d.data();
+            if (item.actief !== false && item.naam) {
+                drankjes[item.naam] = {
+                    prijs:       item.prijs ?? 0,
+                    count:       0,
+                    img:         item.img || '',
+                    vereistItem: item.vereistItem || null
+                };
+            }
+        });
+
+        container.innerHTML = '';
+
+        if (Object.keys(drankjes).length === 0) {
+            container.innerHTML = '<p style="text-align:center;color:#888;padding:2rem;grid-column:1/-1;">Geen items geconfigureerd. Neem contact op met de beheerder.</p>';
+            return;
+        }
+
+        for (const naam in drankjes) container.appendChild(createDrankCard(naam, drankjes[naam]));
+
+    } catch (e) {
+        console.error('Kon drankkaart niet laden:', e);
+        container.innerHTML = '<p style="text-align:center;color:#c00;padding:2rem;grid-column:1/-1;">Fout bij laden van de drankkaart.</p>';
+    }
 }
 
 function createDrankCard(naam, d) {
@@ -119,9 +152,14 @@ function createDrankCard(naam, d) {
 // ═══════════════════════════════════════════════
 function voegToe(naam, n = 1) {
     if (!isLoggedIn) return;
-    if (naam === 'Cup Refund') {
-        const max = drankjes['Primus'].count + drankjes['Mystic'].count + drankjes['Cava of Wijn'].count;
-        if (drankjes['Cup Refund'].count + n > max) { showToast('Max 1 refund per beker.', 'error'); return; }
+    // Dynamische vereiste-check: item mag alleen toegevoegd worden als het vereiste item aanwezig is
+    const vereist = drankjes[naam]?.vereistItem;
+    if (vereist && drankjes[vereist]) {
+        const maxAllowed = drankjes[vereist].count;
+        if (drankjes[naam].count + n > maxAllowed) {
+            showToast(`Koop eerst ${vereist} voordat je dit item toevoegt.`, 'error');
+            return;
+        }
     }
     drankjes[naam].count += n;
     sync(naam);
@@ -140,10 +178,15 @@ function verwijderAlles(naam) {
 }
 
 function clampRefunds(naam) {
-    if (!['Primus','Mystic','Cava of Wijn'].includes(naam)) return;
-    const max = drankjes['Primus'].count + drankjes['Mystic'].count + drankjes['Cava of Wijn'].count;
-    if (drankjes['Cup Refund'].count > max) {
-        drankjes['Cup Refund'].count = max; badge('Cup Refund');
+    // Clamp alle items die een vereistItem hebben dat geraakt werd
+    for (const depNaam in drankjes) {
+        const dep = drankjes[depNaam];
+        if (!dep.vereistItem || dep.vereistItem !== naam) continue;
+        const maxAllowed = drankjes[naam]?.count ?? 0;
+        if (dep.count > maxAllowed) {
+            dep.count = maxAllowed;
+            badge(depNaam);
+        }
     }
 }
 

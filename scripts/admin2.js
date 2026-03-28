@@ -1507,3 +1507,430 @@ meldingForm?.addEventListener('submit', async (e) => {
 document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'meldingen') btn.addEventListener('click', startMeldingenTab);
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORT FUNCTIES (jsPDF + autoTable)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+document.querySelectorAll('[data-export]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const type = btn.dataset.export;
+        const status = document.getElementById('exportStatus');
+        if (status) status.textContent = 'PDF wordt aangemaakt…';
+        btn.disabled = true;
+        try {
+            if (type === 'matches')  await exportMatchesPdf();
+            if (type === 'stats')    await exportStatsPdf();
+            if (type === 'rw')       await exportRwPdf();
+            if (status) status.textContent = '✅ PDF gedownload!';
+        } catch (e) {
+            if (status) status.textContent = '❌ Fout: ' + e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+});
+
+async function loadJsPdf() {
+    if (window.jspdf) return window.jspdf.jsPDF;
+    await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+    await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+    return window.jspdf.jsPDF;
+}
+
+function pdfHeader(doc, title) {
+    doc.setFontSize(18); doc.setTextColor(0, 71, 171);
+    doc.text('V.V.S Rotselaar', 14, 18);
+    doc.setFontSize(12); doc.setTextColor(80, 80, 80);
+    doc.text(title, 14, 26);
+    doc.setFontSize(9); doc.setTextColor(120, 120, 120);
+    doc.text('Geëxporteerd op ' + new Date().toLocaleDateString('nl-BE'), 14, 32);
+    doc.setDrawColor(0, 71, 171); doc.setLineWidth(0.5);
+    doc.line(14, 34, doc.internal.pageSize.width - 14, 34);
+    return 40;
+}
+
+async function exportMatchesPdf() {
+    const JsPDF = await loadJsPdf();
+    const teams = ['veteranen', 'zaterdag', 'zondag'];
+    const snap  = await getDocs(collection(db, 'matches'));
+    const all   = [];
+    snap.forEach(d => all.push({ id: d.id, ...d.data() }));
+    all.sort((a, b) => new Date(a.datum) - new Date(b.datum));
+
+    const doc = new JsPDF({ orientation: 'landscape' });
+
+    for (let ti = 0; ti < teams.length; ti++) {
+        const team    = teams[ti];
+        const matches = all.filter(m => m.team === team);
+        if (matches.length === 0) continue;
+        if (ti > 0) doc.addPage();
+
+        const startY = pdfHeader(doc, `Wedstrijden — ${team.charAt(0).toUpperCase() + team.slice(1)}`);
+
+        const rows = matches.map(m => [
+            m.datum || '—',
+            m.uur   || '—',
+            m.thuisploeg || '—',
+            `${m.scoreThuis ?? '–'} - ${m.scoreUit ?? '–'}`,
+            m.uitploeg || '—',
+            m.locatie  || '—',
+            m.status   || '—'
+        ]);
+
+        doc.autoTable({
+            startY,
+            head: [['Datum','Uur','Thuis','Score','Uit','Locatie','Status']],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 71, 171], textColor: 255 },
+            styles: { fontSize: 8 },
+            columnStyles: { 3: { halign: 'center' } }
+        });
+    }
+    doc.save('vvs-wedstrijden.pdf');
+}
+
+async function exportStatsPdf() {
+    const JsPDF = await loadJsPdf();
+    const snap  = await getDocs(collection(db, 'users'));
+    const users = [];
+    snap.forEach(d => users.push({ id: d.id, ...d.data() }));
+    users.sort((a, b) => (a.naam || '').localeCompare(b.naam || ''));
+
+    const doc = new JsPDF({ orientation: 'landscape' });
+    const teams = ['veteranen', 'zaterdag', 'zondag'];
+
+    for (let ti = 0; ti < teams.length; ti++) {
+        const team   = teams[ti];
+        const spelers = users.filter(u => u.categorie === team);
+        if (spelers.length === 0) continue;
+        if (ti > 0) doc.addPage();
+
+        const startY = pdfHeader(doc, `Spelersstatistieken — ${team.charAt(0).toUpperCase() + team.slice(1)}`);
+
+        const rows = spelers.map(u => [
+            u.naam   || '—',
+            u.matchen    ?? 0,
+            u.minuten    ?? 0,
+            u.goals      ?? 0,
+            u.assists    ?? 0,
+            u.geelKaarten ?? 0,
+            u.roodKaarten ?? 0
+        ]);
+
+        doc.autoTable({
+            startY,
+            head: [['Naam','Matchen','Minuten','Goals','Assists','Gele K.','Rode K.']],
+            body: rows,
+            theme: 'striped',
+            headStyles: { fillColor: [0, 71, 171], textColor: 255 },
+            styles: { fontSize: 8 }
+        });
+    }
+    doc.save('vvs-statistieken.pdf');
+}
+
+async function exportRwPdf() {
+    const JsPDF = await loadJsPdf();
+    const snap  = await getDocs(collection(db, 'rockwerchter_bestellingen'));
+    const orders = [];
+    snap.forEach(d => orders.push({ id: d.id, ...d.data() }));
+    orders.sort((a, b) => (a.datum?.seconds ?? 0) - (b.datum?.seconds ?? 0));
+
+    const doc   = new JsPDF({ orientation: 'landscape' });
+    const startY = pdfHeader(doc, 'Rock Werchter Bestellingen');
+
+    const rows = orders.map(o => {
+        const dt = o.datum?.toDate?.()?.toLocaleString('nl-BE') ?? '—';
+        const items = Object.entries(o.items || {})
+            .map(([naam, v]) => `${v.count}× ${naam}`).join(', ');
+        return [dt, o.userName || '—', o.betaalmethode || '—', items, `€${(o.totaal ?? 0).toFixed(2)}`];
+    });
+
+    const totaalAlles = orders.reduce((s, o) => s + (o.totaal ?? 0), 0);
+
+    doc.autoTable({
+        startY,
+        head: [['Datum','Naam','Betaalmethode','Items','Totaal']],
+        body: rows,
+        theme: 'striped',
+        headStyles: { fillColor: [0, 71, 171], textColor: 255 },
+        styles: { fontSize: 7 },
+        foot: [['','','','Totaal omzet:', `€${totaalAlles.toFixed(2)}`]],
+        footStyles: { fillColor: [240,244,255], textColor: [0,71,171], fontStyle: 'bold' }
+    });
+    doc.save('vvs-rockwerchter-bestellingen.pdf');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ROCK WERCHTER ADMIN TAB
+// Firestore: rw_items/{id} → { naam, prijs, img, actief, volgorde, vereistItem? }
+// rw_items bevat de drankkaartconfiguratie die rockwerchter.js dynamisch laadt.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let rwItemsCache  = [];
+let rwItemsLoaded = false;
+let unsubRwItems  = null;
+
+// ── Hook tab ──────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'rockwerchter') btn.addEventListener('click', startRwTab);
+});
+
+function startRwTab() {
+    if (!rwItemsLoaded) { rwItemsLoaded = true; startRwItemsListener(); }
+    loadRwBestellingen();
+}
+
+function startRwItemsListener() {
+    if (unsubRwItems) unsubRwItems();
+    unsubRwItems = onSnapshot(
+        query(collection(db, 'rw_items'), orderBy('volgorde', 'asc')),
+        snap => {
+            rwItemsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            renderRwItems();
+        },
+        err => showToast('❌ RW items fout: ' + err.message, 'error')
+    );
+}
+
+// ── Render items list ─────────────────────────────────────────────────────────
+function renderRwItems() {
+    const container = document.getElementById('rwItemsList');
+    if (!container) return;
+
+    if (rwItemsCache.length === 0) {
+        container.innerHTML = `<div class="werklijst-empty-state">
+            <p>Nog geen items. Klik op "+ Item Toevoegen".</p></div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    rwItemsCache.forEach(item => {
+        const card = document.createElement('div');
+        card.className = `melding-admin-card${item.actief ? '' : ' melding-inactive'}`;
+        const vereistLabel = item.vereistItem
+            ? `<span class="melding-badge" style="background:#e3f2fd;color:#0047AB;">Vereist: ${item.vereistItem}</span>`
+            : '';
+
+        card.innerHTML = `
+            <div class="melding-card-left">
+                ${item.img ? `<img src="${item.img}" alt="${item.naam}" style="width:40px;height:40px;object-fit:contain;border-radius:6px;flex-shrink:0;">` : '<span style="width:40px;flex-shrink:0;"></span>'}
+                <div class="melding-card-info">
+                    <div class="melding-card-titel">${htmlEscAdmin(item.naam)}</div>
+                    <div class="melding-card-meta">
+                        <span class="melding-badge">€${(item.prijs ?? 0).toFixed(2).replace('.',',')}</span>
+                        ${vereistLabel}
+                        ${!item.actief ? '<span class="melding-badge melding-badge-off">Inactief</span>' : ''}
+                    </div>
+                </div>
+            </div>
+            <div class="melding-card-actions">
+                <button class="icon-btn" title="${item.actief ? 'Deactiveren' : 'Activeren'}">
+                    ${item.actief ? '⏸' : '▶'}
+                </button>
+                <button class="icon-btn edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
+                <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
+            </div>`;
+
+        card.querySelector('.icon-btn').addEventListener('click', async () => {
+            await setDoc(doc(db, 'rw_items', item.id), { actief: !item.actief }, { merge: true });
+        });
+        card.querySelector('.edit').addEventListener('click', () => openRwItemModal(item));
+        card.querySelector('.delete').addEventListener('click', () => {
+            if (confirm(`"${item.naam}" verwijderen?`))
+                deleteDoc(doc(db, 'rw_items', item.id));
+        });
+        container.appendChild(card);
+    });
+}
+
+// ── Item modal ────────────────────────────────────────────────────────────────
+function openRwItemModal(item = null) {
+    let modal = document.getElementById('rwItemModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'rwItemModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    const itemOpts = ['', ...rwItemsCache.filter(x => !item || x.id !== item.id).map(x => x.naam)]
+        .map(n => `<option value="${n}"${item?.vereistItem === n ? ' selected' : ''}>${n || '— Geen vereiste —'}</option>`)
+        .join('');
+
+    modal.innerHTML = `
+        <div class="modal-content large">
+            <h3>${item ? 'Item Bewerken' : 'Item Toevoegen'}</h3>
+            <form id="rwItemForm" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Naam *</label>
+                        <input type="text" id="rwNaam" required value="${item?.naam || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Prijs (€) *</label>
+                        <input type="number" id="rwPrijs" step="0.01" required value="${item?.prijs ?? ''}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Afbeelding pad (bv. assets/rockwerchter/Primus.png)</label>
+                        <input type="text" id="rwImg" value="${item?.img || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Volgorde</label>
+                        <input type="number" id="rwVolgorde" value="${item?.volgorde ?? rwItemsCache.length}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Vereist item (optioneel — bv. Cup Refund vereist een beker)</label>
+                    <select id="rwVereistItem">${itemOpts}</select>
+                </div>
+                <label class="toggle-setting-row" style="margin-bottom:1rem;">
+                    <div class="toggle-setting-label">
+                        <strong>Actief</strong>
+                        <small>Zet uit om item tijdelijk te verbergen op de drankkaart.</small>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="checkbox" id="rwActief" ${item?.actief !== false ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </div>
+                </label>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" onclick="document.getElementById('rwItemModal').classList.remove('active')">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>`;
+
+    modal.classList.add('active');
+
+    modal.querySelector('#rwItemForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const data = {
+            naam:        document.getElementById('rwNaam').value.trim(),
+            prijs:       parseFloat(document.getElementById('rwPrijs').value) || 0,
+            img:         document.getElementById('rwImg').value.trim(),
+            volgorde:    parseInt(document.getElementById('rwVolgorde').value) || 0,
+            vereistItem: document.getElementById('rwVereistItem').value || null,
+            actief:      document.getElementById('rwActief').checked,
+        };
+        if (!data.naam) return;
+        const btn = e.target.querySelector('[type="submit"]');
+        btn.disabled = true; btn.textContent = 'Bezig…';
+        try {
+            if (item) {
+                await setDoc(doc(db, 'rw_items', item.id), data, { merge: true });
+            } else {
+                await addDoc(collection(db, 'rw_items'), data);
+            }
+            modal.classList.remove('active');
+            showToast('✅ Item opgeslagen!', 'success');
+        } catch (err) {
+            showToast('❌ ' + err.message, 'error');
+            btn.disabled = false; btn.textContent = 'Opslaan';
+        }
+    });
+}
+
+document.getElementById('addRwItemBtn')?.addEventListener('click', () => openRwItemModal());
+
+document.getElementById('seedRwItemsBtn')?.addEventListener('click', async () => {
+    if (!confirm('Standaard drankkaart items laden? Bestaande items worden NIET overschreven, enkel nieuwe namen worden toegevoegd.')) return;
+    const btn = document.getElementById('seedRwItemsBtn');
+    btn.disabled = true; btn.textContent = 'Bezig…';
+
+    const defaults = [
+        { naam:'Primus',         prijs: 4.00, img:'assets/rockwerchter/Primus.png',         volgorde:1 },
+        { naam:'Mystic',         prijs: 4.00, img:'assets/rockwerchter/Mystic.png',         volgorde:2 },
+        { naam:'Stella 0.0',     prijs: 3.30, img:'assets/rockwerchter/Stella00.png',       volgorde:3 },
+        { naam:'Cava of Wijn',   prijs: 5.00, img:'assets/rockwerchter/CavaWijn.png',       volgorde:4 },
+        { naam:'Plat water',     prijs: 3.30, img:'assets/rockwerchter/PlatWater.png',      volgorde:5 },
+        { naam:'Bruisend water', prijs: 3.30, img:'assets/rockwerchter/BruisendWater.png',  volgorde:6 },
+        { naam:'Cola',           prijs: 3.30, img:'assets/rockwerchter/Cola.png',           volgorde:7 },
+        { naam:'Cola Zero',      prijs: 3.30, img:'assets/rockwerchter/ColaZero.png',       volgorde:8 },
+        { naam:'Fanta',          prijs: 3.30, img:'assets/rockwerchter/Fanta.png',          volgorde:9 },
+        { naam:'Fuzetea',        prijs: 3.30, img:'assets/rockwerchter/Fuzetea.png',        volgorde:10 },
+        { naam:'Chips',          prijs: 3.30, img:'assets/rockwerchter/Chips.png',          volgorde:11 },
+        { naam:'Cup Refund',     prijs:-0.70, img:'assets/rockwerchter/CupRefund.png',      volgorde:12, vereistItem:'Primus' },
+    ];
+
+    const existingNames = new Set(rwItemsCache.map(x => x.naam));
+    let added = 0;
+    for (const item of defaults) {
+        if (!existingNames.has(item.naam)) {
+            await addDoc(collection(db, 'rw_items'), { ...item, actief: true });
+            added++;
+        }
+    }
+    showToast(added > 0 ? `✅ ${added} items toegevoegd!` : 'Alle standaard items bestaan al.', 'success');
+    btn.disabled = false; btn.textContent = '📦 Standaard Items';
+});
+
+// ── Bestellingen laden ────────────────────────────────────────────────────────
+async function loadRwBestellingen() {
+    const container = document.getElementById('rwBestellingenList');
+    const summary   = document.getElementById('rwTotaalSummary');
+    if (!container) return;
+    container.innerHTML = '<div class="loading">Laden…</div>';
+
+    const filter = document.getElementById('rwFilterBetaalmethode')?.value || '';
+    let q = collection(db, 'rockwerchter_bestellingen');
+    const snap = await getDocs(q);
+    let orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (filter) orders = orders.filter(o => o.betaalmethode === filter);
+    orders.sort((a, b) => (b.datum?.seconds ?? 0) - (a.datum?.seconds ?? 0));
+
+    if (orders.length === 0) {
+        container.innerHTML = '<div class="werklijst-empty-state"><p>Geen bestellingen.</p></div>';
+        if (summary) summary.innerHTML = '';
+        return;
+    }
+
+    const totaal = orders.reduce((s, o) => s + (o.totaal ?? 0), 0);
+    if (summary) summary.innerHTML = `<div style="font-weight:700;color:var(--primary-blue);padding:0.5rem 0;">
+        Totaal omzet (${orders.length} bestellingen): €${totaal.toFixed(2)}
+    </div>`;
+
+    container.innerHTML = '';
+    orders.forEach(o => {
+        const dt    = o.datum?.toDate?.()?.toLocaleString('nl-BE') ?? '—';
+        const items = Object.entries(o.items || {})
+            .map(([naam, v]) => `${v.count}× ${naam} (€${(v.subtotaal ?? 0).toFixed(2)})`)
+            .join(' · ');
+        const card = document.createElement('div');
+        card.className = 'melding-admin-card';
+        card.style.flexDirection = 'column';
+        card.style.alignItems    = 'flex-start';
+        card.innerHTML = `
+            <div style="display:flex;gap:1rem;align-items:center;width:100%;justify-content:space-between;flex-wrap:wrap;">
+                <div>
+                    <div class="melding-card-titel">${o.userName || '—'}</div>
+                    <div class="melding-card-meta" style="margin-top:0.25rem;">
+                        <span class="melding-badge">${o.betaalmethode || '—'}</span>
+                        <span style="font-size:0.8rem;color:var(--text-gray);">${dt}</span>
+                    </div>
+                </div>
+                <div style="font-weight:800;color:var(--primary-blue);font-size:1.05rem;">€${(o.totaal ?? 0).toFixed(2)}</div>
+            </div>
+            <div style="margin-top:0.5rem;font-size:0.82rem;color:var(--text-gray);">${items}</div>`;
+        container.appendChild(card);
+    });
+}
+
+document.getElementById('rwFilterBetaalmethode')?.addEventListener('change', () => {
+    if (rwItemsLoaded) loadRwBestellingen();
+});

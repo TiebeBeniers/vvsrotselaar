@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V.V.S Rotselaar - Home</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
-    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/styles_fade.css">
     <link rel="stylesheet" href="styles/index.css">
     <link rel="stylesheet" href="styles/lineup.css">
     <script>if(localStorage.getItem('vvs_theme')==='dark')document.documentElement.classList.add('dark');</script>
@@ -126,29 +126,120 @@
 
         <!-- Contact Section -->
         <section class="contact-section">
-            <div class="contact-container">
-                <div class="contact-item">
-                    <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                    <div class="contact-text">
-                        <h3>Email</h3>
-                        <p><a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a></p>
+            <div class="contact-section-inner">
+                <div class="contact-container">
+                    <div class="contact-item">
+                        <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                        <div class="contact-text">
+                            <h3>Email</h3>
+                            <p><a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a></p>
+                        </div>
+                    </div>
+                    <div class="contact-item">
+                        <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                            <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        <div class="contact-text">
+                            <h3>Locatie</h3>
+                            <p><a href="https://www.google.com/maps/search/?api=1&query=Hellichtstraat+83,+3110+Rotselaar,+Belgium" target="_blank" rel="noopener noreferrer">Naast Hellichtstraat 83, 3110 Rotselaar</a></p>
+                        </div>
                     </div>
                 </div>
-                <div class="contact-item">
-                    <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                    <div class="contact-text">
-                        <h3>Locatie</h3>
-                        <p><a href="https://www.google.com/maps/search/?api=1&query=Hellichtstraat+83,+3110+Rotselaar,+Belgium" target="_blank" rel="noopener noreferrer">Naast Hellichtstraat 83, 3110 Rotselaar</a></p>
-                    </div>
+
+                <!-- Sponsor rotator (desktop only) -->
+                <div class="sponsor-grid-widget" id="sponsorGridWidget">
+                    <div class="sponsor-grid-cell" id="sgc0"></div>
+                    <div class="sponsor-grid-cell" id="sgc1"></div>
+                    <div class="sponsor-grid-cell" id="sgc2"></div>
+                    <div class="sponsor-grid-cell" id="sgc3"></div>
                 </div>
             </div>
         </section>
     </main>
+
+    <script type="module">
+    import { db } from './scripts/firebase-config.js';
+    import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+    const CACHE_KEY = 'vvs_sponsors_cache';
+    const CACHE_TTL = 24 * 60 * 60 * 1000;
+    const ROTATE_MS = 3500;
+
+    async function loadSponsors() {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw) {
+                const { ts, data } = JSON.parse(raw);
+                if (Date.now() - ts < CACHE_TTL) return data;
+            }
+        } catch (_) {}
+        const snap = await getDocs(collection(db, 'sponsors'));
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.volgorde ?? 99) - (b.volgorde ?? 99));
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch (_) {}
+        return list;
+    }
+
+    function renderCell(cell, sponsor) {
+        cell.innerHTML = '';
+        if (!sponsor) return;
+        const wrap = document.createElement(sponsor.website ? 'a' : 'span');
+        wrap.style.cssText = 'display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:8px;';
+        if (sponsor.website) { wrap.href = sponsor.website; wrap.target = '_blank'; wrap.rel = 'noopener noreferrer'; }
+        if (sponsor.afbeeldingNaam) {
+            const img = document.createElement('img');
+            img.src = 'assets/' + sponsor.afbeeldingNaam;
+            img.alt = sponsor.naam || '';
+            wrap.appendChild(img);
+        } else {
+            wrap.className = 'sponsor-name-fallback';
+            wrap.textContent = sponsor.naam || '';
+        }
+        cell.appendChild(wrap);
+    }
+
+    async function initSponsorGrid() {
+        const widget = document.getElementById('sponsorGridWidget');
+        if (!widget || window.innerWidth <= 900) return;
+
+        const sponsors = await loadSponsors();
+        if (sponsors.length < 2) { widget.style.display = 'none'; return; }
+
+        const cells = [0,1,2,3].map(i => document.getElementById('sgc' + i));
+        const shuffled = [...sponsors].sort(() => Math.random() - 0.5);
+        const shown = [];
+        for (let i = 0; i < 4; i++) {
+            shown[i] = shuffled[i % shuffled.length];
+            renderCell(cells[i], shown[i]);
+        }
+
+        function getNext() {
+            const ids = new Set(shown.map(s => s.id));
+            const pool = sponsors.filter(s => !ids.has(s.id));
+            const src  = pool.length ? pool : sponsors;
+            return src[Math.floor(Math.random() * src.length)];
+        }
+
+        let cellIdx = 0;
+        setInterval(() => {
+            const cell = cells[cellIdx];
+            const next = getNext();
+            cell.classList.add('fading');
+            setTimeout(() => {
+                shown[cellIdx] = next;
+                renderCell(cell, next);
+                cell.classList.remove('fading');
+            }, 400);
+            cellIdx = (cellIdx + 1) % 4;
+        }, ROTATE_MS);
+    }
+
+    initSponsorGrid();
+    </script>
 
     <!-- Footer -->
     <footer class="main-footer">

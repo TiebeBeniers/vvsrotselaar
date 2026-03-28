@@ -116,7 +116,7 @@
     border-radius: 8px;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.7rem;
     transition: transform 0.2s ease;
     margin-bottom: 0.8rem;
 }
@@ -175,7 +175,7 @@
     font-weight: 800;
     color: var(--primary-blue);
     font-size: 1.2rem;
-    min-width: 50px;
+    min-width: 30px;
 }
 
 .event-icon {

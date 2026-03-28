@@ -1054,6 +1054,7 @@
 .icon-btn.delete:hover { background: var(--danger); }
 
 html.dark .icon-btn.delete {filter:invert(1);}
+html.dark .icon.upload { filter:invert(1); }
 
 /* Empty state for werklijst */
 .werklijst-empty {
@@ -2689,4 +2690,17 @@ html.dark .footer-text {color: var(--text-gray) !important}
 }
 .ev-pin-toggle:has(.ev-pin-checkbox:checked) .ev-pin-label {
     color: #856404;
+}
+
+/* ── Tab count badges ── */
+.tab-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    opacity: 0.8;
+}
+
+.tab-btn.active .tab-count {
+    color: var(--primary-blue);
+    opacity: 1;
 }

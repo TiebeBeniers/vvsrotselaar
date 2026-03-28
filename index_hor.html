@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>V.V.S Rotselaar - Home</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
-    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/styles_hor.css">
     <link rel="stylesheet" href="styles/index.css">
     <link rel="stylesheet" href="styles/lineup.css">
     <script>if(localStorage.getItem('vvs_theme')==='dark')document.documentElement.classList.add('dark');</script>
@@ -124,8 +124,17 @@
             </div>
         </section>
 
-        <!-- Contact Section -->
+        <!-- Contact Section (sponsor scroller geïntegreerd) -->
         <section class="contact-section">
+
+            <!-- Sponsor logo scroller — naadloos geïntegreerd, geen aparte balk -->
+            <div id="sponsorScroller" class="sps-wrapper" style="display:none;">
+                <p class="sps-label">Onze sponsors</p>
+                <div class="sps-viewport">
+                    <div class="sps-track" id="sponsorScrollerTrack"></div>
+                </div>
+            </div>
+
             <div class="contact-container">
                 <div class="contact-item">
                     <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -162,5 +171,6 @@
     <script type="module" src="scripts/announcement.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>
+    <script type="module" src="scripts/sponsor-scroller.js"></script>
 </body>
 </html>
