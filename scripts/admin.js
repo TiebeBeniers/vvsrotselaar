@@ -2294,15 +2294,19 @@ if (applyMatchResultBtn) {
             applyResult(homeTeam, homeScore, awayScore);
             applyResult(awayTeam, awayScore, homeScore);
 
-            // Herbereken posities op basis van punten → saldo → goals_for
+            // RBFA: pnt → won → saldo → goals_for
             teams.sort((a, b) =>
-                b.pnt - a.pnt || b.saldo - a.saldo || b.goals_for - a.goals_for
+                (b.pnt       - a.pnt)       ||
+                (b.won       - a.won)       ||
+                (b.saldo     - a.saldo)     ||
+                (b.goals_for - a.goals_for)
             );
             let pos = 1;
             teams.forEach((t, i) => {
                 if (i > 0 &&
-                    t.pnt    === teams[i-1].pnt &&
-                    t.saldo  === teams[i-1].saldo &&
+                    t.pnt       === teams[i-1].pnt       &&
+                    t.won       === teams[i-1].won       &&
+                    t.saldo     === teams[i-1].saldo     &&
                     t.goals_for === teams[i-1].goals_for) {
                     t.pos = teams[i-1].pos;
                 } else {

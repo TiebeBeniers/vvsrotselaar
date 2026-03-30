@@ -1009,7 +1009,7 @@ function renderTimelineTeam(events, container, uidMap = {}) {
 // Returns an <img> tag for a given event type — mirrors live.js eventIcon().
 function eventIcon(type, half) {
     const img = (file, alt) =>
-        `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img">`;
+        `<img src="assets/${file}" alt="${alt}" class="timeline-icon-img ${alt}">`;
     switch (type) {
         case 'aftrap':          return img('goal.png',           'Aftrap');
         case 'goal':            return img('goal.png',           'Goal');

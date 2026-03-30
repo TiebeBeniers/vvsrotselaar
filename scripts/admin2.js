@@ -1355,7 +1355,7 @@ function buildMeldingCard(m) {
         </div>
         <div class="melding-card-actions">
             <button class="icon-btn" title="${m.actief ? 'Deactiveren' : 'Activeren'}" data-toggle>
-                ${m.actief ? '⏸' : '▶'}
+                ${m.actief ? '<img src="assets/pause.png" class="icon-lg" alt="">' : '<img src="assets/play.png" class="icon-lg" alt="">'}
             </button>
             <button class="icon-btn edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
             <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
@@ -1720,8 +1720,10 @@ function renderRwItems() {
     rwItemsCache.forEach(item => {
         const card = document.createElement('div');
         card.className = `melding-admin-card${item.actief ? '' : ' melding-inactive'}`;
-        const vereistLabel = item.vereistItem
-            ? `<span class="melding-badge" style="background:#e3f2fd;color:#0047AB;">Vereist: ${item.vereistItem}</span>`
+        const vereistItems = Array.isArray(item.vereistItems) ? item.vereistItems
+            : (item.vereistItem ? [item.vereistItem] : []);
+        const vereistLabel = vereistItems.length
+            ? vereistItems.map(n => `<span class="melding-badge" style="background:#e3f2fd;color:#0047AB;">Vereist: ${n}</span>`).join('')
             : '';
 
         card.innerHTML = `
@@ -1738,7 +1740,7 @@ function renderRwItems() {
             </div>
             <div class="melding-card-actions">
                 <button class="icon-btn" title="${item.actief ? 'Deactiveren' : 'Activeren'}">
-                    ${item.actief ? '⏸' : '▶'}
+                    ${item.actief ? '<img src="assets/pause.png" class="icon-lg" alt="">' : '<img src="assets/play.png" class="icon-lg" alt="">'}
                 </button>
                 <button class="icon-btn edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
                 <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
@@ -1767,9 +1769,9 @@ function openRwItemModal(item = null) {
         modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
     }
 
-    const itemOpts = ['', ...rwItemsCache.filter(x => !item || x.id !== item.id).map(x => x.naam)]
-        .map(n => `<option value="${n}"${item?.vereistItem === n ? ' selected' : ''}>${n || '— Geen vereiste —'}</option>`)
-        .join('');
+    const availableItems = rwItemsCache.filter(x => !item || x.id !== item.id).map(x => x.naam);
+    const currentVereist = Array.isArray(item?.vereistItems) ? item.vereistItems
+        : (item?.vereistItem ? [item.vereistItem] : []);
 
     modal.innerHTML = `
         <div class="modal-content large">
@@ -1796,8 +1798,17 @@ function openRwItemModal(item = null) {
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Vereist item (optioneel — bv. Cup Refund vereist een beker)</label>
-                    <select id="rwVereistItem">${itemOpts}</select>
+                    <label>Vereiste items (optioneel — meerdere selecteerbaar)</label>
+                    <div id="rwVereistItemList" class="rw-vereist-checklist">
+                        ${availableItems.map(n => `
+                        <label class="rw-vereist-check-row">
+                            <input type="checkbox" name="rwVereistItem" value="${n}"
+                                ${currentVereist.includes(n) ? 'checked' : ''}>
+                            <span>${n}</span>
+                        </label>`).join('')}
+                        ${availableItems.length === 0 ? '<p style="color:var(--text-gray);font-size:0.85rem;">Geen andere items.</p>' : ''}
+                    </div>
+                    <small style="color:var(--text-gray);font-size:0.8rem;">Een lid kan dit item pas toevoegen als minstens één van de geselecteerde items al in de bestelling zit.</small>
                 </div>
                 <label class="toggle-setting-row" style="margin-bottom:1rem;">
                     <div class="toggle-setting-label">
@@ -1825,7 +1836,7 @@ function openRwItemModal(item = null) {
             prijs:       parseFloat(document.getElementById('rwPrijs').value) || 0,
             img:         document.getElementById('rwImg').value.trim(),
             volgorde:    parseInt(document.getElementById('rwVolgorde').value) || 0,
-            vereistItem: document.getElementById('rwVereistItem').value || null,
+            vereistItems: [...modal.querySelectorAll('input[name="rwVereistItem"]:checked')].map(cb => cb.value),
             actief:      document.getElementById('rwActief').checked,
         };
         if (!data.naam) return;
@@ -1865,7 +1876,7 @@ document.getElementById('seedRwItemsBtn')?.addEventListener('click', async () =>
         { naam:'Fanta',          prijs: 3.30, img:'assets/rockwerchter/Fanta.png',          volgorde:9 },
         { naam:'Fuzetea',        prijs: 3.30, img:'assets/rockwerchter/Fuzetea.png',        volgorde:10 },
         { naam:'Chips',          prijs: 3.30, img:'assets/rockwerchter/Chips.png',          volgorde:11 },
-        { naam:'Cup Refund',     prijs:-0.70, img:'assets/rockwerchter/CupRefund.png',      volgorde:12, vereistItem:'Primus' },
+        { naam:'Cup Refund',     prijs:-0.70, img:'assets/rockwerchter/CupRefund.png',      volgorde:12, vereistItems:['Primus','Mystic','Cava of Wijn'] },
     ];
 
     const existingNames = new Set(rwItemsCache.map(x => x.naam));
@@ -1933,4 +1944,55 @@ async function loadRwBestellingen() {
 
 document.getElementById('rwFilterBetaalmethode')?.addEventListener('change', () => {
     if (rwItemsLoaded) loadRwBestellingen();
+});
+
+
+// ── Collapse toggles voor RW secties ─────────────────────────────────────────
+document.querySelectorAll('.rw-collapse-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        target.classList.toggle('collapsed');
+        btn.classList.toggle('open');
+    });
+});
+
+
+
+// ── RW sectie inklap-knoppen ─────────────────────────────────────────────────
+function initRwToggles() {
+    ['toggleRwItems', 'toggleRwBestellingen'].forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        const targetId = btn.getAttribute('aria-controls');
+        const target   = document.getElementById(targetId);
+        const icon     = btn.querySelector('.rw-toggle-icon');
+        const label    = btn.querySelector('.rw-toggle-label');
+        if (!target) return;
+
+        btn.addEventListener('click', () => {
+            const isOpen = btn.getAttribute('aria-expanded') === 'true';
+            if (isOpen) {
+                target.classList.add('rw-collapsed');
+                icon.classList.add('collapsed');
+                btn.setAttribute('aria-expanded', 'false');
+                if (icon)  icon.src = 'assets/dropdown.png';
+                if (label) label.textContent = label.textContent.replace('Verberg', 'Toon');
+            } else {
+                target.classList.remove('rw-collapsed');
+                icon.classList.remove('collapsed');
+                btn.setAttribute('aria-expanded', 'true');
+                if (icon)  icon.src = 'assets/dropdown.png';
+                if (label) label.textContent = label.textContent.replace('Toon', 'Verberg');
+            }
+        });
+    });
+}
+
+// Init zodra tab geopend wordt (startRwTab roept dit aan)
+const _origStartRwTab = typeof startRwTab === 'function' ? startRwTab : null;
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'rockwerchter') {
+        btn.addEventListener('click', initRwToggles, { once: true });
+    }
 });

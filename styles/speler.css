@@ -722,6 +722,8 @@
     flex-wrap: wrap;
 }
 
+html.dark .guest-banner { color: white; }
+
 .guest-banner svg {
     width: 20px;
     height: 20px;
@@ -757,6 +759,8 @@
     border-color: #cbd5e1;
     color: #475569;
 }
+
+html.dark .guest-banner--public { color: var(--text-gray); }
 
 .guest-banner--public svg {
     stroke: #94a3b8;

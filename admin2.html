@@ -176,20 +176,35 @@
                     </div>
                 </div>
                 <p class="wl-admin-hint">Stel hier prijzen in, activeer items en configureer Cup Refund-vereisten. Wijzigingen zijn direct zichtbaar op de Rock Werchter pagina.</p>
-                <div id="rwItemsList"><div class="loading">Laden…</div></div>
+
+                <!-- Inklapbaar: Items -->
+                <button class="rw-section-toggle" id="toggleRwItems" aria-expanded="true" aria-controls="rwItemsList">
+                    <img src="assets/dropdown.png" class="icon-lg rw-toggle-icon" alt="">
+                    <span class="rw-toggle-label">Verberg items</span>
+                </button>
+                <div id="rwItemsList" class="rw-collapsible-body"><div class="loading">Laden…</div></div>
 
                 <div class="section-header" style="margin-top:2rem;">
                     <h3>Bestellingen</h3>
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-                        <select id="rwFilterBetaalmethode" class="admin-select">
-                            <option value="">Alle betaalmethoden</option>
-                            <option value="kaart">Kaart</option>
-                            <option value="payconiq">Payconiq</option>
-                            <option value="cash">Cash</option>
-                        </select>
+                        <div class="rw-filter-select-wrap">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            <select id="rwFilterBetaalmethode" class="rw-filter-select">
+                                <option value="">Alle methoden</option>
+                                <option value="kaart">💳 Kaart</option>
+                                <option value="payconiq">📱 Payconiq</option>
+                                <option value="cash">💵 Cash</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-                <div id="rwBestellingenList"><div class="loading">Laden…</div></div>
+
+                <!-- Inklapbaar: Bestellingen -->
+                <button class="rw-section-toggle" id="toggleRwBestellingen" aria-expanded="true" aria-controls="rwBestellingenList">
+                    <img src="assets/dropdown.png" class="icon-lg rw-toggle-icon" alt="">
+                    <span class="rw-toggle-label">Verberg bestellingen</span>
+                </button>
+                <div id="rwBestellingenList" class="rw-collapsible-body"><div class="loading">Laden…</div></div>
                 <div id="rwTotaalSummary" style="margin-top:1rem;"></div>
 
             </div><!-- /rockwerchterTab -->

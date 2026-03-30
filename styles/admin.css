@@ -2704,3 +2704,106 @@ html.dark .footer-text {color: var(--text-gray) !important}
     color: var(--primary-blue);
     opacity: 1;
 }
+
+/* ── Rock Werchter: sectie-toggle knop ── */
+.rw-section-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    padding: 0.35rem 0;
+    margin-bottom: 0.4rem;
+    transition: opacity 0.15s;
+}
+.rw-section-toggle:hover { opacity: 0.65; }
+
+.rw-toggle-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+    opacity: 0.75;
+    transition: opacity 0.15s;
+}
+.rw-section-toggle:hover .rw-toggle-icon { opacity: 1; }
+
+.rw-toggle-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
+html.dark .rw-toggle-icon { filter: invert(1);}
+
+/* ── Inklapbare body ── */
+.rw-collapsible-body {
+    overflow: hidden;
+    max-height: 20000px;
+    opacity: 1;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+.rw-collapsible-body.rw-collapsed {
+    max-height: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ── Vereist items checklist ── */
+.rw-vereist-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.75rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.rw-vereist-check-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.88rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.rw-vereist-check-row input[type="checkbox"] {
+    width: 15px; height: 15px; cursor: pointer;
+    accent-color: var(--primary-blue);
+}
+
+/* ── Betaalmethode filter select ── */
+.rw-filter-select-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    background: var(--white);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: border-color 0.2s;
+}
+.rw-filter-select-wrap:focus-within { border-color: var(--primary-blue); }
+.rw-filter-select-wrap svg { color: var(--primary-blue); flex-shrink: 0; }
+
+.rw-filter-select {
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+html.dark .rw-filter-select-wrap { background: var(--white); }
+html.dark .rw-filter-select { color: var(--text-dark); }

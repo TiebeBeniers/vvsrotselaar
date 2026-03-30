@@ -96,10 +96,12 @@ async function initializeDrankjes() {
             const item = d.data();
             if (item.actief !== false && item.naam) {
                 drankjes[item.naam] = {
-                    prijs:       item.prijs ?? 0,
-                    count:       0,
-                    img:         item.img || '',
-                    vereistItem: item.vereistItem || null
+                    prijs:        item.prijs ?? 0,
+                    count:        0,
+                    img:          item.img || '',
+                    vereistItem:  item.vereistItem  || null,
+                    vereistItems: Array.isArray(item.vereistItems) ? item.vereistItems
+                                  : (item.vereistItem ? [item.vereistItem] : [])
                 };
             }
         });
@@ -152,12 +154,15 @@ function createDrankCard(naam, d) {
 // ═══════════════════════════════════════════════
 function voegToe(naam, n = 1) {
     if (!isLoggedIn) return;
-    // Dynamische vereiste-check: item mag alleen toegevoegd worden als het vereiste item aanwezig is
-    const vereist = drankjes[naam]?.vereistItem;
-    if (vereist && drankjes[vereist]) {
-        const maxAllowed = drankjes[vereist].count;
-        if (drankjes[naam].count + n > maxAllowed) {
-            showToast(`Koop eerst ${vereist} voordat je dit item toevoegt.`, 'error');
+    // Dynamische vereiste-check: items die in vereistItems staan moeten aanwezig zijn (OR-logica)
+    // vereistItems = array van item-namen waarvan minstens 1 aanwezig moet zijn per refund
+    const vereistItems = drankjes[naam]?.vereistItems || (drankjes[naam]?.vereistItem ? [drankjes[naam].vereistItem] : []);
+    if (vereistItems.length > 0) {
+        // Tel het totaal aantal "vereiste" items dat gekocht is
+        const totalVereist = vereistItems.reduce((sum, v) => sum + (drankjes[v]?.count ?? 0), 0);
+        // Dit item mag max zo vaak als het totaal van de vereiste items
+        if (drankjes[naam].count + n > totalVereist) {
+            showToast(`Koop eerst ${vereistItems.join(' of ')} voordat je dit item toevoegt.`, 'error');
             return;
         }
     }
@@ -178,13 +183,15 @@ function verwijderAlles(naam) {
 }
 
 function clampRefunds(naam) {
-    // Clamp alle items die een vereistItem hebben dat geraakt werd
+    // Clamp alle items waarbij naam in de vereistItems staat
     for (const depNaam in drankjes) {
         const dep = drankjes[depNaam];
-        if (!dep.vereistItem || dep.vereistItem !== naam) continue;
-        const maxAllowed = drankjes[naam]?.count ?? 0;
-        if (dep.count > maxAllowed) {
-            dep.count = maxAllowed;
+        const vereistItems = dep.vereistItems || (dep.vereistItem ? [dep.vereistItem] : []);
+        if (!vereistItems.includes(naam)) continue;
+        // Herbereken max toegestaan
+        const totalVereist = vereistItems.reduce((sum, v) => sum + (drankjes[v]?.count ?? 0), 0);
+        if (dep.count > totalVereist) {
+            dep.count = totalVereist;
             badge(depNaam);
         }
     }

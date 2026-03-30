@@ -559,11 +559,17 @@ async function finalizePlayerStats(finalMinute) {
         pmSnap.forEach(d => {
             const pm = d.data();
             const uid = pm.uid;
-            if (!uid || uid.startsWith('manual_')) return; // skip external/manual players
+            if (!uid || uid.startsWith('manual_')) return;
 
-            const minuteOn  = pm.minuteOn  ?? 0;
-            const minuteOff = pm.minuteOff ?? finalMinute;
-            const played    = Math.max(0, minuteOff - minuteOn);
+            // FIX 2: totalMinutes bevat de som van afgelopen stints
+            // Lopend stint: minuteOn → finalMinute (als minuteOff null/onbekend)
+            const totalSoFar = pm.totalMinutes ?? 0;
+            let currentStint = 0;
+            if (pm.minuteOff === null || pm.minuteOff === undefined) {
+                // Speler staat nog op het veld — lopend stint telt door tot einde
+                currentStint = Math.max(0, finalMinute - (pm.minuteOn ?? 0));
+            }
+            const played = totalSoFar + currentStint;
 
             playerUpdates[uid] = {
                 minuten:      played,
@@ -575,11 +581,21 @@ async function finalizePlayerStats(finalMinute) {
             };
         });
 
-        // 3b. Bankspelers zonder speelminuten krijgen ook matchen: 1 (waren present)
+        // FIX 3: Zorg dat ALLE lineup-leden (starters + bench) matchen: 1 krijgen,
+        // ook als er geen playerMinutes record voor bestaat (edge case bij snelle wedstrijden)
         for (const [uid, info] of Object.entries(lineup)) {
             if (uid.startsWith('manual_')) continue;
-            if (info.status === 'bench' && !playerUpdates[uid]) {
-                playerUpdates[uid] = { minuten: 0, matchen: 1, goals: 0, assists: 0, geelKaarten: 0, roodKaarten: 0 };
+            if ((info.status === 'starter' || info.status === 'bench' || info.status === 'out') && !playerUpdates[uid]) {
+                // Starter zonder playerMinutes record: heeft de hele wedstrijd gespeeld
+                const isStarter = info.status === 'starter';
+                playerUpdates[uid] = {
+                    minuten:     isStarter ? finalMinute : 0,
+                    matchen:     1,
+                    goals:       0, assists: 0, geelKaarten: 0, roodKaarten: 0
+                };
+            } else if (!uid.startsWith('manual_') && playerUpdates[uid]) {
+                // Bestaande entry: zorg dat matchen altijd 1 is voor lineup-leden
+                playerUpdates[uid].matchen = 1;
             }
         }
 
@@ -891,10 +907,11 @@ function addSubPair(isVvs, container) {
 }
 
 function buildSubOptions(direction) {
-    // Out: actieve spelers op het veld; In: enkel bankspelers
+    // Out: actieve spelers op het veld
+    // In: bankspelers + outPlayers (voor backward compat met status 'out' in oude data)
     const players = direction === 'out'
         ? [...activePlayers]
-        : [...benchPlayers];
+        : [...benchPlayers, ...outPlayers];
     let opts = `<option value="">— Speler ${direction === 'out' ? 'uit' : 'in'} —</option>`;
     players.forEach(p => { opts += `<option value="${p.name}">${p.name}</option>`; });
     return opts;
@@ -1059,10 +1076,10 @@ async function handleSubstitutionLineup(playerOutName, playerInName, minute) {
 
     const updates = {};
 
-    // Update lineup statuses
+    // FIX 1: gebruik 'bench' ipv 'out' zodat de speler later opnieuw geselecteerd kan worden
     if (uidOut) {
-        lineup[uidOut] = { ...lineup[uidOut], status: 'out' };
-        updates[`lineup.${uidOut}.status`] = 'out';
+        lineup[uidOut] = { ...lineup[uidOut], status: 'bench' };
+        updates[`lineup.${uidOut}.status`] = 'bench';
     }
     if (uidIn) {
         lineup[uidIn] = { ...lineup[uidIn], status: 'starter' };
@@ -1073,16 +1090,24 @@ async function handleSubstitutionLineup(playerOutName, playerInName, minute) {
         await updateDoc(doc(db, 'matches', currentMatchId), updates);
     }
 
-    // Update playerMinutes: record minuteOff for player going out
+    // FIX 2: accumuleer minuten over meerdere stints
+    // Speler die ERAF gaat: lees huidige minuteOn, voeg stint toe aan totalMinutes
     if (uidOut && !uidOut.startsWith('manual_')) {
-        await setDoc(
-            doc(db, 'matches', currentMatchId, 'playerMinutes', uidOut),
-            { uid: uidOut, name: playerOutName, minuteOff: minute },
-            { merge: true }
-        );
+        const pmRef = doc(db, 'matches', currentMatchId, 'playerMinutes', uidOut);
+        const pmSnap = await getDoc(pmRef);
+        const pmData = pmSnap.exists() ? pmSnap.data() : null;
+        const prevOn = pmData?.minuteOn ?? 0;
+        const prevTotal = pmData?.totalMinutes ?? 0;
+        const stintMinutes = Math.max(0, minute - prevOn);
+        await setDoc(pmRef, {
+            uid:          uidOut,
+            name:         playerOutName,
+            minuteOff:    minute,
+            totalMinutes: prevTotal + stintMinutes
+        }, { merge: true });
     }
 
-    // Record minuteOn for player coming in
+    // Speler die EROP komt: begin nieuw stint
     if (uidIn && !uidIn.startsWith('manual_')) {
         await setDoc(
             doc(db, 'matches', currentMatchId, 'playerMinutes', uidIn),
