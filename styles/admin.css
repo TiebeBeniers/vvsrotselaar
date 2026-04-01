@@ -2807,3 +2807,34 @@ html.dark .rw-toggle-icon { filter: invert(1);}
 
 html.dark .rw-filter-select-wrap { background: var(--white); }
 html.dark .rw-filter-select { color: var(--text-dark); }
+
+/* ── Werklijst lock button ── */
+.lock-btn.locked {
+    background: #fff3cd;
+    color: #856404;
+    border-color: #f0c040;
+}
+
+/* ── Werklijst locked banner (werklijst.html) ── */
+.wl-locked-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #f0c040;
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 1.25rem;
+}
+
+/* ── Locked shift button ── */
+.wl-btn.btn-locked {
+    background: var(--off-white);
+    color: var(--text-gray);
+    border: 1.5px solid var(--border-color);
+    cursor: not-allowed;
+    opacity: 0.6;
+}

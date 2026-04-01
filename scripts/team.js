@@ -338,11 +338,30 @@ function displayPlannedMatch(match, container) {
                     <div class="team-name">${match.uitploeg || 'Uitploeg'}</div>
                 </div>
                 <div class="match-location">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                        <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
+                    <button class="map-trigger" aria-label="Toon op kaart" data-location="${encodeURIComponent(match.locatie || '')}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                    </button>
                     <span>${match.locatie || 'Locatie niet beschikbaar'}</span>
+                    <div class="map-popup" aria-hidden="true">
+                        <div class="map-popup-inner">
+                            <iframe
+                                class="map-iframe"
+                                loading="lazy"
+                                referrerpolicy="no-referrer-when-downgrade"
+                                src="https://maps.google.com/maps?q=${encodeURIComponent(match.locatie || 'België')}&z=15&output=embed"
+                                title="Locatie ${match.locatie || ''}"
+                                aria-hidden="true">
+                            </iframe>
+                            <a class="map-open-link"
+                               href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.locatie || '')}"
+                               target="_blank" rel="noopener noreferrer">
+                                Open in Google Maps ↗
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 ${match.beschrijving ? `<div class="match-description">${match.beschrijving}</div>` : ''}
                 ${availabilityHTML}
@@ -355,6 +374,9 @@ function displayPlannedMatch(match, container) {
         if (currentUser) {
             loadAvailability(match.id, match);
         }
+
+        // ── Map hover popup ──────────────────────────────────────────────────
+        initMapPopups();
         
     } catch (error) {
         console.error('Error displaying planned match:', error);
@@ -2069,3 +2091,52 @@ function showToast(msg, type = '') {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
 }
+
+// ── Map popup (locatie hover) ────────────────────────────────────────────────
+function initMapPopups() {
+    document.querySelectorAll('.map-trigger').forEach(btn => {
+        const location = btn.closest('.match-location');
+        const popup    = location?.querySelector('.map-popup');
+        if (!popup) return;
+
+        let closeTimer = null;
+
+        function openPopup() {
+            clearTimeout(closeTimer);
+            // Sluit alle andere open popups
+            document.querySelectorAll('.map-popup.map-popup-open').forEach(p => {
+                if (p !== popup) p.classList.remove('map-popup-open');
+            });
+            popup.classList.add('map-popup-open');
+            popup.setAttribute('aria-hidden', 'false');
+        }
+
+        function scheduleClose() {
+            closeTimer = setTimeout(() => {
+                popup.classList.remove('map-popup-open');
+                popup.setAttribute('aria-hidden', 'true');
+            }, 200);
+        }
+
+        // Desktop: hover op de knop of de popup zelf
+        btn.addEventListener('mouseenter', openPopup);
+        btn.addEventListener('mouseleave', scheduleClose);
+        popup.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+        popup.addEventListener('mouseleave', scheduleClose);
+
+        // Mobiel: klik wisselt de popup
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            popup.classList.contains('map-popup-open') ? scheduleClose() : openPopup();
+        });
+    });
+
+    // Sluit bij klik buiten
+    document.addEventListener('click', () => {
+        document.querySelectorAll('.map-popup.map-popup-open').forEach(p => {
+            p.classList.remove('map-popup-open');
+            p.setAttribute('aria-hidden', 'true');
+        });
+    });
+}
+

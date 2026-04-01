@@ -84,6 +84,10 @@ function renderWerklijstenList() {
             </div>
             <div class="wl-list-actions">
                 ${!wl.active ? `<button class="icon-btn activate-btn" data-id="${wl.id}">✔ Activeren</button>` : ''}
+                <button class="icon-btn lock-btn ${wl.locked ? 'locked' : ''}" data-id="${wl.id}" title="${wl.locked ? 'Ontgrendelen' : 'Vergrendelen'}">
+                    ${wl.locked ? '🔒 Vergrendeld' : '🔓 Vergrendelen'}
+                </button>
+                <button class="icon-btn export-wl-btn" data-id="${wl.id}" title="Exporteer als Excel">📥 Excel</button>
                 <button class="icon-btn rename-btn" data-id="${wl.id}"><img src="assets/edit.png" class="icon" alt=""> Naam</button>
                 <button class="icon-btn shifts-btn" data-id="${wl.id}">Shiften Beheren</button>
                 <button class="icon-btn delete delete-wl-btn" data-id="${wl.id}"><img src="assets/delete.png" class="icon-lg" alt=""></button>
@@ -96,6 +100,8 @@ function renderWerklijstenList() {
         el.querySelector('.rename-btn').addEventListener('click', () => openWerklijstModal(wl));
         el.querySelector('.shifts-btn').addEventListener('click', () => openShiftsEditor(wl.id));
         el.querySelector('.delete-wl-btn').addEventListener('click', () => confirmDeleteWerklijst(wl));
+        el.querySelector('.lock-btn').addEventListener('click', () => toggleLockWerklijst(wl));
+        el.querySelector('.export-wl-btn').addEventListener('click', () => exportWerklijstExcel(wl.id));
 
         container.appendChild(el);
     });
@@ -104,12 +110,10 @@ function renderWerklijstenList() {
 // ── Activate werklijst ──────────────────────────────────────────────────────────
 async function activateWerklijst(id) {
     try {
-        // Deactivate all
         const deactivates = Object.values(werklijstenCache).map(wl =>
             setDoc(doc(db, 'werklijsten', wl.id), { active: false }, { merge: true })
         );
         await Promise.all(deactivates);
-        // Activate selected
         await setDoc(doc(db, 'werklijsten', id), { active: true }, { merge: true });
         showToast('✅ Werklijst geactiveerd!', 'success');
     } catch (e) {
@@ -117,6 +121,285 @@ async function activateWerklijst(id) {
         showToast('❌ Fout: ' + e.message, 'error');
     }
 }
+
+// ── Lock / Unlock werklijst ───────────────────────────────────────────────────
+async function toggleLockWerklijst(wl) {
+    const newLocked = !wl.locked;
+    try {
+        await setDoc(doc(db, 'werklijsten', wl.id), { locked: newLocked }, { merge: true });
+        showToast(newLocked ? '🔒 Werklijst vergrendeld.' : '🔓 Werklijst ontgrendeld.', 'success');
+    } catch (e) {
+        showToast('❌ Fout: ' + e.message, 'error');
+    }
+}
+
+// ══ FEATURE 2: Export werklijst to Excel ═════════════════════════════════════
+async function exportWerklijstExcel(werklijstId) {
+    const wl = werklijstenCache[werklijstId];
+    if (!wl) return;
+
+    showToast('⏳ Excel wordt aangemaakt…', '');
+
+    if (!window.ExcelJS) {
+        await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+        });
+    }
+
+    // ── Data ophalen ────────────────────────────────────────────────────────
+    const snap = await getDocs(collection(db, 'werklijsten', werklijstId, 'shifts'));
+    const shifts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    shifts.sort((a, b) => ((a.date || '') + (a.time || '')).localeCompare((b.date || '') + (b.time || '')));
+
+    const usersSnap = await getDocs(collection(db, 'users'));
+    const uidToPhone = {};
+    usersSnap.forEach(d => {
+        const u = d.data();
+        if (u.uid && u.telefoon) uidToPhone[u.uid] = u.telefoon;
+    });
+
+    // ── Constanten ──────────────────────────────────────────────────────────
+    const COLS_PER_ROW = 6;   // vaste breedte: altijd max 6 naam-kolommen per rij
+
+    // Opvulkleuren
+    const FILL_TITLE    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } };
+    const FILL_DAY      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDD7EE' } };
+    const FILL_LABEL    = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9D9D9' } };
+    const FILL_YELLOW   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    const FILL_DARKGRAY = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF808080' } };
+    const FILL_RESP     = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+    const FILL_NONE     = { type: 'pattern', pattern: 'none' };
+
+    // Randen
+    const THIN      = { style: 'thin',   color: { argb: 'FF000000' } };
+    const THIN_GRAY = { style: 'thin',   color: { argb: 'FF999999' } };
+    const BORDER    = { top: THIN,      left: THIN,      bottom: THIN,      right: THIN      };
+    const BORDER_G  = { top: THIN_GRAY, left: THIN_GRAY, bottom: THIN_GRAY, right: THIN_GRAY };
+
+    const FONT = (opts = {}) => ({ name: 'Calibri', size: 10, ...opts });
+
+    // Totaal kolommen: tijdstip | label | 6 namen | "X pers"
+    const TOTAL_COLS = 2 + COLS_PER_ROW + 1;
+
+    // ── Werkboek ────────────────────────────────────────────────────────────
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'VVS Rotselaar';
+    const ws = wb.addWorksheet('Werklijst', { views: [{ showGridLines: false }] });
+
+    ws.getColumn(1).width = 16;
+    ws.getColumn(2).width = 7;
+    for (let c = 3; c <= COLS_PER_ROW + 2; c++) ws.getColumn(c).width = 21;
+    ws.getColumn(COLS_PER_ROW + 3).width = 8;
+
+    // ── Hulpfuncties ────────────────────────────────────────────────────────
+    function sc(cell, { fill, font, border, align, value } = {}) {
+        if (value !== undefined) cell.value = value;
+        if (fill)   cell.fill      = fill;
+        if (font)   cell.font      = font;
+        if (border) cell.border    = border;
+        if (align)  cell.alignment = align;
+    }
+
+    function addMergedRow(text, fill, font, height) {
+        const r = ws.addRow([text]);
+        r.height = height || 20;
+        ws.mergeCells(r.number, 1, r.number, TOTAL_COLS);
+        sc(ws.getCell(r.number, 1), {
+            fill, font,
+            align: { horizontal: 'center', vertical: 'middle' },
+        });
+        return r;
+    }
+
+    // Schrijft één naam-rij + één tel-rij voor een gegeven 'chunk' van personen.
+    // firstChunk = true → tijdstip-cel; false → lege tijdstip-cel (vervolgrijen)
+    function writeChunk({ timeLabel, showTime, chunk, chunkStart, max, unlimited, persCol }) {
+        const rN = ws.addRow([]); rN.height = 18;
+        const rT = ws.addRow([]); rT.height = 15;
+
+        // Tijdstip-cel (alleen eerste chunk)
+        if (showTime) {
+            sc(ws.getCell(rN.number, 1), {
+                value:  timeLabel,
+                font:   FONT({ bold: true, size: 10 }),
+                align:  { horizontal: 'left', vertical: 'middle' },
+                border: BORDER,
+            });
+        } else {
+            sc(ws.getCell(rN.number, 1), { fill: FILL_NONE, border: BORDER });
+        }
+        ws.mergeCells(rN.number, 1, rT.number, 1);
+
+        // Labels
+        sc(ws.getCell(rN.number, 2), {
+            value: 'Naam', font: FONT({ bold: true, size: 9 }),
+            fill: FILL_LABEL, align: { horizontal: 'center', vertical: 'middle' }, border: BORDER,
+        });
+        sc(ws.getCell(rT.number, 2), {
+            value: 'Tel', font: FONT({ bold: true, size: 9 }),
+            fill: FILL_LABEL, align: { horizontal: 'center', vertical: 'middle' }, border: BORDER,
+        });
+
+        // Persoons-kolommen
+        for (let i = 0; i < COLS_PER_ROW; i++) {
+            const absIdx = chunkStart + i;
+            const col    = i + 3;
+            const p      = chunk[i] || null;
+            const nC     = ws.getCell(rN.number, col);
+            const tC     = ws.getCell(rT.number, col);
+
+            if (p) {
+                // Ingevuld slot
+                const isResp = !!p.responsible;
+                sc(nC, {
+                    value:  p.naam,
+                    font:   FONT({ bold: true, color: { argb: isResp ? 'FFCC0000' : 'FF000000' } }),
+                    fill:   isResp ? FILL_RESP : FILL_NONE,
+                    align:  { horizontal: 'left', vertical: 'middle' },
+                    border: BORDER,
+                });
+                sc(tC, {
+                    value:  uidToPhone[p.uid] || '',
+                    font:   FONT({ size: 9, italic: true }),
+                    fill:   isResp ? FILL_RESP : FILL_NONE,
+                    align:  { horizontal: 'left', vertical: 'middle' },
+                    border: BORDER,
+                });
+            } else if (unlimited) {
+                // Ongelimiteerd: witte cellen — er kunnen altijd mensen bij, maar hoeft niet
+                sc(nC, { fill: FILL_NONE, border: BORDER });
+                sc(tC, { fill: FILL_NONE, border: BORDER });
+            } else if (max !== null && absIdx < max) {
+                // Leeg maar binnen max → GEEL (meer mensen nodig)
+                sc(nC, { fill: FILL_YELLOW, border: BORDER });
+                sc(tC, { fill: FILL_YELLOW, border: BORDER });
+            } else {
+                // Buiten max → DONKERGRIJS (niet nodig)
+                sc(nC, { fill: FILL_DARKGRAY, border: BORDER_G });
+                sc(tC, { fill: FILL_DARKGRAY, border: BORDER_G });
+            }
+        }
+
+        // "X pers" of "∞ pers" uiterst rechts — enkel op eerste chunk
+        if (showTime) {
+            sc(ws.getCell(rN.number, COLS_PER_ROW + 3), {
+                value: unlimited ? '∞ pers' : `${max} pers`,
+                font:  FONT({ size: 8, italic: true, color: { argb: 'FF555555' } }),
+                align: { horizontal: 'right', vertical: 'middle' },
+            });
+        }
+        sc(ws.getCell(rT.number, COLS_PER_ROW + 3), { fill: FILL_LABEL });
+    }
+
+    // ── Titelrij ────────────────────────────────────────────────────────────
+    addMergedRow(
+        'WERKVERDELING ' + (wl.naam || 'WERKLIJST').toUpperCase(),
+        FILL_TITLE,
+        FONT({ bold: true, size: 14, color: { argb: 'FFFFFFFF' } }),
+        30
+    );
+
+    const today = new Date().toLocaleDateString('nl-BE');
+    const rDate = ws.addRow([`v_${shifts.length > 0 ? '' : ''}${today}`]);
+    rDate.height = 14;
+    sc(ws.getCell(rDate.number, 1), {
+        value: `v_03 - ${today}`,
+        fill: FILL_YELLOW,
+        font: FONT({ size: 8, italic: true }),
+    });
+
+    // ── Per dag ─────────────────────────────────────────────────────────────
+    const byDate = {};
+    shifts.forEach(s => {
+        const key = s.date || '__no_date__';
+        if (!byDate[key]) byDate[key] = [];
+        byDate[key].push(s);
+    });
+
+    Object.entries(byDate)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .forEach(([date, dayShifts]) => {
+
+            ws.addRow([]).height = 8;
+
+            // Dag-header
+            let dagText = 'DATUM ONBEKEND';
+            if (date !== '__no_date__') {
+                const d = new Date(date + 'T12:00:00');
+                const wd = d.toLocaleDateString('nl-BE', { weekday: 'long' }).toUpperCase();
+                const dd = d.getDate();
+                const mm = d.toLocaleDateString('nl-BE', { month: 'long' });
+                dagText  = `${wd} ${dd} ${mm}   (naam + achternaam + telnr invullen!)`;
+            }
+            addMergedRow(dagText, FILL_DAY, FONT({ bold: true, size: 12 }), 22);
+
+            // "Verantwoordelijke" koptekstrij
+            const rVH = ws.addRow([]); rVH.height = 15;
+            for (let c = 1; c <= 2; c++)
+                sc(ws.getCell(rVH.number, c), { fill: FILL_LABEL, border: BORDER_G });
+            sc(ws.getCell(rVH.number, 3), {
+                value:  'VERANTWOORDELIJKE',
+                font:   FONT({ bold: true, size: 9, color: { argb: 'FFCC0000' } }),
+                align:  { horizontal: 'center', vertical: 'middle' },
+                border: BORDER,
+            });
+            for (let c = 4; c <= TOTAL_COLS; c++)
+                sc(ws.getCell(rVH.number, c), { fill: FILL_LABEL, border: BORDER_G });
+
+            // ── Shifts ──────────────────────────────────────────────────────
+            dayShifts
+                .sort((a, b) => (a.time || '').localeCompare(b.time || ''))
+                .forEach(shift => {
+                    const persons   = shift.persons || [];
+                    // Verantwoordelijke altijd vooraan
+                    const sorted    = [...persons].sort((a, b) => (b.responsible ? 1 : 0) - (a.responsible ? 1 : 0));
+                    const unlimited = shift.max === null || shift.max === undefined || shift.max === 0;
+                    const max       = unlimited ? null : shift.max;
+
+                    // Bereken hoeveel rijen nodig zijn:
+                    // - Gelimiteerd: toon max slots (geel of grijs voor lege), minimum 1 rij
+                    // - Ongelimiteerd: toon het aantal ingeschrevenen afgerond op COLS_PER_ROW
+                    const totalSlots = unlimited
+                        ? Math.ceil(Math.max(persons.length, COLS_PER_ROW) / COLS_PER_ROW) * COLS_PER_ROW
+                        : Math.max(max, persons.length);
+
+                    const numChunks = Math.ceil(totalSlots / COLS_PER_ROW);
+
+                    for (let chunk = 0; chunk < numChunks; chunk++) {
+                        const start = chunk * COLS_PER_ROW;
+                        const end   = start + COLS_PER_ROW;
+                        const slice = sorted.slice(start, end);
+
+                        writeChunk({
+                            timeLabel:  shift.time || '',
+                            showTime:   chunk === 0,
+                            chunk:      slice,
+                            chunkStart: start,
+                            max,
+                            unlimited,
+                            persCol:    COLS_PER_ROW + 3,
+                        });
+                    }
+                });
+        });
+
+    // ── Downloaden ──────────────────────────────────────────────────────────
+    const buf  = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = (wl.naam || 'werklijst').replace(/[^a-z0-9]/gi, '_') + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✅ Excel gedownload!', 'success');
+}
+
 
 // ── Open shifts editor ──────────────────────────────────────────────────────────
 function openShiftsEditor(werklijstId) {

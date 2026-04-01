@@ -72,6 +72,18 @@ async function loadActiveWerklijst() {
         if (heroTag) heroTag.textContent = '📋 ' + (activeWerklijst.naam || 'Werkplanning');
 
         document.getElementById('mainContent').style.display = 'block';
+
+        // Show locked banner if werklijst is locked
+        let lockedBanner = document.getElementById('wlLockedBanner');
+        if (!lockedBanner) {
+            lockedBanner = document.createElement('div');
+            lockedBanner.id = 'wlLockedBanner';
+            lockedBanner.className = 'wl-locked-banner';
+            lockedBanner.innerHTML = '🔒 Deze werklijst is vergrendeld. Je kan je niet meer aan- of afmelden.';
+            document.getElementById('mainContent').prepend(lockedBanner);
+        }
+        lockedBanner.style.display = activeWerklijst.locked ? 'flex' : 'none';
+
         listenToShifts();
 
     } catch (e) {
@@ -236,8 +248,11 @@ function renderShiftCard(shift) {
     const cardCls = ['wl-shift-card', isSigned ? 'is-signed' : '', isFull && !isSigned ? 'is-full' : '']
         .filter(Boolean).join(' ');
 
-    const btnCls  = isSigned ? 'wl-btn btn-sign-out' : 'wl-btn btn-sign-in';
-    const btnText = isSigned ? 'Afmelden' : 'Aanmelden';
+    const isLocked = activeWerklijst?.locked;
+    const btnCls  = isLocked ? 'wl-btn btn-locked'
+                  : isSigned ? 'wl-btn btn-sign-out' : 'wl-btn btn-sign-in';
+    const btnText = isLocked ? '🔒 Vergrendeld'
+                  : isSigned ? 'Afmelden' : 'Aanmelden';
 
     const capacityBar = max
         ? `<div class="wl-shift-capacity">
@@ -276,6 +291,10 @@ function attachCardListeners(shiftId) {
 // ── Handle sign-in / sign-out click ──────────────────────────────────────────
 function handleClick(shiftId) {
     if (!currentUser) return;
+    if (activeWerklijst?.locked) {
+        showToast('🔒 Deze werklijst is vergrendeld.', 'error');
+        return;
+    }
 
     const persons  = shiftsData[shiftId]?.persons || [];
     const isSigned = persons.some(p => p.uid === currentUser.uid);
