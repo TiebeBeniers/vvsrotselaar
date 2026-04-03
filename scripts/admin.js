@@ -354,8 +354,9 @@ if (memberForm) {
                 };
                 
                 console.log('Adding user to Firestore:', userData);
-                const docRef = await addDoc(collection(db, 'users'), userData);
-                console.log('User document created with ID:', docRef.id);
+                // doc-ID = Auth UID — vereist voor security rules
+                await setDoc(doc(db, 'users', newUser.uid), userData);
+                console.log('User document created with UID as doc-ID:', newUser.uid);
                 
                 // Admin blijft ingelogd! 🎉
                 console.log('New user created successfully. Admin remains logged in.');
@@ -774,8 +775,8 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         // Sign out from secondary app immediately to avoid affecting admin session
         await secondaryAuth.signOut();
         
-        // Add user to Firestore users collection
-        await addDoc(collection(db, 'users'), {
+        // Add user to Firestore — doc-ID = Auth UID (vereist voor security rules)
+        await setDoc(doc(db, 'users', newUser.uid), {
             uid: newUser.uid,
             naam: naam,
             email: email,

@@ -1,0 +1,359 @@
+/* ===============================================
+   TRAINING.CSS — Trainingsplanning pagina
+   V.V.S Rotselaar
+   =============================================== */
+
+/* ── Hero ── */
+.training-hero {
+    background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
+    color: var(--white);
+    padding: 3rem 1.5rem 2.5rem;
+    text-align: center;
+}
+.training-hero h1 {
+    font-size: 2.2rem;
+    margin-bottom: 0.5rem;
+    letter-spacing: -0.5px;
+}
+.training-hero p {
+    opacity: 0.88;
+    font-size: 1rem;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+/* ── Page ── */
+.training-page {
+    min-height: calc(100vh - 200px);
+    background: var(--off-white);
+    padding: 2rem 0 4rem;
+}
+.training-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* ── Auth guard ── */
+.training-auth-guard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 4rem 2rem;
+    text-align: center;
+    background: var(--white);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px var(--shadow);
+    margin: 2rem auto;
+    max-width: 380px;
+}
+.training-auth-guard svg { color: var(--text-gray); }
+.training-auth-guard h3  { font-size: 1.2rem; color: var(--text-dark); }
+.training-auth-guard p   { color: var(--text-gray); font-size: 0.92rem; }
+.training-login-btn {
+    display: inline-block;
+    background: var(--primary-blue);
+    color: var(--white);
+    padding: 0.7rem 1.75rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 0.25rem;
+}
+.training-login-btn:hover { background: var(--dark-blue); transform: translateY(-1px); }
+
+/* ── Loading ── */
+.training-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 5rem 2rem;
+    color: var(--text-gray);
+    font-size: 0.9rem;
+}
+.training-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--primary-blue);
+    border-radius: 50%;
+    animation: tr-spin 0.7s linear infinite;
+}
+@keyframes tr-spin { to { transform: rotate(360deg); } }
+
+/* ── Filter bar ── */
+.training-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+.tr-filter-btn {
+    padding: 0.5rem 1.2rem;
+    border-radius: 24px;
+    border: 2px solid var(--border-color);
+    background: var(--white);
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: all 0.18s;
+    font-family: inherit;
+}
+.tr-filter-btn.active { background: var(--primary-blue); color: var(--white); border-color: var(--primary-blue); }
+.tr-filter-btn:hover:not(.active) { border-color: var(--primary-blue); color: var(--primary-blue); }
+
+/* ── Week navigation ── */
+.training-week-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+    background: var(--white);
+    padding: 0.85rem 1.25rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+.tr-week-btn {
+    padding: 0.45rem 1rem;
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+.tr-week-btn:hover { background: #e3f2fd; border-color: var(--primary-blue); }
+.tr-week-label {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    text-align: center;
+    flex: 1;
+}
+
+/* ── Calendar grid ── */
+.training-calendar {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+}
+
+/* ── Day column ── */
+.tr-day-column {
+    background: var(--white);
+    border-radius: 14px;
+    box-shadow: 0 2px 10px var(--shadow);
+    overflow: hidden;
+}
+.tr-day-header {
+    background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+    color: var(--white);
+    padding: 0.85rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.tr-day-name  { font-weight: 800; font-size: 1rem; text-transform: capitalize; }
+.tr-day-date  { font-size: 0.8rem; opacity: 0.85; }
+.tr-day-sessions {
+    padding: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+/* ── Session card ── */
+.tr-session-card {
+    border: 2px solid var(--border-color);
+    border-left: 5px solid var(--team-color, var(--primary-blue));
+    border-radius: 10px;
+    padding: 1rem;
+    background: var(--off-white);
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+.tr-session-card:hover {
+    box-shadow: 0 4px 16px rgba(0,71,171,0.13);
+    transform: translateY(-1px);
+}
+
+.tr-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.55rem;
+    gap: 0.5rem;
+}
+.tr-card-time {
+    font-weight: 800;
+    font-size: 0.95rem;
+    color: var(--primary-blue);
+}
+.tr-card-team-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--white);
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: var(--team-color, var(--primary-blue));
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tr-card-titel {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 0.35rem;
+}
+.tr-card-locatie {
+    font-size: 0.82rem;
+    color: var(--text-gray);
+    margin-bottom: 0.25rem;
+}
+.tr-card-nota {
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    font-style: italic;
+    margin-bottom: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(0,0,0,0.04);
+    border-radius: 6px;
+    border-left: 3px solid var(--border-color);
+}
+
+/* ── Aanwezigen sectie ── */
+.tr-card-aanwezigen {
+    margin-bottom: 0.75rem;
+}
+.tr-aanwezigen-count {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    margin-bottom: 0.4rem;
+}
+.tr-aanwezigen-count::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #28A745;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.tr-aanwezigen-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+.tr-aanwezig-chip {
+    font-size: 0.73rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    background: #e3f2fd;
+    color: var(--primary-blue);
+    border-radius: 12px;
+    white-space: nowrap;
+}
+.tr-aanwezig-chip.me {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 700;
+}
+
+/* ── Aanmeld knop ── */
+.tr-aanmeld-btn {
+    width: 100%;
+    padding: 0.6rem;
+    border-radius: 8px;
+    border: 2px solid var(--primary-blue);
+    background: var(--primary-blue);
+    color: var(--white);
+    font-size: 0.88rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.1s;
+}
+.tr-aanmeld-btn:hover:not(.signed) { background: var(--dark-blue); transform: translateY(-1px); }
+.tr-aanmeld-btn.signed {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-color: #a5d6a7;
+}
+.tr-aanmeld-btn.signed:hover { background: #c8e6c9; }
+
+/* ── Empty state ── */
+.training-empty {
+    text-align: center;
+    padding: 3.5rem 1rem;
+    color: var(--text-gray);
+    font-size: 1rem;
+    background: var(--white);
+    border-radius: 14px;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* ── Toast ── */
+.tr-toast {
+    position: fixed;
+    bottom: 1.75rem;
+    right: 1.75rem;
+    background: var(--text-dark);
+    color: var(--white);
+    padding: 0.75rem 1.3rem;
+    border-radius: 9px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    z-index: 9999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    pointer-events: none;
+}
+.tr-toast.show          { transform: translateY(0); opacity: 1; }
+.tr-toast.toast-success { background: var(--success); }
+.tr-toast.toast-error   { background: var(--danger); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .training-calendar { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+    .training-hero h1   { font-size: 1.7rem; }
+    .training-calendar  { grid-template-columns: 1fr; }
+    .training-week-nav  { flex-wrap: wrap; justify-content: center; }
+    .tr-week-label      { order: -1; width: 100%; text-align: center; }
+    .tr-week-btn        { flex: 1; text-align: center; }
+}
+
+/* ── Dark mode ── */
+html.dark .training-page           { background: var(--off-white); }
+html.dark .tr-day-column           { background: var(--white); }
+html.dark .tr-session-card         { background: #252840; border-color: #3a3d5c; }
+html.dark .tr-card-nota            { background: rgba(255,255,255,0.05); border-color: #3a3d5c; }
+html.dark .tr-card-titel           { color: var(--text-dark); }
+html.dark .tr-card-locatie         { color: var(--text-gray); }
+html.dark .training-week-nav       { background: var(--white); }
+html.dark .tr-filter-btn           { background: var(--white); color: var(--text-dark); border-color: #3a3d5c; }
+html.dark .tr-filter-btn:hover:not(.active) { border-color: var(--primary-blue); }
+html.dark .training-empty          { background: var(--white); }
+html.dark .training-auth-guard     { background: var(--white); }
+html.dark .tr-week-btn             { background: #252840; border-color: #3a3d5c; }
+html.dark .tr-aanwezig-chip        { background: #1a2a4a; color: #7eb3f5; }
+html.dark .tr-aanwezig-chip.me     { background: #1a3a2a; color: #4caf74; }
+html.dark .tr-aanmeld-btn.signed   { background: #1a3a2a; color: #4caf74; border-color: #2e7d32; }

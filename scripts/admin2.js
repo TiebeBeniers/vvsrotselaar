@@ -2279,3 +2279,191 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', initRwToggles, { once: true });
     }
 });
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRAINING BEHEER (admin2.js addendum)
+// Firestore: trainingen/{id} → { titel, team, datum, startTijd, eindTijd, locatie, nota, aanwezigen[] }
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let trainingCache   = [];
+let unsubTraining   = null;
+let trainingFilter  = 'all';
+let trainingLoaded  = false;
+
+// Hook tab click
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    if (btn.dataset.tab === 'training') {
+        btn.addEventListener('click', () => {
+            if (!trainingLoaded) { trainingLoaded = true; startTrainingListener(); }
+        });
+    }
+});
+
+// Filter buttons in admin
+document.querySelectorAll('.tr-admin-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tr-admin-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        trainingFilter = btn.dataset.team;
+        renderTrainingAdminList();
+    });
+});
+
+function startTrainingListener() {
+    if (unsubTraining) unsubTraining();
+    unsubTraining = onSnapshot(
+        query(collection(db, 'trainingen'), orderBy('datum', 'desc')),
+        snap => {
+            trainingCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            renderTrainingAdminList();
+        },
+        err => showToast('❌ Training fout: ' + err.message, 'error')
+    );
+}
+
+function renderTrainingAdminList() {
+    const container = document.getElementById('trainingAdminList');
+    if (!container) return;
+
+    const items = trainingFilter === 'all'
+        ? trainingCache
+        : trainingCache.filter(t => t.team === trainingFilter);
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="werklijst-empty-state"><p>Geen trainingen gevonden.</p></div>';
+        return;
+    }
+
+    const TEAM_COLORS = { veteranen: '#0047AB', zaterdag: '#28A745', zondag: '#DC3545' };
+
+    container.innerHTML = '';
+    items.forEach(t => {
+        const aanwezigen = t.aanwezigen || [];
+        const card = document.createElement('div');
+        card.className = 'melding-admin-card';
+        card.innerHTML = `
+            <div class="melding-card-left" style="flex:1;">
+                <div class="melding-card-info">
+                    <div class="melding-card-titel">${htmlEscAdmin(t.titel || 'Training')}</div>
+                    <div class="melding-card-meta">
+                        <span class="melding-badge" style="background:${TEAM_COLORS[t.team]||'#666'};color:#fff;">
+                            ${{ veteranen:'Veteranen',zaterdag:'Zaterdag',zondag:'Zondag' }[t.team] || t.team}
+                        </span>
+                        <span class="melding-badge">${t.datum || '—'}</span>
+                        ${t.startTijd ? `<span class="melding-badge">${t.startTijd}${t.eindTijd ? ' – '+t.eindTijd : ''}</span>` : ''}
+                        ${t.locatie ? `<span class="melding-badge">📍 ${htmlEscAdmin(t.locatie)}</span>` : ''}
+                        <span class="melding-badge" style="background:#e8f5e9;color:#2e7d32;">
+                            👥 ${aanwezigen.length} aanwezig
+                        </span>
+                    </div>
+                    ${t.nota ? `<div style="font-size:0.8rem;color:var(--text-gray);margin-top:0.3rem;font-style:italic;">${htmlEscAdmin(t.nota)}</div>` : ''}
+                    ${aanwezigen.length ? `<div style="font-size:0.78rem;color:var(--text-gray);margin-top:0.3rem;">${aanwezigen.map(p=>p.naam).join(', ')}</div>` : ''}
+                </div>
+            </div>
+            <div class="melding-card-actions">
+                <button class="icon-btn edit" title="Bewerken">✏️</button>
+                <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
+            </div>`;
+
+        card.querySelector('.edit').addEventListener('click', () => openTrainingModal(t));
+        card.querySelector('.delete').addEventListener('click', async () => {
+            if (!confirm(`Training "${t.titel}" verwijderen?`)) return;
+            try {
+                await deleteDoc(doc(db, 'trainingen', t.id));
+                showToast('✅ Training verwijderd.', 'success');
+            } catch (e) { showToast('❌ ' + e.message, 'error'); }
+        });
+        container.appendChild(card);
+    });
+}
+
+document.getElementById('addTrainingBtn')?.addEventListener('click', () => openTrainingModal(null));
+
+function openTrainingModal(training = null) {
+    let modal = document.getElementById('trainingModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'trainingModal';
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+
+    modal.innerHTML = `
+        <div class="modal-content large">
+            <h3>${training ? 'Training Bewerken' : 'Training Toevoegen'}</h3>
+            <form id="trainingForm" class="admin-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Titel *</label>
+                        <input type="text" id="trTitel" required value="${htmlEscAdmin(training?.titel || '')}">
+                    </div>
+                    <div class="form-group">
+                        <label>Ploeg *</label>
+                        <select id="trTeam">
+                            <option value="veteranen" ${training?.team==='veteranen'?'selected':''}>Veteranen</option>
+                            <option value="zaterdag"  ${training?.team==='zaterdag'?'selected':''}>Zaterdag</option>
+                            <option value="zondag"    ${training?.team==='zondag'?'selected':''}>Zondag</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Datum *</label>
+                        <input type="date" id="trDatum" required value="${training?.datum || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Starttijd</label>
+                        <input type="time" id="trStartTijd" value="${training?.startTijd || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Eindtijd</label>
+                        <input type="time" id="trEindTijd" value="${training?.eindTijd || ''}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Locatie</label>
+                    <input type="text" id="trLocatie" value="${htmlEscAdmin(training?.locatie || '')}" placeholder="bv. Sportcomplex Rotselaar">
+                </div>
+                <div class="form-group">
+                    <label>Nota (optioneel)</label>
+                    <textarea id="trNota" rows="2" style="resize:vertical;">${htmlEscAdmin(training?.nota || '')}</textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" onclick="document.getElementById('trainingModal').classList.remove('active')">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Opslaan</button>
+                </div>
+            </form>
+        </div>`;
+
+    modal.classList.add('active');
+
+    modal.querySelector('#trainingForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const data = {
+            titel:     document.getElementById('trTitel').value.trim(),
+            team:      document.getElementById('trTeam').value,
+            datum:     document.getElementById('trDatum').value,
+            startTijd: document.getElementById('trStartTijd').value,
+            eindTijd:  document.getElementById('trEindTijd').value,
+            locatie:   document.getElementById('trLocatie').value.trim(),
+            nota:      document.getElementById('trNota').value.trim(),
+        };
+        if (!data.titel || !data.datum) return;
+        const btn = e.target.querySelector('[type=submit]');
+        btn.disabled = true; btn.textContent = 'Bezig…';
+        try {
+            if (training) {
+                await setDoc(doc(db, 'trainingen', training.id), data, { merge: true });
+            } else {
+                await addDoc(collection(db, 'trainingen'), { ...data, aanwezigen: [] });
+            }
+            modal.classList.remove('active');
+            showToast('✅ Training opgeslagen!', 'success');
+        } catch (err) {
+            showToast('❌ ' + err.message, 'error');
+            btn.disabled = false; btn.textContent = 'Opslaan';
+        }
+    });
+}

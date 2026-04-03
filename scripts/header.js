@@ -123,3 +123,103 @@ onAuthStateChanged(auth, (user) => {
     }
     // Als niet ingelogd: gewone <a href="evenementen.html"> link blijft staan
 });
+
+
+// ── Globale zoekfunctie ───────────────────────────────────────────────────────
+
+const SEARCH_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+</svg>`;
+
+function injectSearchUI() {
+    if (document.getElementById('globalSearchBtn')) return;
+
+    // ── Desktop: zoekknop naast login-link in nav-menu ──────────────
+    const navMenu   = document.getElementById('navMenu');
+    const loginLi   = navMenu?.querySelector('li:has(#loginLink)') ||
+                      navMenu?.querySelector('li:last-child');
+
+    if (navMenu && loginLi) {
+        const li = document.createElement('li');
+        li.className = 'nav-search-li';
+        li.innerHTML = `<button id="globalSearchBtn" class="global-search-btn" aria-label="Zoeken">
+            ${SEARCH_ICON_SVG}
+        </button>`;
+        navMenu.insertBefore(li, loginLi);
+    }
+
+    // ── Mobiel: zoekitem in hamburger-menu onder HOME ──────────────
+    // Voeg een ZOEKEN-rij in als tweede item (na HOME)
+    const homeLi = navMenu?.querySelector('li:first-child');
+    if (navMenu && homeLi) {
+        const mobileLi = document.createElement('li');
+        mobileLi.className = 'nav-search-mobile-li';
+        mobileLi.innerHTML = `<button class="nav-search-mobile-btn" id="mobileSearchBtn" aria-label="Zoeken">
+            ${SEARCH_ICON_SVG} ZOEKEN
+        </button>`;
+        homeLi.insertAdjacentElement('afterend', mobileLi);
+
+        document.getElementById('mobileSearchBtn')?.addEventListener('click', () => {
+            // Sluit hamburger-menu
+            document.getElementById('hamburger')?.classList.remove('active');
+            navMenu?.classList.remove('active');
+            openSearchOverlay();
+        });
+    }
+
+    document.getElementById('globalSearchBtn')?.addEventListener('click', openSearchOverlay);
+
+    // ── Overlay ────────────────────────────────────────────────────
+    if (!document.getElementById('searchOverlay')) {
+        const overlay = document.createElement('div');
+        overlay.id        = 'searchOverlay';
+        overlay.className = 'search-overlay';
+        overlay.innerHTML = `
+            <div class="search-modal">
+                <div class="search-input-wrap">
+                    ${SEARCH_ICON_SVG.replace('width="18" height="18"', 'width="20" height="20" class="search-icon"')}
+                    <input type="text" id="searchInput" class="search-input"
+                        placeholder="Zoek leden, wedstrijden, evenementen…" autocomplete="off">
+                    <button id="searchClose" class="search-close-btn" aria-label="Sluiten">✕</button>
+                </div>
+                <div id="searchResults" class="search-results">
+                    <div class="sr-status">Typ om te zoeken…</div>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeSearchOverlay(); });
+        document.getElementById('searchClose')?.addEventListener('click', closeSearchOverlay);
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeSearchOverlay();
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                overlay.classList.contains('active') ? closeSearchOverlay() : openSearchOverlay();
+            }
+        });
+    }
+
+    // Laad search module dynamisch
+    import('./search.js').catch(e => console.warn('Search module not loaded:', e));
+}
+
+function openSearchOverlay() {
+    const overlay = document.getElementById('searchOverlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    document.getElementById('searchInput')?.focus();
+}
+
+function closeSearchOverlay() {
+    const overlay = document.getElementById('searchOverlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+    const input = document.getElementById('searchInput');
+    if (input) input.value = '';
+    const results = document.getElementById('searchResults');
+    if (results) results.innerHTML = '<div class="sr-status">Typ om te zoeken…</div>';
+}
+
+injectSearchUI();

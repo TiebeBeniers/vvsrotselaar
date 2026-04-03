@@ -58,12 +58,32 @@
 
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="werklijst">Werklijst Beheren</button>
+                <button class="tab-btn" data-tab="training">Training</button>
                 <button class="tab-btn" data-tab="sponsors">Sponsors</button>
                 <button class="tab-btn" data-tab="galerij">Galerij</button>
                 <button class="tab-btn" data-tab="meldingen">Meldingen</button>
                 <button class="tab-btn" data-tab="rockwerchter">Rock Werchter</button>
                 <button class="tab-btn" data-tab="data">Data</button>
             </div>
+
+            <!-- ══ Training tab ══════════════════════════════════════════════════ -->
+            <div class="tab-content" id="trainingTab">
+                <div class="section-header">
+                    <h3>Trainingen</h3>
+                    <button class="add-btn" id="addTrainingBtn">+ Training Toevoegen</button>
+                </div>
+                <p class="wl-admin-hint">Beheer hier alle geplande trainingen. Leden kunnen zich aanmelden via de trainingsplanning pagina.</p>
+
+                <!-- Filter -->
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+                    <button class="tr-admin-filter active" data-team="all">Alle ploegen</button>
+                    <button class="tr-admin-filter" data-team="veteranen">Veteranen</button>
+                    <button class="tr-admin-filter" data-team="zaterdag">Zaterdag</button>
+                    <button class="tr-admin-filter" data-team="zondag">Zondag</button>
+                </div>
+
+                <div id="trainingAdminList"><div class="loading">Laden…</div></div>
+            </div><!-- /trainingTab -->
 
             <!-- ══ Werklijst tab ════════════════════════════════════════════════ -->
             <div class="tab-content active" id="werklijstTab">
