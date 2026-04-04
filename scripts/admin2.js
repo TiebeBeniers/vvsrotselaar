@@ -2428,8 +2428,24 @@ function openTrainingModal(training = null) {
                 </div>
                 <div class="form-group">
                     <label>Nota (optioneel)</label>
-                    <textarea id="trNota" rows="2" style="resize:vertical;">${htmlEscAdmin(training?.nota || '')}</textarea>
+                    <textarea id="trNota" rows="2" style="resize:vertical;font-family:inherit;width:100%;padding:0.5rem;border:1px solid var(--border-color);border-radius:6px;">${htmlEscAdmin(training?.nota || '')}</textarea>
                 </div>
+                ${!training ? `
+                <div style="padding:0.75rem;background:var(--off-white);border-radius:8px;border:1px solid var(--border-color);margin-bottom:0.5rem;">
+                    <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;margin-bottom:0.4rem;">
+                        <input type="checkbox" id="trHerhalen" style="width:16px;height:16px;accent-color:var(--primary-blue);">
+                        <strong>Wekelijks herhalen</strong>
+                    </label>
+                    <div id="trHerhalingPanel" style="display:none;margin-top:0.5rem;">
+                        <div class="form-group">
+                            <label>Aantal weken (inclusief startdatum)</label>
+                            <input type="number" id="trAantal" min="2" max="52" value="10" style="width:120px;">
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--text-gray);">
+                            Maakt <strong id="trAantalPreview">10</strong> trainingen aan op dezelfde weekdag, elke week.
+                        </p>
+                    </div>
+                </div>` : ''}
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" onclick="document.getElementById('trainingModal').classList.remove('active')">Annuleren</button>
                     <button type="submit" class="modal-btn confirm">Opslaan</button>
@@ -2438,6 +2454,15 @@ function openTrainingModal(training = null) {
         </div>`;
 
     modal.classList.add('active');
+
+    // Herhaling toggle
+    modal.querySelector('#trHerhalen')?.addEventListener('change', e => {
+        modal.querySelector('#trHerhalingPanel').style.display = e.target.checked ? '' : 'none';
+    });
+    modal.querySelector('#trAantal')?.addEventListener('input', e => {
+        const el = modal.querySelector('#trAantalPreview');
+        if (el) el.textContent = e.target.value || '1';
+    });
 
     modal.querySelector('#trainingForm').addEventListener('submit', async e => {
         e.preventDefault();
@@ -2456,11 +2481,28 @@ function openTrainingModal(training = null) {
         try {
             if (training) {
                 await setDoc(doc(db, 'trainingen', training.id), data, { merge: true });
+                showToast('✅ Training opgeslagen!', 'success');
             } else {
-                await addDoc(collection(db, 'trainingen'), { ...data, aanwezigen: [] });
+                const herhalen = modal.querySelector('#trHerhalen')?.checked;
+                const aantal   = parseInt(modal.querySelector('#trAantal')?.value || '1');
+                if (herhalen && aantal > 1) {
+                    // Wekelijkse herhaling via batch
+                    const [y, m, d] = data.datum.split('-').map(Number);
+                    const startDate = new Date(y, m - 1, d);
+                    const batch = writeBatch(db);
+                    for (let i = 0; i < aantal; i++) {
+                        const dt = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i * 7);
+                        const iso = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+                        batch.set(doc(collection(db, 'trainingen')), { ...data, datum: iso, aanwezigen: [] });
+                    }
+                    await batch.commit();
+                    showToast(`✅ ${aantal} trainingen aangemaakt!`, 'success');
+                } else {
+                    await addDoc(collection(db, 'trainingen'), { ...data, aanwezigen: [] });
+                    showToast('✅ Training opgeslagen!', 'success');
+                }
             }
             modal.classList.remove('active');
-            showToast('✅ Training opgeslagen!', 'success');
         } catch (err) {
             showToast('❌ ' + err.message, 'error');
             btn.disabled = false; btn.textContent = 'Opslaan';

@@ -7,10 +7,15 @@
 // Firestore-data wordt gecached via vvs-cache.js.
 // ===============================================
 
-import { db } from './firebase-config.js';
+import { db, auth } from './firebase-config.js';
+import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { tcGet, tcSet, CACHE_TTL } from './vvs-cache.js';
 import { collection, getDocs, query, orderBy }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+// Track auth state so search knows what's allowed
+let searchCurrentUser = null;
+onAuthStateChanged(auth, (user) => { searchCurrentUser = user; });
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const searchBtn     = document.getElementById('globalSearchBtn');
@@ -63,11 +68,15 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ── Load data (gecached) ──────────────────────────────────────────────────────
+// Wedstrijden en evenementen zijn publiek leesbaar voor iedereen.
+// Leden zijn enkel zichtbaar voor ingelogde gebruikers.
 async function loadSearchData() {
-    try {
-        showSearchStatus('⏳ Laden…');
+    showSearchStatus('⏳ Laden…');
 
-        // Leden — 30 min cache
+    let loadedSomething = false;
+
+    // Leden — publiek leesbaar (iedereen mag zoeken)
+    try {
         let users = tcGet('search_users', CACHE_TTL.medium);
         if (!users) {
             const snap = await getDocs(collection(db, 'users'));
@@ -75,8 +84,14 @@ async function loadSearchData() {
             tcSet('search_users', users);
         }
         searchData.users = users;
+        loadedSomething = true;
+    } catch (e) {
+        console.warn('Leden laden mislukt:', e.message);
+        searchData.users = [];
+    }
 
-        // Wedstrijden — 30 min cache
+    // Wedstrijden — publiek leesbaar
+    try {
         let matches = tcGet('search_matches', CACHE_TTL.medium);
         if (!matches) {
             const snap = await getDocs(query(collection(db, 'matches'), orderBy('datum', 'desc')));
@@ -84,8 +99,14 @@ async function loadSearchData() {
             tcSet('search_matches', matches);
         }
         searchData.matches = matches;
+        loadedSomething = true;
+    } catch (e) {
+        console.warn('Wedstrijden laden mislukt:', e.message);
+        searchData.matches = [];
+    }
 
-        // Evenementen — 30 min cache
+    // Evenementen — publiek leesbaar
+    try {
         let evenementen = tcGet('search_evenementen', CACHE_TTL.medium);
         if (!evenementen) {
             const snap = await getDocs(collection(db, 'evenementen'));
@@ -93,17 +114,22 @@ async function loadSearchData() {
             tcSet('search_evenementen', evenementen);
         }
         searchData.evenementen = evenementen;
-
-        dataLoaded = true;
-        showSearchStatus('Typ om te zoeken in leden, wedstrijden en evenementen…');
-
-        // Als er al een query was getypt, voer hem nu uit
-        if (searchInput?.value.trim().length >= 2) doSearch(searchInput.value.trim());
-
+        loadedSomething = true;
     } catch (e) {
-        console.error('Zoekdata laden mislukt:', e);
-        showSearchStatus('❌ Laden mislukt. Vernieuw de pagina.');
+        console.warn('Evenementen laden mislukt:', e.message);
+        searchData.evenementen = [];
     }
+
+    if (!loadedSomething) {
+        showSearchStatus('❌ Laden mislukt. Vernieuw de pagina.');
+        return;
+    }
+
+    dataLoaded = true;
+    showSearchStatus('Typ om te zoeken in leden, wedstrijden en evenementen…');
+
+    // Als er al een query was getypt, voer hem nu uit
+    if (searchInput?.value.trim().length >= 2) doSearch(searchInput.value.trim());
 }
 
 // ── Search ────────────────────────────────────────────────────────────────────

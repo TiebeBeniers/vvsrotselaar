@@ -91,7 +91,16 @@
     50%       { border-left-color: var(--warning); }
 }
 
-.match-date,
+.match-date {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    color: var(--text-gray);
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+    justify-content: space-between;
+}
+
 .match-location {
     display: flex;
     align-items: center;
@@ -100,6 +109,26 @@
     font-size: 0.95rem;
     margin-bottom: 1rem;
 }
+
+/* Share-knop rechts in match-date rij */
+.match-date .match-share-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: none;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.match-date .match-share-btn:hover { background: #e3f2fd; border-color: var(--primary-blue); }
 
 .match-date svg,
 .match-location svg { width: 20px; height: 20px; color: var(--primary-blue); }
