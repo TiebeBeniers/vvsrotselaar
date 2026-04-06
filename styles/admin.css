@@ -1157,9 +1157,6 @@ html.dark .icon.upload { filter:invert(1); }
         white-space: nowrap;
     }
 
-    /* Instructies verbergen op mobiel — enkel het formulier tonen */
-    .ranking-instructions { display: none; }
-
     /* Knoppen vol breedte op mobiel */
     .ranking-actions { flex-direction: column; }
     .ranking-actions .add-btn,

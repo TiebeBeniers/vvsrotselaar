@@ -159,7 +159,7 @@ img {
 }
 
 /* Mobile Navigation */
-@media (max-width: 768px) {
+@media (max-width: 1350px) {
     .header-container {
         grid-template-columns: 60px 1fr 60px;
         gap: 1rem;
@@ -172,7 +172,7 @@ img {
     }
 
     .title-section h1 {
-        font-size: 1.3rem;
+        font-size: 1.8rem;
     }
 
     .hamburger {
@@ -205,6 +205,12 @@ img {
     .nav-menu li a {
         padding: 1rem;
         font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 452px) {
+    .nav-menu {
+        top: 95px;
     }
 }
 
@@ -260,7 +266,7 @@ img {
     text-decoration: underline;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1350px) {
     .contact-container {
         grid-template-columns: 1fr;
         gap: 2rem;
@@ -351,7 +357,7 @@ img {
 }
 
 /* ── Mobile: accordion inside side-nav ── */
-@media (max-width: 768px) {
+@media (max-width: 1350px) {
     .nav-dropdown {
         display: flex;
         flex-direction: column;
@@ -510,7 +516,7 @@ img {
     box-shadow: 0 4px 12px var(--shadow);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1350px) {
     .modal-actions {
         flex-direction: column;
     }
@@ -1117,7 +1123,7 @@ html.dark code                      { background: #252840; color: var(--accent-b
 .nav-search-mobile-btn svg   { flex-shrink: 0; }
 
 /* Op mobiel: desktop-knop verbergen, mobiel-item tonen */
-@media (max-width: 768px) {
+@media (max-width: 1350px) {
     .nav-search-li        { display: none; }
     .nav-search-mobile-li { display: block; margin-bottom: 0.5rem; }
 }

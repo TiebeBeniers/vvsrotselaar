@@ -1017,8 +1017,4 @@ html.dark .vvs-row td {background: #2555b49d;}
     background: #e8f0fe;
 }
 
-/* Mobiel: popup iets smaller */
-@media (max-width: 480px) {
-    .map-popup-inner { width: calc(100vw - 2.5rem); }
-    .map-iframe { height: 170px; }
-}
+
