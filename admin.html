@@ -447,6 +447,18 @@
                         <button type="button" class="match-type-btn active" data-type="upcoming" id="btnUpcoming">📆 Geplande Wedstrijd</button>
                         <button type="button" class="match-type-btn" data-type="finished" id="btnFinished">✅ Afgelopen Wedstrijd</button>
                     </div>
+                    <!-- Vlaggen: Forfait en/of Bekermatch -->
+                    <div class="match-flags-row" style="margin-top:0.75rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
+                        <label class="match-flag-label">
+                            <input type="checkbox" id="matchForfaitThuis"> Forfait thuisploeg (0–5)
+                        </label>
+                        <label class="match-flag-label">
+                            <input type="checkbox" id="matchForfaitUit"> Forfait uitploeg (5–0)
+                        </label>
+                        <label class="match-flag-label">
+                            <input type="checkbox" id="matchBekermatch"> 🏆 Bekermatch
+                        </label>
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">

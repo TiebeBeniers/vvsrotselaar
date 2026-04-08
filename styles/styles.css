@@ -74,7 +74,7 @@ img {
 }
 
 .header-container {
-    max-width: 1400px;
+    max-width: 1460px;
     margin: 0 auto;
     padding: 0.8rem 2rem;
     display: grid;
@@ -1099,7 +1099,8 @@ html.dark code                      { background: #252840; color: var(--accent-b
     transition: background 0.15s;
     display: flex; align-items: center; justify-content: center;
 }
-.global-search-btn:hover { background: var(--off-white); }
+.global-search-btn:hover { background: var(--primary-blue); color: var(--white); }
+.global-search-btn:hover svg { stroke: #ffffff; }
 
 /* Mobiel zoekitem — zichtbaar alleen in uitschuifbaar hamburger-menu */
 .nav-search-mobile-li { display: none; }

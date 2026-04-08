@@ -2362,7 +2362,7 @@ function renderTrainingAdminList() {
                 </div>
             </div>
             <div class="melding-card-actions">
-                <button class="icon-btn edit" title="Bewerken">✏️</button>
+                <button class="icon-btn edit" title="Bewerken"><img src="assets/edit.png" class="icon-lg" alt=""></button>
                 <button class="icon-btn delete" title="Verwijderen"><img src="assets/delete.png" class="icon-lg" alt=""></button>
             </div>`;
 
@@ -2400,8 +2400,9 @@ function openTrainingModal(training = null) {
                         <input type="text" id="trTitel" required value="${htmlEscAdmin(training?.titel || '')}">
                     </div>
                     <div class="form-group">
-                        <label>Ploeg *</label>
+                        <label>Ploeg</label>
                         <select id="trTeam">
+                            <option value=""          ${!training?.team?'selected':''}>Alle ploegen</option>
                             <option value="veteranen" ${training?.team==='veteranen'?'selected':''}>Veteranen</option>
                             <option value="zaterdag"  ${training?.team==='zaterdag'?'selected':''}>Zaterdag</option>
                             <option value="zondag"    ${training?.team==='zondag'?'selected':''}>Zondag</option>

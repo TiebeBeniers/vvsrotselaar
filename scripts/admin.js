@@ -870,6 +870,15 @@ if (addMatchBtn) {
         document.getElementById('btnFinished').classList.remove('active');
         document.getElementById('scoreFields').style.display = 'none';
         document.getElementById('designatedPersonsGroup').style.display = 'block';
+        // Reset vlaggen
+        const fT = document.getElementById('matchForfaitThuis');
+        const fU = document.getElementById('matchForfaitUit');
+        const fB = document.getElementById('matchBekermatch');
+        if (fT) fT.checked = false;
+        if (fU) fU.checked = false;
+        if (fB) fB.checked = false;
+        // Forfait auto-score listeners
+        initForfaitListeners();
         
         // Remove required from score fields
         document.getElementById('matchHomeScore').removeAttribute('required');
@@ -994,6 +1003,12 @@ if (matchForm) {
                 return;
             }
             
+            const isForfaitThuis = document.getElementById('matchForfaitThuis')?.checked || false;
+            const isForfaitUit   = document.getElementById('matchForfaitUit')?.checked   || false;
+            const isBekermatch   = document.getElementById('matchBekermatch')?.checked   || false;
+            // Forfait-score meteen zetten als van toepassing
+            const fScoreThuis = isForfaitThuis ? 0 : (isForfaitUit ? 5 : 0);
+            const fScoreUit   = isForfaitThuis ? 5 : (isForfaitUit ? 0 : 0);
             matchData = {
                 datum: date,
                 uur: time,
@@ -1004,8 +1019,11 @@ if (matchForm) {
                 beschrijving: description,
                 aangeduidePersonen: aangeduidePersonen,
                 status: 'planned',
-                scoreThuis: 0,
-                scoreUit: 0
+                scoreThuis: fScoreThuis,
+                scoreUit: fScoreUit,
+                isForfait:   isForfaitThuis || isForfaitUit,
+                forfaitSide: isForfaitThuis ? 'thuis' : (isForfaitUit ? 'uit' : null),
+                isBekermatch,
             };
         } else {
             // Finished match
@@ -1015,6 +1033,11 @@ if (matchForm) {
             // Create timestamp from date and time
             const matchDateTime = new Date(`${date}T${time}`);
             
+            const isForfaitThuisF = document.getElementById('matchForfaitThuis')?.checked || false;
+            const isForfaitUitF   = document.getElementById('matchForfaitUit')?.checked   || false;
+            const isBekermatchF   = document.getElementById('matchBekermatch')?.checked   || false;
+            const finalHomeScore  = isForfaitThuisF ? 0 : (isForfaitUitF ? 5 : homeScore);
+            const finalAwayScore  = isForfaitThuisF ? 5 : (isForfaitUitF ? 0 : awayScore);
             matchData = {
                 datum: date,
                 uur: time,
@@ -1025,13 +1048,16 @@ if (matchForm) {
                 beschrijving: description,
                 aangeduidePersonen: [],
                 status: 'finished',
-                scoreThuis: homeScore,
-                scoreUit: awayScore,
+                scoreThuis: finalHomeScore,
+                scoreUit: finalAwayScore,
                 halfTimeReached: true,
                 pausedAt: null,
                 pausedDuration: 0,
                 startedAt: matchDateTime,
-                resumeStartedAt: matchDateTime
+                resumeStartedAt: matchDateTime,
+                isForfait:   isForfaitThuisF || isForfaitUitF,
+                forfaitSide: isForfaitThuisF ? 'thuis' : (isForfaitUitF ? 'uit' : null),
+                isBekermatch: isBekermatchF,
             };
         }
         
@@ -1231,7 +1257,16 @@ function editMatch(match) {
     
     const descField = document.getElementById('matchDescription');
     if (descField) descField.value = match.beschrijving || '';
-    
+
+    // Herstel vlaggen
+    const efT = document.getElementById('matchForfaitThuis');
+    const efU = document.getElementById('matchForfaitUit');
+    const efB = document.getElementById('matchBekermatch');
+    if (efT) efT.checked = match.forfaitSide === 'thuis';
+    if (efU) efU.checked = match.forfaitSide === 'uit';
+    if (efB) efB.checked = !!match.isBekermatch;
+    initForfaitListeners();
+
     populateDesignatedPersonsSelect();
     
     // Check the designated persons
@@ -2436,3 +2471,50 @@ function showToast(msg, type = '') {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
 }
+
+
+// ── Forfait auto-score listeners ──────────────────────────────────────────────
+let _forfaitListenersInit = false;
+function initForfaitListeners() {
+    if (_forfaitListenersInit) return;
+    _forfaitListenersInit = true;
+
+    const fT = document.getElementById('matchForfaitThuis');
+    const fU = document.getElementById('matchForfaitUit');
+    const scoreFieldsEl = document.getElementById('scoreFields');
+    const homeScoreEl   = document.getElementById('matchHomeScore');
+    const awayScoreEl   = document.getElementById('matchAwayScore');
+
+    function applyForfait() {
+        if (!fT || !fU) return;
+        if (fT.checked) {
+            fU.checked = false;
+            if (scoreFieldsEl) scoreFieldsEl.style.display = 'flex';
+            if (homeScoreEl) homeScoreEl.value = 0;
+            if (awayScoreEl) awayScoreEl.value = 5;
+        } else if (fU.checked) {
+            fT.checked = false;
+            if (scoreFieldsEl) scoreFieldsEl.style.display = 'flex';
+            if (homeScoreEl) homeScoreEl.value = 5;
+            if (awayScoreEl) awayScoreEl.value = 0;
+        }
+    }
+
+    fT?.addEventListener('change', applyForfait);
+    fU?.addEventListener('change', applyForfait);
+}
+
+// ── Modal buiten-klik sluiten ─────────────────────────────────────────────────
+(function initModalOutsideClick() {
+    const modals = [
+        document.getElementById('memberModal'),
+        document.getElementById('matchModal'),
+        document.getElementById('evenementModal'),
+    ];
+    modals.forEach(modal => {
+        if (!modal) return;
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    });
+})();

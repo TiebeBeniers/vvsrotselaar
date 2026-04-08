@@ -331,6 +331,8 @@ function displayPlannedMatch(match, container) {
                         <line x1="3" y1="10" x2="21" y2="10"></line>
                     </svg>
                     <span>${formattedDate} om ${formattedTime}</span>
+                    ${match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : ''}
+                    ${match.isForfait    ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>'      : ''}
                     <button class="match-share-btn" id="matchShareBtn" aria-label="Wedstrijd delen">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
                             <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
@@ -801,8 +803,17 @@ function createRecentMatchCard(match) {
     const motmVotingOpen = now >= matchDate && now <= dayEnd;
     const motmResults    = match.motmResults || null;
 
+    // Badges voor forfait / bekermatch
+    const matchBadges = [
+        match.isForfait   ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>' : '',
+        match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : '',
+    ].filter(Boolean).join('');
+
     card.innerHTML = `
-        <div class="recent-match-date">${formattedDate} - ${match.uur}</div>
+        <div class="recent-match-date-row">
+            <span class="recent-match-date">${formattedDate} - ${match.uur}</span>
+            ${matchBadges}
+        </div>
         <div class="recent-match-teams">
             <div class="recent-team">${match.thuisploeg}</div>
             <div class="recent-score">${match.scoreThuis} - ${match.scoreUit}</div>

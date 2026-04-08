@@ -55,7 +55,11 @@ if (hamburger && navMenu) {
 // We zoeken de <a href="evenementen.html"> en vervangen die (indien ingelogd)
 // door een dropdown met "Evenementen" + "Werklijst".
 
-function buildEvenementenDropdown() {
+// ── Evenementen dropdown ──────────────────────────────────────────────────────
+// Niet ingelogd: Evenementen + Kalender
+// Ingelogd:      Evenementen + Kalender + Werklijst
+
+function buildEvenementenDropdown(isLoggedIn) {
     const navMenu = document.getElementById('navMenu');
     if (!navMenu) return;
 
@@ -63,13 +67,18 @@ function buildEvenementenDropdown() {
     const page = window.location.pathname.split('/').pop() || 'index.html';
     const evActive = page === 'evenementen.html';
     const wlActive = page === 'werklijst.html';
-    const anyActive = evActive || wlActive;
+    const kalActive = page === 'kalender.html';
+    const anyActive = evActive || wlActive || kalActive;
 
     // Vind de bestaande <li> met de evenementen-link
     const evLink = navMenu.querySelector('a[href="evenementen.html"]');
     if (!evLink) return;
     const evLi = evLink.closest('li');
     if (!evLi) return;
+
+    const werklijstItem = isLoggedIn
+        ? `<li><a href="werklijst.html"${wlActive ? ' class="active"' : ''}>Werklijst</a></li>`
+        : '';
 
     // Vervang door nav-dropdown structuur
     evLi.className = 'nav-dropdown';
@@ -85,7 +94,8 @@ function buildEvenementenDropdown() {
         </button>
         <ul class="nav-dropdown-menu" id="evenementenDropdownMenu">
             <li><a href="evenementen.html"${evActive ? ' class="active"' : ''}>Evenementen</a></li>
-            <li><a href="werklijst.html"${wlActive ? ' class="active"' : ''}>Werklijst</a></li>
+            <li><a href="kalender.html"${kalActive ? ' class="active"' : ''}>Kalender</a></li>
+            ${werklijstItem}
         </ul>`;
 
     const btn  = evLi.querySelector('#evenementenDropdownBtn');
@@ -113,21 +123,24 @@ function buildEvenementenDropdown() {
     });
 }
 
-// Auth check: dropdown enkel voor ingelogden
+// Auth check: dropdown altijd tonen, werklijst enkel voor ingelogden
 onAuthStateChanged(auth, (user) => {
     const loginLink = document.getElementById('loginLink');
     if (loginLink) loginLink.textContent = user ? 'PROFIEL' : 'LOGIN';
 
-    if (user) {
-        buildEvenementenDropdown();
+    // Herbouw dropdown (verwijder oude instantie als die al bestaat)
+    const existing = document.getElementById('evenementenDropdownBtn');
+    if (existing) {
+        const li = existing.closest('li');
+        if (li) li.outerHTML = `<li><a href="evenementen.html">EVENEMENTEN</a></li>`;
     }
-    // Als niet ingelogd: gewone <a href="evenementen.html"> link blijft staan
+    buildEvenementenDropdown(!!user);
 });
 
 
 // ── Globale zoekfunctie ───────────────────────────────────────────────────────
 
-const SEARCH_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18">
+const SEARCH_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="30">
     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
 </svg>`;
 

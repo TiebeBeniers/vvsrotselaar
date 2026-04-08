@@ -2834,3 +2834,172 @@ html.dark .rw-filter-select { color: var(--text-dark); }
     cursor: not-allowed;
     opacity: 0.6;
 }
+
+/* ═══════════════════════════════════════════════════
+   ANNOUNCEMENT EDITOR
+   ═══════════════════════════════════════════════════ */
+
+/* Hoofdrij: emoji-picker | tekstveld | opslaan | status */
+.announcement-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: nowrap;
+}
+
+/* Tekstveld groeit mee */
+.ann-text-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.72rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    background: var(--white);
+}
+.ann-text-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+/* Opslaan-knop: smal houden */
+.ann-save-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── Emoji-picker dropdown ── */
+.ann-icon-picker {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.ann-icon-selected {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.62rem 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--white);
+    cursor: pointer;
+    font-size: 1.15rem;
+    line-height: 1;
+    transition: border-color 0.2s;
+    font-family: inherit;
+}
+.ann-icon-selected:hover { border-color: var(--primary-blue); }
+.ann-icon-selected svg   { flex-shrink: 0; color: var(--text-gray); }
+
+/* Dropdown paneel */
+.ann-icon-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 400;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+    padding: 0.75rem;
+    min-width: 240px;
+}
+.ann-icon-dropdown.ann-icon-dropdown-open { display: block; }
+
+/* Emoji grid */
+.ann-icon-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    margin-bottom: 0.75rem;
+}
+.ann-emoji-btn {
+    font-size: 1.35rem;
+    padding: 4px;
+    border: 1.5px solid transparent;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+    line-height: 1;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: center;
+}
+.ann-emoji-btn:hover {
+    background: var(--off-white);
+    border-color: var(--border-color);
+}
+
+/* Aangepast pad sectie */
+.ann-icon-custom {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.65rem;
+}
+.ann-custom-label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    margin-bottom: 0.35rem;
+    font-weight: 600;
+}
+.ann-custom-row {
+    display: flex;
+    gap: 6px;
+}
+.ann-custom-input {
+    flex: 1;
+    padding: 0.4rem 0.6rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+}
+.ann-custom-input:focus { outline: none; border-color: var(--primary-blue); }
+.ann-custom-apply {
+    padding: 0.4rem 0.7rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background 0.15s;
+}
+.ann-custom-apply:hover { background: var(--dark-blue); }
+
+/* ── Live preview ── */
+.ann-preview-label {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.4rem;
+}
+.ann-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(90deg, var(--primary-blue), var(--dark-blue));
+    color: #fff;
+    padding: 0.65rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    overflow: hidden;
+}
+.ann-preview-icon { flex-shrink: 0; font-size: 1.1rem; line-height: 1; }
+
+/* Mobiel: wrap */
+@media (max-width: 600px) {
+    .announcement-editor-row { flex-wrap: wrap; }
+    .ann-text-input { min-width: 100%; order: 2; }
+    .ann-icon-picker { order: 1; }
+    .ann-save-btn    { order: 3; }
+}

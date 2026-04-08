@@ -1,63 +1,111 @@
 import { db } from './firebase-config.js';
 import { collection, addDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
         
-// Contact form submission
+// ── Cooldown: 5 minuten tussen berichten (localStorage) ─────────────────────
+const COOLDOWN_MS  = 5 * 60 * 1000;  // 5 minuten
+const COOLDOWN_KEY = 'vvs_contact_last_sent';
+
+function getCooldownRemaining() {
+    const last = parseInt(localStorage.getItem(COOLDOWN_KEY) || '0', 10);
+    const remaining = COOLDOWN_MS - (Date.now() - last);
+    return remaining > 0 ? remaining : 0;
+}
+
+function formatCooldown(ms) {
+    const totalSec = Math.ceil(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return min > 0
+        ? `${min} min ${String(sec).padStart(2, '0')} sec`
+        : `${sec} sec`;
+}
+
+// Toon afteltimer op de knop als de cooldown actief is
+let cooldownInterval = null;
+function startCooldownUI(submitBtn, originalText) {
+    clearInterval(cooldownInterval);
+    function update() {
+        const rem = getCooldownRemaining();
+        if (rem <= 0) {
+            clearInterval(cooldownInterval);
+            submitBtn.disabled    = false;
+            submitBtn.textContent = originalText;
+            submitBtn.classList.remove('cooldown-active');
+        } else {
+            submitBtn.disabled    = true;
+            submitBtn.textContent = `Wacht ${formatCooldown(rem)}`;
+            submitBtn.classList.add('cooldown-active');
+        }
+    }
+    update();
+    cooldownInterval = setInterval(update, 1000);
+}
+
+// ── Contact form submission ───────────────────────────────────────────────────
 const contactForm = document.getElementById('contactForm');
 
 if (contactForm) {
+    const submitBtn   = contactForm.querySelector('.submit-btn');
+    const originalText = submitBtn ? submitBtn.textContent : 'VERZENDEN';
+
+    // Herstel cooldown bij herladen van de pagina
+    if (submitBtn && getCooldownRemaining() > 0) {
+        startCooldownUI(submitBtn, originalText);
+    }
+
     contactForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-                
-        const submitBtn = contactForm.querySelector('.submit-btn');
-        const originalText = submitBtn.textContent;
-                
+
+        // Cooldown check
+        const remaining = getCooldownRemaining();
+        if (remaining > 0) {
+            showToast(`Wacht nog ${formatCooldown(remaining)} voor een volgend bericht.`, 'error');
+            return;
+        }
+
         try {
             submitBtn.textContent = 'VERZENDEN...';
-            submitBtn.disabled = true;
-            
-            const email = document.getElementById('email').value.trim();
+            submitBtn.disabled    = true;
+
+            const email   = document.getElementById('email').value.trim();
             const message = document.getElementById('message').value.trim();
-            
+
             if (!email || !message) {
-                 showToast('Vul alle velden in', 'error');
-                 return;
+                showToast('Vul alle velden in', 'error');
+                submitBtn.textContent = originalText;
+                submitBtn.disabled    = false;
+                return;
             }
-     
-            console.log('Submitting contact form...', { email, messageLength: message.length });
-            
-            // Save to Firestore with explicit timestamp
+
             const docRef = await addDoc(collection(db, 'contactberichten'), {
-                email: email,
-                bericht: message,
-                datum: Timestamp.now(),
-                gelezen: false,
-                createdAt: new Date().toISOString()
+                email:     email,
+                bericht:   message,
+                datum:     Timestamp.now(),
+                gelezen:   false,
+                createdAt: new Date().toISOString(),
             });
-            
+
             console.log('Contact bericht saved with ID:', docRef.id);
-            
-            // Success
+
+            // Sla timestamp op en start cooldown
+            localStorage.setItem(COOLDOWN_KEY, String(Date.now()));
             showToast('Bericht verzonden! We nemen snel contact op.', 'success');
             contactForm.reset();
-            
+            startCooldownUI(submitBtn, originalText);
+
         } catch (error) {
             console.error('Error submitting form:', error);
-            console.error('Error code:', error.code);
-            console.error('Error message:', error.message);
-            
             let errorMessage = 'Er is een fout opgetreden. ';
             if (error.code === 'permission-denied') {
-                errorMessage += 'Geen toegang tot de database. Neem contact op met de beheerder.';
+                errorMessage += 'Geen toegang tot de database.';
             } else if (error.code === 'unavailable') {
                 errorMessage += 'Database niet bereikbaar. Probeer het later opnieuw.';
             } else {
                 errorMessage += 'Probeer het later opnieuw.';
             }
-            
             showToast(errorMessage, 'error');
-        } finally {
             submitBtn.textContent = originalText;
-            submitBtn.disabled = false;
+            submitBtn.disabled    = false;
         }
     });
 }

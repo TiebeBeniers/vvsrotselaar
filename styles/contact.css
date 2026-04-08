@@ -175,3 +175,13 @@ html.dark .faq-section              { background: var(--white); }
 html.dark .faq-answer               { color: var(--text-dark); }
 html.dark .contact-info-section     { background: var(--white); }
 html.dark .contact-form-section     { background: var(--off-white); }
+/* ── Cooldown knopstijl ── */
+.submit-btn.cooldown-active {
+    background: var(--text-gray, #4A4A4A);
+    color: var(--white);
+    border-color: var(--text-gray, #4A4A4A);
+    cursor: not-allowed;
+    opacity: 0.75;
+    transform: none;
+    box-shadow: none;
+}

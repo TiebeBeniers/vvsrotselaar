@@ -403,21 +403,42 @@ function removeCalendarButton(shiftId) {
 }
 
 function addDays(yyyymmdd, days) {
-    const y = parseInt(yyyymmdd.slice(0, 4), 10);
-    const m = parseInt(yyyymmdd.slice(4, 6), 10) - 1;
-    const d = parseInt(yyyymmdd.slice(6, 8), 10);
+    const y  = parseInt(yyyymmdd.slice(0, 4), 10);
+    const m  = parseInt(yyyymmdd.slice(4, 6), 10) - 1;
+    const d  = parseInt(yyyymmdd.slice(6, 8), 10);
     const dt = new Date(y, m, d + days);
     const pad = n => String(n).padStart(2, '0');
-    return `${dt.getFullYear()}${pad(dt.getMonth() + 1)}${pad(dt.getDate())}`;
+    return dt.getFullYear() + pad(dt.getMonth() + 1) + pad(dt.getDate());
 }
 
+// Parseer "08:00", "Vanaf 18:00", "8:5", etc. → "HHMMSS"
 function parseTimeToHHMMSS(t) {
-    // "08:00" → "080000", "Vanaf 18:00" handled separately
     if (!t) return null;
     t = t.replace(/vanaf\s*/i, '').trim();
-    const [h, m] = t.split(':');
-    if (!h) return null;
-    return String(parseInt(h, 10)).padStart(2, '0') + (m || '00') + '00';
+    const match = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) return null;
+    const hh = String(parseInt(match[1], 10)).padStart(2, '0');
+    const mm = String(parseInt(match[2], 10)).padStart(2, '0');
+    const ss = match[3] ? String(parseInt(match[3], 10)).padStart(2, '0') : '00';
+    return hh + mm + ss;
+}
+
+// ICS-waarden escapen (RFC 5545)
+function icsEsc(s) {
+    return (s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+// RFC 5545 line folding: max 75 octets per regel
+function foldLine(line) {
+    if (line.length <= 75) return line;
+    const out = [];
+    let i = 0;
+    while (i < line.length) {
+        const chunk = (i === 0 ? 75 : 74);
+        out.push((i === 0 ? '' : ' ') + line.slice(i, i + chunk));
+        i += chunk;
+    }
+    return out.join('\r\n');
 }
 
 function downloadICS(shiftId) {
@@ -427,71 +448,93 @@ function downloadICS(shiftId) {
         return;
     }
 
-    const [sy, sm, sd] = shift.date.split('-');
-    const baseDateStr  = `${sy}${sm}${sd}`; // "YYYYMMDD"
+    // Valideer datumformaat YYYY-MM-DD
+    const dateParts = shift.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!dateParts) {
+        showToast('Ongeldig datumformaat voor deze shift.', 'error');
+        return;
+    }
+    const baseDateStr = dateParts[1] + dateParts[2] + dateParts[3]; // "YYYYMMDD"
 
-    const timeStr = shift.time || '';
+    const timeStr = (shift.time || '').trim();
     let dtStart, dtEnd;
 
-    const isVanaf = /^vanaf/i.test(timeStr.trim());
+    const isVanaf = /^vanaf/i.test(timeStr);
 
     if (isVanaf) {
-        // "Vanaf 18:00" → start at 18:00, end +4h
-        const raw = parseTimeToHHMMSS(timeStr) || '120000';
+        const raw    = parseTimeToHHMMSS(timeStr) || '120000';
         const startH = parseInt(raw.slice(0, 2), 10);
-        const endH   = (startH + 4) % 24;
-        const endHHMMSS = String(endH).padStart(2, '0') + '0000';
-        dtStart = `${baseDateStr}T${raw}`;
-        dtEnd   = `${baseDateStr}T${endHHMMSS}`;
+        // +4 uur, over middernacht indien nodig
+        const endTotalMin = startH * 60 + 4 * 60;
+        const endH        = Math.floor(endTotalMin / 60) % 24;
+        const endDate     = endTotalMin >= 24 * 60 ? addDays(baseDateStr, 1) : baseDateStr;
+        const endHHMMSS   = String(endH).padStart(2, '0') + '0000';
+        dtStart = baseDateStr + 'T' + raw;
+        dtEnd   = endDate     + 'T' + endHHMMSS;
     } else {
-        // "08:00 – 14:00" or "19:00 – 00:00"
-        const parts  = timeStr.split(/[–—]/).map(t => t.trim());
-        const sRaw   = parseTimeToHHMMSS(parts[0]) || '080000';
-        const eRaw   = parseTimeToHHMMSS(parts[1]) || '140000';
+        // Splits op em-dash, en-dash, gewone streepje (met optionele spaties)
+        const parts = timeStr.split(/\s*[\u2013\u2014\-]\s*/);
+        const sRaw  = parseTimeToHHMMSS(parts[0]) || '080000';
+        const eRaw  = parts[1] ? (parseTimeToHHMMSS(parts[1]) || '140000') : '140000';
 
         const startH = parseInt(sRaw.slice(0, 2), 10);
+        const startM = parseInt(sRaw.slice(2, 4), 10);
         const endH   = parseInt(eRaw.slice(0, 2), 10);
+        const endM   = parseInt(eRaw.slice(2, 4), 10);
 
-        // Overnight: end hour <= start hour (e.g. 19→00 or 00→06)
-        const endDateStr = (endH < startH || eRaw === '000000')
-            ? addDays(baseDateStr, 1)
-            : baseDateStr;
+        // Overnight als eindtijd eerder is dan begintijd:
+        //   19:00–01:00, 23:00–06:00, 00:00–06:00 (begint na 00:00 = volgende dag)
+        // Niet overnight: 08:00–00:00 (eindigt op middernacht = zelfde dag)
+        const startTotalMin = startH * 60 + startM;
+        const endTotalMin   = endH   * 60 + endM;
+        // 00:00 als eindtijd = 24:00 = einde van de dag → NIET overnight tenzij begin ook laat is
+        const endIs2400     = (eRaw === '000000');
+        const isOvernight   = !endIs2400 && endTotalMin <= startTotalMin;
 
-        dtStart = `${baseDateStr}T${sRaw}`;
-        dtEnd   = `${endDateStr}T${eRaw}`;
+        const endDateStr = isOvernight ? addDays(baseDateStr, 1) : baseDateStr;
+        dtStart = baseDateStr + 'T' + sRaw;
+        dtEnd   = endDateStr  + 'T' + (endIs2400 ? '235959' : eRaw);
     }
 
-    const title       = `VVS Rotselaar – ${shift.label || 'Shift'} (${timeStr})`;
-    const description = `${shift.label || 'Shift'}\\nTijdstip: ${timeStr}\\nV.V.S Rotselaar`;
-    const uid         = `vvs-${shiftId}-${Date.now()}@vvsrotselaar.be`;
+    const title       = icsEsc('VVS Rotselaar \u2013 ' + (shift.label || 'Shift') + ' (' + timeStr + ')');
+    const description = icsEsc((shift.label || 'Shift') + '\nTijdstip: ' + timeStr + '\nV.V.S Rotselaar');
+    const uid         = 'vvs-' + shiftId + '-' + Date.now() + '@vvsrotselaar.be';
     const now         = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
 
-    const ics = [
+    const icsLines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
         'PRODID:-//VVS Rotselaar//Werklijst//NL',
         'CALSCALE:GREGORIAN',
         'METHOD:PUBLISH',
+        'X-WR-CALNAME:VVS Rotselaar Werklijst',
+        'X-WR-TIMEZONE:Europe/Brussels',
         'BEGIN:VEVENT',
-        `UID:${uid}`,
-        `DTSTAMP:${now}`,
-        `DTSTART:${dtStart}`,
-        `DTEND:${dtEnd}`,
-        `SUMMARY:${title}`,
-        `DESCRIPTION:${description}`,
-        'LOCATION:V.V.S Rotselaar',
+        'UID:' + uid,
+        'DTSTAMP:' + now,
+        'DTSTART;TZID=Europe/Brussels:' + dtStart,
+        'DTEND;TZID=Europe/Brussels:' + dtEnd,
+        'SUMMARY:' + title,
+        'DESCRIPTION:' + description,
+        'LOCATION:V.V.S. Rotselaar\\, Hellichtstraat 83\\, 3110 Rotselaar',
         'END:VEVENT',
         'END:VCALENDAR',
-    ].join('\r\n');
+    ];
 
-    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const ics  = icsLines.map(foldLine).join('\r\n') + '\r\n';
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8;method=PUBLISH' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href = url; a.download = `shift-${shiftId}.ics`;
+    a.href     = url;
+    a.download = 'shift-' + (shift.label || shiftId).replace(/[^a-z0-9]/gi, '_') + '.ics';
+    a.setAttribute('type', 'text/calendar');
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Wacht 1s voor revoke zodat Android de download kan starten
+    setTimeout(function() {
+        if (document.body.contains(a)) document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 1000);
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────────

@@ -1017,4 +1017,51 @@ html.dark .vvs-row td {background: #2555b49d;}
     background: #e8f0fe;
 }
 
+/* ── Forfait / Bekermatch badges ── */
+.recent-match-date-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.35rem;
+}
 
+.match-flag-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 20px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.flag-forfait {
+    background: #FEE2E2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+}
+
+.flag-beker {
+    background: #FEF3C7;
+    color: #92400E;
+    border: 1px solid #FDE68A;
+}
+
+/* Admin css: checkbox flags in modal */
+.match-flag-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.92rem;
+    color: var(--text-dark);
+    cursor: pointer;
+    font-weight: 500;
+}
+.match-flag-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary-blue);
+}

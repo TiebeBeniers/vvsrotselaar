@@ -6,7 +6,7 @@
     <title>V.V.S Rotselaar - Kalender</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles/styles.css">
-    <link rel="stylesheet" href="styles/training.css">
+    <link rel="stylesheet" href="styles/kalender.css">
     <script>if(localStorage.getItem('vvs_theme')==='dark')document.documentElement.classList.add('dark');</script>
 </head>
 <body>
@@ -42,7 +42,7 @@
         <div class="cal-hero-inner">
             <div>
                 <h1>📅 Kalender</h1>
-                <p>Trainingen, wedstrijden, evenementen en jouw shiften.</p>
+                <p>Trainingen, wedstrijden, evenementen,...</p>
             </div>
             <div id="adminAddBtn" style="display:none;">
                 <button class="cal-add-btn" id="openAddItemBtn">+ Item Toevoegen</button>
@@ -133,6 +133,23 @@
                     <textarea id="calItemNota" rows="2" style="resize:vertical;font-family:inherit;width:100%;padding:0.5rem;border:1px solid var(--border-color);border-radius:6px;"></textarea>
                 </div>
 
+                <!-- Herhaling (enkel bij nieuw item, enkel admin) -->
+                <div id="calRecurSection" class="cal-recur-section" style="display:none;">
+                    <label style="display:flex;align-items:center;gap:0.6rem;cursor:pointer;margin-bottom:0.4rem;">
+                        <input type="checkbox" id="calItemHerhalen" style="width:16px;height:16px;accent-color:var(--primary-blue);">
+                        <strong>Wekelijks herhalen</strong>
+                    </label>
+                    <div id="calItemHerhalingPanel" style="display:none;margin-top:0.5rem;">
+                        <div class="form-group">
+                            <label>Aantal weken (inclusief startdatum)</label>
+                            <input type="number" id="calItemAantal" min="2" max="52" value="8" style="width:120px;padding:0.4rem 0.6rem;border:1px solid var(--border-color);border-radius:6px;font-family:inherit;">
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--text-gray);margin-top:0.3rem;">
+                            Maakt <strong id="calItemAantalPreview">10</strong> items aan op dezelfde weekdag, elke week.
+                        </p>
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="modal-btn cancel" id="calItemCancel">Annuleren</button>
                     <button type="submit" class="modal-btn confirm" id="calItemSave">Opslaan</button>
@@ -143,8 +160,40 @@
 
     <div class="tr-toast" id="trToast"></div>
 
+    <!-- Contact Section -->
+        <section class="contact-section">
+            <div class="contact-container">
+                <div class="contact-item">
+                    <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    <div class="contact-text">
+                        <h3>Email</h3>
+                        <p><a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a></p>
+                    </div>
+                </div>
+                <div class="contact-item">
+                    <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                        <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <div class="contact-text">
+                        <h3>Locatie</h3>
+                        <p><a href="https://www.google.com/maps/search/?api=1&query=Hellichtstraat+83,+3110+Rotselaar,+Belgium" target="_blank" rel="noopener noreferrer">Naast Hellichtstraat 83, 3110 Rotselaar</a></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>&copy; Tiebe Beniers - Alle rechten voorbehouden. &nbsp;&middot;&nbsp;
+        <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
+    </footer>
+
     <script type="module" src="scripts/header.js"></script>
-    <script type="module" src="scripts/training.js"></script>
+    <script type="module" src="scripts/kalender.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>
 </body>

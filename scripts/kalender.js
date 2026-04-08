@@ -17,7 +17,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, getDocs, doc, setDoc, addDoc,
-    deleteDoc, onSnapshot, orderBy
+    deleteDoc, onSnapshot, orderBy, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -259,8 +259,8 @@ function openPopup(item) {
 
     const adminBtns = isAdmin && (item.source === 'training') ? `
         <div class="cal-popup-admin">
-            <button class="cal-popup-edit" id="calPopupEdit">✏️ Bewerken</button>
-            <button class="cal-popup-del"  id="calPopupDel">🗑 Verwijderen</button>
+            <button class="cal-popup-edit" id="calPopupEdit"><img src="assets/edit.png" class="icon" alt=""> Bewerken</button>
+            <button class="cal-popup-del"  id="calPopupDel"><img src="assets/delete.png" class="icon" alt=""> Verwijderen</button>
         </div>` : '';
 
     const liveBtn = item.type === 'match' && (item.status === 'live' || item.status === 'rust')
@@ -347,6 +347,28 @@ function openItemModal(item = null) {
     document.getElementById('calItemLocatie').value = item?.locatie   || '';
     document.getElementById('calItemNota').value    = item?.nota      || '';
 
+    // Herhaling: enkel tonen bij nieuw item
+    const recurSection = document.getElementById('calRecurSection');
+    const herhalenChk  = document.getElementById('calItemHerhalen');
+    const herhalingPanel = document.getElementById('calItemHerhalingPanel');
+    if (recurSection) {
+        recurSection.style.display = item ? 'none' : '';
+        if (herhalenChk) herhalenChk.checked = false;
+        if (herhalingPanel) herhalingPanel.style.display = 'none';
+    }
+
+    // Herhaling toggle listeners (eenmalig binden)
+    if (!modal._recurBound) {
+        modal._recurBound = true;
+        herhalenChk?.addEventListener('change', e => {
+            if (herhalingPanel) herhalingPanel.style.display = e.target.checked ? '' : 'none';
+        });
+        document.getElementById('calItemAantal')?.addEventListener('input', e => {
+            const el = document.getElementById('calItemAantalPreview');
+            if (el) el.textContent = e.target.value || '1';
+        });
+    }
+
     modal.classList.add('active');
 
     const form = document.getElementById('calItemForm');
@@ -375,7 +397,27 @@ function openItemModal(item = null) {
             if (item) {
                 await setDoc(doc(db, 'trainingen', item.id), data, { merge: true });
             } else {
-                await addDoc(collection(db, 'trainingen'), { ...data, aanwezigen: [] });
+                const herhalen = herhalenChk?.checked;
+                const aantal   = parseInt(document.getElementById('calItemAantal')?.value || '1');
+                if (herhalen && aantal > 1) {
+                    // Wekelijkse herhaling via batch
+                    const batch = writeBatch(db);
+                    const [y, m, d] = data.datum.split('-').map(Number);
+                    const startDate = new Date(y, m - 1, d);
+                    for (let i = 0; i < aantal; i++) {
+                        const dt  = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate() + i * 7);
+                        const iso = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+                        batch.set(doc(collection(db, 'trainingen')), { ...data, datum: iso, aanwezigen: [] });
+                    }
+                    await batch.commit();
+                    closeItemModal();
+                    showToast(`✅ ${aantal} items aangemaakt!`, 'success');
+                    loadWeek();
+                    btn.disabled = false; btn.textContent = 'Opslaan';
+                    return;
+                } else {
+                    await addDoc(collection(db, 'trainingen'), { ...data, aanwezigen: [] });
+                }
             }
             closeItemModal();
             if (!item) showToast('✅ Item aangemaakt!', 'success');

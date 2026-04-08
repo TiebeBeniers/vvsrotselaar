@@ -11,10 +11,19 @@
 .cal-hero-inner {
     max-width: 1200px;
     margin: 0 auto;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto;
     align-items: center;
-    justify-content: space-between;
     gap: 1rem;
+    text-align: center;
+}
+/* Text block spans full width when no button; button pushes to right when present */
+.cal-hero-inner > div:first-child {
+    grid-column: 1 / -1;  /* default: full width (no admin button) */
+}
+.cal-hero-inner > div:first-child:has(~ #adminAddBtn[style*="display:none"] ),
+.cal-hero-inner > div:first-child:has(~ div:not([style*="display:none"])) {
+    grid-column: 1;        /* shrink when button is visible */
 }
 .cal-hero h1   { font-size: 1.8rem; margin-bottom: 0.2rem; }
 .cal-hero p    { opacity: 0.85; font-size: 0.92rem; }
@@ -45,6 +54,7 @@
     margin-bottom: 1rem;
     font-size: 0.82rem;
     align-items: center;
+    justify-content: center;
 }
 .cal-legend-item { display: flex; align-items: center; gap: 0.4rem; color: var(--text-gray); }
 .cal-dot {
@@ -308,13 +318,32 @@ html.dark .cal-day-header        { background: #252840; border-color: #3a3d5c; }
 html.dark .cal-day-name          { color: var(--text-gray); }
 html.dark .cal-day-date          { color: var(--text-dark); }
 html.dark .cal-week-nav          { background: var(--white); }
-html.dark .cal-nav-btn           { background: #252840; border-color: #3a3d5c; }
+html.dark .cal-nav-btn           { background: #252840; border-color: #3a3d5c; color: #7eb3f5; }
+html.dark .cal-week-label        { color: var(--text-dark); }
+html.dark .cal-today-btn         { background: var(--primary-blue); color: #ffffff; }
 html.dark .cal-popup-card        { background: #1e2235; }
 html.dark .cal-popup-body h4     { color: var(--text-dark); }
 html.dark .cal-popup-meta        { color: var(--text-gray); }
-html.dark .cal-popup-nota        { background: #252840; border-color: #3a3d5c; }
-html.dark .cal-popup-edit        { background: #252840; }
-html.dark .cal-popup-del         { background: #252840; }
-html.dark .cal-recur-section     { background: #252840; border-color: #3a3d5c; }
+html.dark .cal-popup-nota        { background: #252840; border-color: #3a3d5c; color: var(--text-gray); }
+html.dark .cal-popup-edit        { background: #252840; color: var(--text-dark); border-color: #3a3d5c; }
+html.dark .cal-popup-del         { background: #252840; color: var(--text-dark); border-color: #3a3d5c; }
+html.dark .cal-recur-section     { background: #252840; border-color: #3a3d5c; color: var(--text-dark); }
+html.dark .cal-recur-section label  { color: var(--text-dark); }
+html.dark .cal-recur-section p      { color: var(--text-gray); }
+html.dark .cal-recur-section input  { background: #1e2235; color: var(--text-dark); border-color: #3a3d5c; }
 html.dark .tr-aanwezig-chip      { background: #1a2a4a; color: #7eb3f5; }
 html.dark .tr-aanwezig-chip.me   { background: #1a3a2a; color: #4caf74; }
+/* Hero: force white text regardless of dark-mode variable remapping */
+html.dark .cal-hero, 
+html.dark .cal-item              { color: #ffffff; }
+html.dark .cal-hero h1           { color: #ffffff; }
+html.dark .cal-hero p            { color: rgba(255,255,255,0.85); }
+html.dark .cal-add-btn           { color: #ffffff; border-color: rgba(255,255,255,0.5); }
+html.dark .cal-legend-item       { color: var(--text-gray); }
+/* Modal form fields */
+html.dark #calItemModal .modal-content   { background: #1e2235; color: var(--text-dark); }
+html.dark #calItemModal label            { color: var(--text-dark); }
+html.dark #calItemModal input,
+html.dark #calItemModal select,
+html.dark #calItemModal textarea         { background: #252840; color: var(--text-dark); border-color: #3a3d5c; }
+html.dark #calItemModal h3               { color: var(--text-dark); }

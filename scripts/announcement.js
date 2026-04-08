@@ -15,30 +15,44 @@ async function loadAnnouncement() {
     try {
         const announcementRef = doc(db, 'settings', 'announcement');
         const announcementDoc = await getDoc(announcementRef);
-        
+
         if (announcementDoc.exists() && announcementDoc.data().text) {
-            displayAnnouncement(announcementDoc.data().text);
+            const data = announcementDoc.data();
+            displayAnnouncement(data.text, data.icon || null);
         } else {
-            console.log('Geen announcement in Firebase, gebruik default');
-            displayAnnouncement(DEFAULT_ANNOUNCEMENT);
+            displayAnnouncement(DEFAULT_ANNOUNCEMENT, null);
         }
-    } catch (error) {
-        console.error('Error loading announcement:', error);
-        displayAnnouncement(DEFAULT_ANNOUNCEMENT);
+    } catch (_) {
+        // Geen leesrechten of netwerk­fout — val stil terug op de default
+        displayAnnouncement(DEFAULT_ANNOUNCEMENT, null);
     }
 }
 
-function displayAnnouncement(text) {
-    const announcementContent = document.getElementById('announcementContent');
-    
-    if (announcementContent) {
-        // Maak 4 duplicates voor naadloze oneindig scroll
-        const items = Array(9).fill(text).map(txt => 
-            `<span class="announcement-item">${txt}</span>`
-        ).join('');
-        
-        announcementContent.innerHTML = items;
+function buildIconHtml(icon) {
+    if (!icon) {
+        // Geen icoon ingesteld: gebruik de standaard afbeelding via CSS ::before
+        return '';
     }
+    // Afbeelding-pad (bevat / of .)
+    if (icon.includes('/') || icon.includes('.')) {
+        return `<img class="announcement-icon-img" src="${icon}" alt="" aria-hidden="true">`;
+    }
+    // Emoji
+    return `<span class="announcement-icon-emoji" aria-hidden="true">${icon}</span>`;
+}
+
+function displayAnnouncement(text, icon) {
+    const announcementContent = document.getElementById('announcementContent');
+    if (!announcementContent) return;
+
+    const iconHtml = buildIconHtml(icon);
+
+    // 9 duplicaten voor naadloze oneindige scroll
+    const items = Array(9).fill(null).map(() =>
+        `<span class="announcement-item">${iconHtml}${text}</span>`
+    ).join('');
+
+    announcementContent.innerHTML = items;
 }
 
 // Start wanneer de pagina geladen is
