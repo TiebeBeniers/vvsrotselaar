@@ -16,7 +16,7 @@
                 <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
             </div>
             <div class="title-section">
-                <h1>V.V.S ROTSELAAR</h1>
+                <h1><a href="index.html">V.V.S ROTSELAAR</a></h1>
             </div>
             <nav class="nav-section">
                 <button class="hamburger" id="hamburger" aria-label="Menu">
@@ -448,15 +448,24 @@
                         <button type="button" class="match-type-btn" data-type="finished" id="btnFinished">✅ Afgelopen Wedstrijd</button>
                     </div>
                     <!-- Vlaggen: Forfait en/of Bekermatch -->
-                    <div class="match-flags-row" style="margin-top:0.75rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
-                        <label class="match-flag-label">
-                            <input type="checkbox" id="matchForfaitThuis"> Forfait thuisploeg (0–5)
+                    <div class="match-flags-row">
+                        <span class="mfr-label">Forfait:</span>
+                        <label class="mfr-option" for="matchForfaitGeen">
+                            <input type="radio" name="matchForfait" id="matchForfaitGeen" value="geen" checked>
+                            <span>Geen</span>
                         </label>
-                        <label class="match-flag-label">
-                            <input type="checkbox" id="matchForfaitUit"> Forfait uitploeg (5–0)
+                        <label class="mfr-option" for="matchForfaitThuis">
+                            <input type="radio" name="matchForfait" id="matchForfaitThuis" value="thuis">
+                            <span>Thuis <small>(0–5)</small></span>
                         </label>
-                        <label class="match-flag-label">
-                            <input type="checkbox" id="matchBekermatch"> 🏆 Bekermatch
+                        <label class="mfr-option" for="matchForfaitUit">
+                            <input type="radio" name="matchForfait" id="matchForfaitUit" value="uit">
+                            <span>Uit <small>(5–0)</small></span>
+                        </label>
+                        <span class="mfr-sep"></span>
+                        <label class="mfr-option mfr-beker" for="matchBekermatch">
+                            <input type="checkbox" id="matchBekermatch">
+                            <span>🏆 Beker</span>
                         </label>
                     </div>
                 </div>

@@ -1173,3 +1173,306 @@ html.dark .sps-item:hover img {
     .sps-item       { height: 40px; padding: 0 1.5rem; }
     .sps-item img   { max-height: 32px; max-width: 100px; }
 }
+
+/* ===============================================
+   GLOBALE ZOEKFUNCTIE
+   =============================================== */
+
+/* Desktop zoekknop — staat als nav-item naast LOGIN */
+.nav-search-li {
+    display: flex;
+    align-items: center;
+}
+
+.global-search-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.4rem 0.6rem;
+    color: var(--primary-blue);
+    border-radius: 8px;
+    transition: background 0.15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.global-search-btn:hover { background: var(--primary-blue); color: var(--white); }
+.global-search-btn:hover svg { stroke: #ffffff; }
+
+/* Mobiel zoekitem — zichtbaar alleen in uitschuifbaar hamburger-menu */
+.nav-search-mobile-li { display: none; }
+.nav-search-mobile-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    padding: 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.nav-search-mobile-btn:hover { background: var(--primary-blue); color: var(--white); }
+.nav-search-mobile-btn svg   { flex-shrink: 0; }
+
+/* Op mobiel: desktop-knop verbergen, mobiel-item tonen */
+@media (max-width: 1350px) {
+    .nav-search-li        { display: none; }
+    .nav-search-mobile-li { display: block; margin-bottom: 0.5rem; }
+}
+
+/* Overlay backdrop */
+.search-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 5000;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 5rem 1rem 1rem;
+    backdrop-filter: blur(3px);
+}
+.search-overlay.active { display: flex; }
+
+/* Modal card */
+.search-modal {
+    background: var(--white);
+    border-radius: 14px;
+    width: 100%;
+    max-width: 620px;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+    overflow: hidden;
+}
+
+/* Input row */
+.search-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.search-icon { color: var(--text-gray); flex-shrink: 0; }
+.search-input {
+    flex: 1;
+    border: none;
+    font-size: 1rem;
+    font-family: inherit;
+    color: var(--text-dark);
+    background: none;
+    outline: none;
+}
+.search-close-btn {
+    background: var(--off-white);
+    border: none;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+.search-close-btn:hover { background: #e0e0e0; }
+
+/* Results */
+.search-results {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+}
+.sr-status, .sr-empty {
+    padding: 1.25rem 1.25rem;
+    color: var(--text-gray);
+    font-size: 0.9rem;
+}
+.sr-group-label {
+    padding: 0.4rem 1.25rem 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-gray);
+}
+.sr-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 1.25rem;
+    cursor: default;
+    transition: background 0.12s;
+    text-decoration: none;
+    color: inherit;
+}
+a.sr-item { cursor: pointer; }
+.sr-item:hover { background: var(--off-white); }
+.sr-icon { font-size: 1.2rem; flex-shrink: 0; }
+.sr-text { flex: 1; min-width: 0; }
+.sr-title { display: block; font-weight: 600; font-size: 0.92rem; color: var(--text-dark); }
+.sr-sub   { display: block; font-size: 0.78rem; color: var(--text-gray); margin-top: 1px; }
+.sr-arrow { color: var(--text-gray); flex-shrink: 0; font-size: 1.2rem; }
+.sr-mark  { background: #fff3cd; color: var(--text-dark); border-radius: 2px; }
+.sr-live-badge {
+    display: inline-block;
+    background: #DC3545; color: #fff;
+    font-size: 0.68rem; font-weight: 700;
+    padding: 1px 6px; border-radius: 4px;
+    margin-left: 0.4rem; vertical-align: middle;
+    animation: pulse-live 2s infinite;
+}
+
+html.dark .search-modal       { background: #1e2235; }
+html.dark .search-input       { color: var(--text-dark); }
+html.dark .search-input-wrap  { border-color: var(--border-color); }
+html.dark .sr-item:hover      { background: #252840; }
+html.dark .sr-group-label     { color: var(--text-gray); }
+
+/* ===============================================
+   WEDSTRIJD DELEN
+   =============================================== */
+
+.share-match-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+    cursor: pointer;
+    margin: 0.75rem auto 0;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.share-match-btn:hover { background: #e3f2fd; border-color: var(--primary-blue); }
+
+/* Share popup overlay */
+.share-popup {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 5000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.share-popup.active { display: flex; }
+
+.share-popup-card {
+    background: var(--white);
+    border-radius: 14px;
+    padding: 1.75rem;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    position: relative;
+    text-align: center;
+}
+.share-popup-card h4   { font-size: 1.15rem; margin-bottom: 0.5rem; color: var(--text-dark); }
+.share-popup-title     { font-weight: 700; font-size: 0.95rem; color: var(--primary-blue); margin-bottom: 1.25rem; }
+.share-popup-close {
+    position: absolute; top: 0.9rem; right: 1rem;
+    background: none; border: none; font-size: 1.1rem; cursor: pointer;
+    color: var(--text-gray);
+}
+.share-popup-actions {
+    display: flex; flex-direction: column; gap: 0.65rem;
+}
+.share-btn {
+    display: flex; align-items: center; gap: 0.65rem;
+    padding: 0.7rem 1rem; border-radius: 9px; font-weight: 600;
+    font-size: 0.9rem; text-decoration: none; cursor: pointer;
+    border: none; font-family: inherit; transition: opacity 0.15s;
+}
+.share-btn:hover { opacity: 0.85; }
+.share-btn.whatsapp { background: #25D366; color: #fff; }
+.share-btn.twitter  { background: #000; color: #fff; }
+.share-btn.copy     { background: var(--off-white); color: var(--text-dark); border: 1.5px solid var(--border-color); justify-content: center; }
+
+html.dark .share-popup-card { background: #1e2235; }
+html.dark .share-btn.copy   { background: #252840; color: var(--text-dark); }
+
+/* ── Match share button op planned card ── */
+.match-share-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0 0.5rem;
+}
+
+.match-share-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: none;
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--primary-blue);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.match-share-btn:hover { background: #e3f2fd; border-color: var(--primary-blue); }
+
+/* ── Share preview kaart (in share popup) ── */
+.share-preview-card {
+    background: linear-gradient(135deg, var(--dark-blue) 0%, var(--primary-blue) 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+.spc-club {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    opacity: 0.85;
+    margin-bottom: 0.75rem;
+}
+.spc-teams {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.spc-team {
+    font-size: 1.05rem;
+    font-weight: 800;
+    flex: 1;
+    text-align: center;
+}
+.spc-vs {
+    font-size: 0.8rem;
+    font-weight: 700;
+    opacity: 0.7;
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.15);
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+.spc-date, .spc-loc {
+    font-size: 0.82rem;
+    opacity: 0.9;
+    margin-bottom: 0.3rem;
+}
+.spc-live {
+    margin-top: 0.75rem;
+    font-size: 0.78rem;
+    opacity: 0.85;
+    background: rgba(255,255,255,0.12);
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    display: inline-block;
+}

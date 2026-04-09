@@ -1003,8 +1003,9 @@ if (matchForm) {
                 return;
             }
             
-            const isForfaitThuis = document.getElementById('matchForfaitThuis')?.checked || false;
-            const isForfaitUit   = document.getElementById('matchForfaitUit')?.checked   || false;
+            const forfaitVal     = document.querySelector('input[name="matchForfait"]:checked')?.value || 'geen';
+            const isForfaitThuis = forfaitVal === 'thuis';
+            const isForfaitUit   = forfaitVal === 'uit';
             const isBekermatch   = document.getElementById('matchBekermatch')?.checked   || false;
             // Forfait-score meteen zetten als van toepassing
             const fScoreThuis = isForfaitThuis ? 0 : (isForfaitUit ? 5 : 0);
@@ -1033,8 +1034,9 @@ if (matchForm) {
             // Create timestamp from date and time
             const matchDateTime = new Date(`${date}T${time}`);
             
-            const isForfaitThuisF = document.getElementById('matchForfaitThuis')?.checked || false;
-            const isForfaitUitF   = document.getElementById('matchForfaitUit')?.checked   || false;
+            const forfaitValF    = document.querySelector('input[name="matchForfait"]:checked')?.value || 'geen';
+            const isForfaitThuisF = forfaitValF === 'thuis';
+            const isForfaitUitF   = forfaitValF === 'uit';
             const isBekermatchF   = document.getElementById('matchBekermatch')?.checked   || false;
             const finalHomeScore  = isForfaitThuisF ? 0 : (isForfaitUitF ? 5 : homeScore);
             const finalAwayScore  = isForfaitThuisF ? 5 : (isForfaitUitF ? 0 : awayScore);
@@ -1245,36 +1247,66 @@ function getMatchStatusBadge(status) {
 }
 
 function editMatch(match) {
-    console.log('Editing match:', match.thuisploeg, '-', match.uitploeg);
+    const isFinished = match.status === 'finished' || match.status === 'live' || match.status === 'rust';
+
     document.getElementById('matchModalTitle').textContent = 'Wedstrijd Bewerken';
-    document.getElementById('matchId').value = match.id;
-    document.getElementById('matchDate').value = match.datum;
-    document.getElementById('matchTime').value = match.uur;
+    document.getElementById('matchId').value       = match.id;
+    document.getElementById('matchDate').value     = match.datum;
+    document.getElementById('matchTime').value     = match.uur;
     document.getElementById('matchLocation').value = match.locatie;
     document.getElementById('matchHomeTeam').value = match.thuisploeg;
     document.getElementById('matchAwayTeam').value = match.uitploeg;
-    document.getElementById('matchTeam').value = match.team || 'veteranen';
-    
+    document.getElementById('matchTeam').value     = match.team || 'veteranen';
+
     const descField = document.getElementById('matchDescription');
     if (descField) descField.value = match.beschrijving || '';
 
-    // Herstel vlaggen
+    // ── Herstel modus (gepland vs afgelopen) ─────────────────────────────────
+    const btnUp  = document.getElementById('btnUpcoming');
+    const btnFin = document.getElementById('btnFinished');
+    const sfEl   = document.getElementById('scoreFields');
+    const dpEl   = document.getElementById('designatedPersonsGroup');
+    const mtEl   = document.getElementById('matchType');
+    const hsEl   = document.getElementById('matchHomeScore');
+    const asEl   = document.getElementById('matchAwayScore');
+
+    if (isFinished) {
+        // Toon "Afgelopen Wedstrijd" modus
+        btnFin?.classList.add('active');
+        btnUp?.classList.remove('active');
+        if (sfEl) sfEl.style.display = 'flex';
+        if (dpEl) dpEl.style.display = 'none';
+        if (mtEl) mtEl.value = 'finished';
+        if (hsEl) { hsEl.value = match.scoreThuis ?? 0; hsEl.setAttribute('required', 'required'); }
+        if (asEl) { asEl.value = match.scoreUit   ?? 0; asEl.setAttribute('required', 'required'); }
+    } else {
+        // Toon "Geplande Wedstrijd" modus
+        btnUp?.classList.add('active');
+        btnFin?.classList.remove('active');
+        if (sfEl) sfEl.style.display = 'none';
+        if (dpEl) dpEl.style.display = 'block';
+        if (mtEl) mtEl.value = 'upcoming';
+        if (hsEl) hsEl.removeAttribute('required');
+        if (asEl) asEl.removeAttribute('required');
+    }
+
+    // ── Herstel vlaggen ───────────────────────────────────────────────────────
     const efT = document.getElementById('matchForfaitThuis');
     const efU = document.getElementById('matchForfaitUit');
     const efB = document.getElementById('matchBekermatch');
-    if (efT) efT.checked = match.forfaitSide === 'thuis';
-    if (efU) efU.checked = match.forfaitSide === 'uit';
+    const forfaitRadioVal = match.forfaitSide === 'thuis' ? 'thuis' : match.forfaitSide === 'uit' ? 'uit' : 'geen';
+    const forfaitRadio = document.querySelector(`input[name="matchForfait"][value="${forfaitRadioVal}"]`);
+    if (forfaitRadio) forfaitRadio.checked = true;
     if (efB) efB.checked = !!match.isBekermatch;
     initForfaitListeners();
 
+    // ── Aangeduide personen (enkel relevant voor geplande wedstrijden) ────────
     populateDesignatedPersonsSelect();
-    
-    // Check the designated persons
     (match.aangeduidePersonen || []).forEach(uid => {
-        const checkbox = document.querySelector(`input[name="designatedPerson"][value="${uid}"]`);
-        if (checkbox) checkbox.checked = true;
+        const cb = document.querySelector(`input[name="designatedPerson"][value="${uid}"]`);
+        if (cb) cb.checked = true;
     });
-    
+
     matchModal.classList.add('active');
 }
 
@@ -2479,29 +2511,26 @@ function initForfaitListeners() {
     if (_forfaitListenersInit) return;
     _forfaitListenersInit = true;
 
-    const fT = document.getElementById('matchForfaitThuis');
-    const fU = document.getElementById('matchForfaitUit');
     const scoreFieldsEl = document.getElementById('scoreFields');
     const homeScoreEl   = document.getElementById('matchHomeScore');
     const awayScoreEl   = document.getElementById('matchAwayScore');
 
-    function applyForfait() {
-        if (!fT || !fU) return;
-        if (fT.checked) {
-            fU.checked = false;
+    function applyForfait(e) {
+        const val = e.target.value;
+        if (val === 'thuis') {
             if (scoreFieldsEl) scoreFieldsEl.style.display = 'flex';
             if (homeScoreEl) homeScoreEl.value = 0;
             if (awayScoreEl) awayScoreEl.value = 5;
-        } else if (fU.checked) {
-            fT.checked = false;
+        } else if (val === 'uit') {
             if (scoreFieldsEl) scoreFieldsEl.style.display = 'flex';
             if (homeScoreEl) homeScoreEl.value = 5;
             if (awayScoreEl) awayScoreEl.value = 0;
         }
     }
 
-    fT?.addEventListener('change', applyForfait);
-    fU?.addEventListener('change', applyForfait);
+    document.querySelectorAll('input[name="matchForfait"]').forEach(r => {
+        r.addEventListener('change', applyForfait);
+    });
 }
 
 // ── Modal buiten-klik sluiten ─────────────────────────────────────────────────

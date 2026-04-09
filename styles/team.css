@@ -94,11 +94,12 @@
 .match-date {
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: 0.5rem;
     color: var(--text-gray);
     font-size: 0.95rem;
     margin-bottom: 1rem;
     justify-content: space-between;
+    line-height: 1;
 }
 
 .match-location {
@@ -1021,20 +1022,31 @@ html.dark .vvs-row td {background: #2555b49d;}
 .recent-match-date-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.45rem;
     flex-wrap: wrap;
     margin-bottom: 0.35rem;
+    /* Alles op dezelfde baseline */
+    line-height: 1;
+}
+
+/* Datum-tekst: zet expliciete hoogte zodat badge niet 'zakt' */
+.recent-match-date {
+    line-height: 1;
 }
 
 .match-flag-badge {
-    display: inline-block;
-    font-size: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    align-self: center;      /* werkt correct als flex-child */
+    font-size: 0.67rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 2px 8px;
-    border-radius: 20px;
-    line-height: 1.5;
+    letter-spacing: 0.05em;
+    padding: 0 7px;
+    border-radius: 4px;
+    height: 18px;
+    line-height: 1;
     white-space: nowrap;
+    margin-bottom: 12px;
 }
 
 .flag-forfait {
@@ -1049,19 +1061,4 @@ html.dark .vvs-row td {background: #2555b49d;}
     border: 1px solid #FDE68A;
 }
 
-/* Admin css: checkbox flags in modal */
-.match-flag-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.92rem;
-    color: var(--text-dark);
-    cursor: pointer;
-    font-weight: 500;
-}
-.match-flag-label input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-    accent-color: var(--primary-blue);
-}
+/* ── (Admin flag toggle styles zijn verplaatst naar admin.css) ── */

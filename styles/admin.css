@@ -3003,3 +3003,89 @@ html.dark .rw-filter-select { color: var(--text-dark); }
     .ann-icon-picker { order: 1; }
     .ann-save-btn    { order: 3; }
 }
+
+/* ── Match flags row (compact radio + beker checkbox) ── */
+.match-flags-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-top: 0.6rem;
+    padding: 0.45rem 0.65rem;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    font-size: 0.78rem;
+}
+
+.mfr-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 0.15rem;
+    white-space: nowrap;
+}
+
+.mfr-sep {
+    display: inline-block;
+    width: 1px;
+    height: 14px;
+    background: var(--border-color);
+    margin: 0 0.25rem;
+    align-self: center;
+}
+
+.mfr-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    white-space: nowrap;
+}
+
+.mfr-option input[type="radio"],
+.mfr-option input[type="checkbox"] {
+    accent-color: var(--primary-blue);
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.mfr-option:hover {
+    background: var(--white);
+    border-color: var(--border-color);
+    color: var(--text-dark);
+}
+
+/* Geselecteerde forfait → subtiel rood */
+.mfr-option:has(input[type="radio"][value="thuis"]:checked),
+.mfr-option:has(input[type="radio"][value="uit"]:checked) {
+    background: #FEE2E2;
+    border-color: #FECACA;
+    color: #991B1B;
+}
+
+/* Geselecteerde bekermatch → goud */
+.mfr-option.mfr-beker:has(input:checked) {
+    background: #FEF9EC;
+    border-color: #F6D860;
+    color: #7A5800;
+}
+
+/* small subtext (0–5) */
+.mfr-option small {
+    font-size: 0.68rem;
+    opacity: 0.65;
+    font-weight: 500;
+}
