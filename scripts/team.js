@@ -1198,10 +1198,9 @@ async function loadStatistics() {
     }
 
     try {
-        // Haal alle spelers op van de zondagploeg
-        const usersSnap = await getDocs(
-            query(collection(db, 'users'), where('categorie', '==', 'zondag'))
-        );
+        // Haal alle spelers op en filter client-side op TEAM_TYPE
+        // (ondersteunt zowel het nieuwe ploegen-array als het oude categorie-veld)
+        const usersSnap = await getDocs(collection(db, 'users'));
 
         if (usersSnap.empty) {
             renderStatistics([], []);
@@ -1211,7 +1210,11 @@ async function loadStatistics() {
         const players = [];
         usersSnap.forEach(d => {
             const u = d.data();
-            if (u.naam) players.push({
+            if (!u.naam) return;
+            const userPloegen = Array.isArray(u.ploegen) && u.ploegen.length > 0
+                ? u.ploegen : (u.categorie ? [u.categorie] : []);
+            if (!userPloegen.includes(TEAM_TYPE)) return;
+            players.push({
                 name:    u.naam,
                 uid:     u.uid || null,
                 goals:   u.goals   || 0,
@@ -1328,11 +1331,15 @@ async function loadAvailability(matchId, matchData = {}) {
         }
 
         const userCategorie = userData.categorie;
-        
-        console.log('User categorie:', userCategorie, 'Team type:', TEAM_TYPE);
-        
-        const isOwnTeam = userCategorie === TEAM_TYPE;
-        const isBestuurslid = userCategorie === 'bestuurslid';
+        // Ondersteun zowel het nieuwe ploegen-array als het oude categorie-veld
+        const userPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
+            ? userData.ploegen
+            : (userCategorie ? [userCategorie] : []);
+
+        console.log('User ploegen:', userPloegen, 'Team type:', TEAM_TYPE);
+
+        const isOwnTeam     = userPloegen.includes(TEAM_TYPE);
+        const isBestuurslid = userPloegen.includes('bestuurslid') || userCategorie === 'bestuurslid';
         const isDesignated = matchData.aangeduidePersonen &&
             matchData.aangeduidePersonen.includes(currentUser.uid);
         const canManageList = isBestuurslid || isDesignated;
@@ -1417,8 +1424,10 @@ async function getAllUsers() {
     allUsersCache = [];
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        // Exclude users from the current team page — they already have availability buttons
-        if (data.categorie !== TEAM_TYPE) {
+        // Sluit spelers uit die al bij dit team horen (zij hebben eigen knoppen)
+        const userPloegen = Array.isArray(data.ploegen) && data.ploegen.length > 0
+            ? data.ploegen : (data.categorie ? [data.categorie] : []);
+        if (!userPloegen.includes(TEAM_TYPE)) {
             allUsersCache.push({
                 uid: data.uid || docSnap.id,
                 naam: data.naam || data.displayName || '',

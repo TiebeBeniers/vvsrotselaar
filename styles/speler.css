@@ -303,31 +303,66 @@
     margin-bottom: 44px;
 }
 
+/* Rij: key links, waarde + edit-knop rechts */
 .info-row {
     display: flex;
-    justify-content: space-between;
     align-items: center;
     padding: 14px 0;
     border-bottom: 1px solid var(--border-color);
+    gap: 0.5rem;
+    /* Voorkom dat inhoud buiten de card valt */
+    min-width: 0;
+    overflow: hidden;
 }
 
-.info-row:last-child {
-    border-bottom: none;
-}
+.info-row:last-child { border-bottom: none; }
 
 .info-key {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.2px;
+    letter-spacing: 1px;
     color: var(--text-gray);
+    flex-shrink: 0;
+    white-space: nowrap;  /* elke label neemt exact zijn eigen breedte */
 }
 
+/* Waarde: neemt resterende ruimte, knipt af met ellipsis als te lang */
 .info-val {
-    font-size: 15px;
+    flex: 1;
+    min-width: 0;         /* cruciaal: laat flex-child krimpen */
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-dark);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+
+/* Edit-knop: altijd vaste breedte zodat alle iconen op dezelfde kolom staan */
+.edit-contact-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 6px;
+    color: var(--text-gray);
+    opacity: 0.5;
+    transition: opacity 0.2s, background 0.2s, color 0.2s;
+    flex-shrink: 0;
+    width: 28px;          /* vaste breedte = beide icoontjes in één verticale lijn */
+    height: 28px;
+}
+.edit-contact-btn:hover {
+    opacity: 1;
+    background: rgba(0, 71, 171, 0.09);
+    color: var(--primary-blue);
+}
+
 
 /* Badge stijlen */
 .badge-player {
@@ -338,6 +373,12 @@
     text-transform: uppercase;
     padding: 4px 12px;
     border-radius: 20px;
+    /* Tekst afkappen zonder de ronde border-radius te beschadigen */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
 .badge-team-player {
@@ -345,14 +386,53 @@
     color: white;
 }
 
+/* De info-val die een badge bevat mag niet de padding/rondingen clippen */
+.info-val:has(.badge-player) {
+    overflow: visible;
+    white-space: normal;
+}
 
 
-/* UID — monospace, gedimpt */
+
+/* UID — monospace, gedimpt; flex zodat tekst, copy-knop en ? altijd zichtbaar zijn */
 .uid-val {
     font-size: 12px;
     font-family: monospace;
     color: #aaa;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow: visible; /* tooltip mag boven de kaart uitsteken */
 }
+
+/* De uid-tekst zelf knipt af zodra er te weinig ruimte is */
+.uid-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+}
+
+/* Klembord-knop naast de UID */
+.uid-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 3px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #aaa;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+}
+.uid-copy-btn:hover {
+    color: var(--primary-blue);
+    background: rgba(0, 71, 171, 0.08);
+}
+html.dark .uid-copy-btn { color: var(--text-gray); }
 
 /* ── Wedstrijdgeschiedenis kaarten ──────────── */
 
@@ -789,3 +869,215 @@ html.dark .profile-info .user-role  { background: var(--dark-blue); color: var(-
 html.dark .password-card            { background: var(--white); }
 html.dark .password-intro           { color: var(--text-gray); }
 html.dark .uid-tooltip              { background: var(--dark-blue); }
+/* ═══════════════════════════════════════════════════
+   CONTACTGEGEVENS BEWERKEN — MODAL
+   ═══════════════════════════════════════════════════ */
+
+.ec-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 4000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    backdrop-filter: blur(3px);
+    animation: ec-fade-in 0.18s ease;
+}
+
+@keyframes ec-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.ec-modal {
+    background: var(--white, #fff);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 430px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+    animation: ec-slide-up 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+}
+
+@keyframes ec-slide-up {
+    from { transform: translateY(20px) scale(0.96); opacity: 0; }
+    to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+.ec-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.15rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.ec-modal-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--primary-blue, #0047AB);
+    margin: 0;
+}
+
+.ec-modal-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-gray, #4A4A4A);
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+.ec-modal-close:hover {
+    background: var(--off-white, #f8f9fa);
+    color: var(--text-dark, #1A1A1A);
+}
+
+.ec-modal-body {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+/* Infobalk (bij e-mail) */
+.ec-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.7rem 0.9rem;
+    background: #EFF6FF;
+    border-left: 3px solid var(--primary-blue, #0047AB);
+    border-radius: 6px;
+    font-size: 0.83rem;
+    color: #1e40af;
+    line-height: 1.5;
+}
+.ec-hint svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Veld */
+.ec-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.ec-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-dark, #1A1A1A);
+}
+
+.ec-required { color: var(--danger, #DC3545); }
+
+.ec-input {
+    width: 100%;
+    padding: 0.65rem 0.9rem;
+    border: 1.5px solid var(--border-color, #e0e0e0);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: var(--white, #fff);
+    color: var(--text-dark, #1A1A1A);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+.ec-input:focus {
+    outline: none;
+    border-color: var(--primary-blue, #0047AB);
+    box-shadow: 0 0 0 3px rgba(0, 71, 171, 0.12);
+}
+
+/* Wachtwoord met oog-knop */
+.ec-pw-wrap {
+    position: relative;
+}
+.ec-pw-wrap .ec-input {
+    padding-right: 2.8rem;
+}
+.ec-eye-btn {
+    position: absolute;
+    right: 0.6rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text-gray, #4A4A4A);
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    transition: color 0.15s;
+}
+.ec-eye-btn:hover { color: var(--primary-blue, #0047AB); }
+
+/* Foutmelding */
+.ec-error {
+    padding: 0.55rem 0.85rem;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 6px;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #991B1B;
+}
+
+/* Footer */
+.ec-modal-footer {
+    display: flex;
+    gap: 0.65rem;
+    padding: 1rem 1.5rem 1.25rem;
+    border-top: 1px solid var(--border-color, #e0e0e0);
+    background: var(--off-white, #f8f9fa);
+}
+
+.ec-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+    font-weight: 700;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.2s, transform 0.15s;
+}
+.ec-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.ec-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.ec-btn-cancel {
+    background: var(--border-color, #e0e0e0);
+    color: var(--text-dark, #1A1A1A);
+}
+.ec-btn-save {
+    background: var(--primary-blue, #0047AB);
+    color: #fff;
+}
+
+/* Dark mode */
+html.dark .ec-modal          { background: #1e2130; }
+html.dark .ec-modal-header   { border-color: rgba(255,255,255,0.1); }
+html.dark .ec-modal-close    { color: #aaa; }
+html.dark .ec-modal-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+html.dark .ec-label          { color: #e0e0e0; }
+html.dark .ec-input          { background: #252840; border-color: rgba(255,255,255,0.15); color: #fff; }
+html.dark .ec-input:focus    { border-color: var(--primary-blue, #0047AB); }
+html.dark .ec-hint           { background: rgba(0,71,171,0.2); }
+html.dark .ec-modal-footer   { background: #12152a; border-color: rgba(255,255,255,0.1); }
+html.dark .ec-btn-cancel     { background: rgba(255,255,255,0.1); color: #e0e0e0; }
+html.dark .info-card         { background: #1e2130; }
+html.dark .info-val          { color: #e0e0e0; }
+html.dark .edit-contact-btn  { color: #aaa; }
+html.dark .edit-contact-btn:hover { background: rgba(0,71,171,0.2); color: #60a5fa; }
+
+@media (max-width: 480px) {
+    .ec-modal         { border-radius: 12px; }
+    .ec-modal-backdrop { align-items: center; }
+    .ec-modal-body    { padding: 1rem 1.15rem; }
+    .ec-modal-footer  { padding: 0.85rem 1.15rem 1.15rem; flex-direction: column; }
+}

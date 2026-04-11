@@ -379,7 +379,9 @@ async function checkForStartMatch() {
         return;
     }
 
-    const isBestuurslid = currentUserData.categorie === 'bestuurslid';
+    const userPloegen = Array.isArray(currentUserData.ploegen) && currentUserData.ploegen.length > 0
+        ? currentUserData.ploegen : (currentUserData.categorie ? [currentUserData.categorie] : []);
+    const isBestuurslid = userPloegen.includes('bestuurslid') || currentUserData.categorie === 'bestuurslid';
     const now = new Date();
     // Window: from 24u before match kick-off, until end of match day
     const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);

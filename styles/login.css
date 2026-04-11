@@ -178,3 +178,38 @@ html.dark .admin-btn {
     margin-bottom: 0.5rem;
     font-size: 1.8rem;
 }
+
+/* ── Multi-team checkboxes in account request form ── */
+.team-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--white);
+    transition: border-color 0.2s;
+}
+
+.team-checkboxes:focus-within {
+    border-color: var(--primary-blue);
+}
+
+.team-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-dark);
+    cursor: pointer;
+    user-select: none;
+}
+
+.team-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--primary-blue);
+    flex-shrink: 0;
+}

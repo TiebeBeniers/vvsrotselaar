@@ -237,7 +237,20 @@ if (requestAccountForm) {
         const name = document.getElementById('requestName').value.trim();
         const email = document.getElementById('requestEmail').value.trim();
         const password = document.getElementById('requestPassword').value;
-        const team = document.getElementById('requestTeam').value;
+        // Haal alle geselecteerde ploegen op (multi-select via checkboxes)
+        const teamCheckboxes = document.querySelectorAll('input[name="requestTeam"]:checked');
+        const ploegen = Array.from(teamCheckboxes).map(cb => cb.value);
+        const team    = ploegen[0] || '';  // primaire ploeg = eerste geselecteerde
+
+        // Valideer: minstens 1 ploeg vereist
+        const teamError = document.getElementById('teamSelectError');
+        if (ploegen.length === 0) {
+            if (teamError) teamError.style.display = 'block';
+            requestErrorMessage.style.display = 'none';
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'AANVRAAG INDIENEN'; }
+            return;
+        }
+        if (teamError) teamError.style.display = 'none';
         const phoneField = document.getElementById('requestPhone');
         const phone = phoneField ? phoneField.value.trim() : '';
 
@@ -321,7 +334,8 @@ if (requestAccountForm) {
                 naam: name,
                 email: email,
                 encryptedPassword: encryptedPassword,
-                categorie: team,
+                categorie: team,       // primaire ploeg (backwards compat)
+                ploegen: ploegen,      // array van alle ploegen
                 ...(phone && { telefoon: phone }),
                 status: 'pending',
                 createdAt: serverTimestamp()
@@ -584,16 +598,24 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Profiel-knop: voor gewone leden (niet admin/bestuurslid)
                 if (profileBtn) {
-                    const isPrivileged = userData.rol === 'admin'
+                    const userPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
+                        ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
+                    const isBestuurslid = userPloegen.includes('bestuurslid')
                         || userData.categorie === 'bestuurslid'
                         || userData.rol === 'bestuurslid';
+                    const isPrivileged = userData.rol === 'admin' || isBestuurslid;
                     profileBtn.style.display = isPrivileged ? 'none' : 'block';
                 }
 
                 // Roltext aanpassen voor bestuurslid
                 if (userRoleEl) {
+                    const userPloegen2 = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
+                        ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
+                    const isBestuurslid2 = userPloegen2.includes('bestuurslid')
+                        || userData.categorie === 'bestuurslid'
+                        || userData.rol === 'bestuurslid';
                     if (userData.rol === 'admin') userRoleEl.textContent = 'Administrator';
-                    else if (userData.categorie === 'bestuurslid' || userData.rol === 'bestuurslid') userRoleEl.textContent = 'Bestuurslid';
+                    else if (isBestuurslid2) userRoleEl.textContent = 'Bestuurslid';
                     else userRoleEl.textContent = 'Clublid';
                 }
             } else {

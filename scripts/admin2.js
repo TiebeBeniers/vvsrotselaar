@@ -947,7 +947,11 @@ async function resetStats(team) {
     let count = 0;
     snap.forEach(d => {
         const data = d.data();
-        if (team !== 'all' && data.categorie !== team) return;
+        if (team !== 'all') {
+            const userPloegen = Array.isArray(data.ploegen) && data.ploegen.length > 0
+                ? data.ploegen : (data.categorie ? [data.categorie] : []);
+            if (!userPloegen.includes(team)) return;
+        }
         batch.update(d.ref, {
             goals: 0, assists: 0, matchen: 0,
             minuten: 0, geelKaarten: 0, roodKaarten: 0
@@ -1895,7 +1899,11 @@ async function exportStatsPdf() {
 
     for (let ti = 0; ti < teams.length; ti++) {
         const team   = teams[ti];
-        const spelers = users.filter(u => u.categorie === team);
+        const spelers = users.filter(u => {
+            const userPloegen = Array.isArray(u.ploegen) && u.ploegen.length > 0
+                ? u.ploegen : (u.categorie ? [u.categorie] : []);
+            return userPloegen.includes(team);
+        });
         if (spelers.length === 0) continue;
         if (ti > 0) doc.addPage();
 

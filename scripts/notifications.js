@@ -233,7 +233,8 @@ async function checkAvailability(user, team) {
     }
 }
 
-async function checkCustomNotifications(user, team) {
+async function checkCustomNotifications(user, ploegen) {
+    // ploegen is een array van strings, bv. ['zaterdag', 'zondag']
     const today = new Date().toISOString().slice(0, 10);
 
     try {
@@ -251,9 +252,10 @@ async function checkCustomNotifications(user, team) {
             // Doelgroep check
             const dg = m.doelgroep || 'iedereen';
             if (dg === 'ingelogd' && !user) return;
-            if (dg === 'zaterdag'  && team !== 'zaterdag')  return;
-            if (dg === 'zondag'    && team !== 'zondag')    return;
-            if (dg === 'veteranen' && team !== 'veteranen') return;
+            // Ploeg-specifieke check: de speler moet in die ploeg zitten
+            if (dg === 'zaterdag'  && !ploegen.includes('zaterdag'))  return;
+            if (dg === 'zondag'    && !ploegen.includes('zondag'))    return;
+            if (dg === 'veteranen' && !ploegen.includes('veteranen')) return;
             // 'iedereen' → altijd tonen
 
             // Al gedismissed voor deze versie?
@@ -271,20 +273,31 @@ async function runChecks(user) {
     markChecked();
 
     // Haal gebruikersprofiel op (enkel nodig als ingelogd)
-    let team = null;
+    let ploegen = [];
     if (user) {
         try {
             const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
             if (!snap.empty) {
                 const data = snap.docs[0].data();
-                team = data.categorie || data.team || null;
+                // Ondersteun zowel het nieuwe ploegen-array als het oude categorie-veld
+                if (Array.isArray(data.ploegen) && data.ploegen.length > 0) {
+                    ploegen = data.ploegen;
+                } else if (data.categorie) {
+                    ploegen = [data.categorie];
+                }
             }
         } catch (_) {}
     }
 
     // Beide checks parallel uitvoeren
-    const tasks = [checkCustomNotifications(user, team)];
-    if (user && team && team !== 'bestuurslid') tasks.push(checkAvailability(user, team));
+    const tasks = [checkCustomNotifications(user, ploegen)];
+
+    // Beschikbaarheidscheck voor elke ploeg van de speler (behalve bestuurslid)
+    const spelersploegen = ploegen.filter(t => t !== 'bestuurslid');
+    if (user && spelersploegen.length > 0) {
+        spelersploegen.forEach(team => tasks.push(checkAvailability(user, team)));
+    }
+
     await Promise.allSettled(tasks);
 }
 

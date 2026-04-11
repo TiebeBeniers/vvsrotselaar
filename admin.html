@@ -308,13 +308,23 @@
                     <small>Minimaal 6 karakters</small>
                 </div>
                 <div class="form-group">
-                    <label for="memberCategorie">Categorie</label>
-                    <select id="memberCategorie">
-                        <option value="veteranen">Veteranen</option>
-                        <option value="zaterdag">Zaterdag</option>
-                        <option value="zondag">Zondag</option>
-                        <option value="bestuurslid">Bestuurslid</option>
-                    </select>
+                    <label>Ploeg(en) <span style="font-weight:400;font-size:0.82rem;color:var(--text-gray);">(min. 1)</span></label>
+                    <div class="admin-team-checkboxes" id="memberPloegBoxes">
+                        <label class="admin-team-cb-label">
+                            <input type="checkbox" name="memberPloeg" value="veteranen"> Veteranen
+                        </label>
+                        <label class="admin-team-cb-label">
+                            <input type="checkbox" name="memberPloeg" value="zaterdag"> Zaterdag
+                        </label>
+                        <label class="admin-team-cb-label">
+                            <input type="checkbox" name="memberPloeg" value="zondag"> Zondag
+                        </label>
+                        <label class="admin-team-cb-label">
+                            <input type="checkbox" name="memberPloeg" value="bestuurslid"> Bestuurslid
+                        </label>
+                    </div>
+                    <!-- Verborgen veld voor backwards compat (primaire ploeg) -->
+                    <input type="hidden" id="memberCategorie" value="veteranen">
                 </div>
                 <div class="form-group">
                     <label for="memberRole">Rol</label>

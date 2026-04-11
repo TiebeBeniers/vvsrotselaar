@@ -221,7 +221,8 @@ if (addMemberBtn) {
         document.getElementById('memberModalTitle').textContent = 'Nieuw Lid Toevoegen';
         document.getElementById('memberUid').value = '';
         memberForm.reset();
-        
+        setMemberPloegen([]);
+
         // Show and enable password field for new members
         const passwordField = document.getElementById('memberPassword');
         const passwordGroup = passwordField.closest('.form-group');
@@ -260,6 +261,26 @@ if (requestsModalClose) {
     });
 }
 
+
+// ── Ploegen helpers voor admin member form ────────────────────────────────────
+function getMemberPloegen() {
+    const checked = document.querySelectorAll('input[name="memberPloeg"]:checked');
+    return Array.from(checked).map(cb => cb.value);
+}
+
+function setMemberPloegen(ploegen) {
+    // Reset all
+    document.querySelectorAll('input[name="memberPloeg"]').forEach(cb => cb.checked = false);
+    // Check the ones in the array
+    const arr = Array.isArray(ploegen) ? ploegen : (ploegen ? [ploegen] : []);
+    arr.forEach(p => {
+        const cb = document.querySelector(`input[name="memberPloeg"][value="${p}"]`);
+        if (cb) cb.checked = true;
+    });
+    // Sync hidden categorie field (primaire ploeg = eerste)
+    const cat = document.getElementById('memberCategorie');
+    if (cat) cat.value = arr[0] || 'veteranen';
+}
 if (memberForm) {
     memberForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -269,7 +290,16 @@ if (memberForm) {
         const passwordField = document.getElementById('memberPassword');
         const password = passwordField ? passwordField.value : '';
         const telefoon = document.getElementById('memberTelefoon')?.value.trim() || '';
-        const categorie = document.getElementById('memberCategorie').value;
+        const ploegen   = getMemberPloegen();
+        if (ploegen.length === 0) {
+            showToast('Selecteer minstens één ploeg.', 'error');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Opslaan'; }
+            return;
+        }
+        const categorie = ploegen[0]; // primaire ploeg voor backwards compat
+        // Sync hidden field
+        const catField = document.getElementById('memberCategorie');
+        if (catField) catField.value = categorie;
         const role = document.getElementById('memberRole').value;
         const uid = document.getElementById('memberUid').value;
         
@@ -303,6 +333,7 @@ if (memberForm) {
                         email:       email,
                         telefoon:    telefoon,
                         categorie:   categorie,
+                        ploegen:     ploegen,
                         rol:         role,
                         goals,
                         assists,
@@ -350,7 +381,8 @@ if (memberForm) {
                     naam: name,
                     email: email,
                     rol: role,
-                    categorie: categorie
+                    categorie: categorie,
+                    ploegen: ploegen,
                 };
                 
                 console.log('Adding user to Firestore:', userData);
@@ -441,7 +473,10 @@ function createMemberCard(member) {
     card.className = 'member-card';
     
     const roleText = member.rol === 'admin' ? 'Admin' : 'Speler';
-    const categorieText = member.categorie || 'Geen categorie';
+    const memberPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
+        ? member.ploegen
+        : [member.categorie || 'Geen categorie'];
+    const categorieText = memberPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
     
     card.innerHTML = `
         <div class="member-info">
@@ -476,16 +511,22 @@ function showMemberDetail(member) {
     document.getElementById('detailUid').textContent      = member.uid  || '—';
     document.getElementById('detailEmail').textContent    = member.email || '—';
     document.getElementById('detailTelefoon').textContent = member.telefoon || '—';
-    document.getElementById('detailCategorie').textContent = member.categorie
-        ? member.categorie.charAt(0).toUpperCase() + member.categorie.slice(1) : '—';
+    const detailPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
+        ? member.ploegen
+        : (member.categorie ? [member.categorie] : []);
+    const detailPloegText = detailPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ') || '—';
+    document.getElementById('detailCategorie').textContent = detailPloegText;
     document.getElementById('detailRol').textContent      = member.rol === 'admin' ? 'Admin' : 'Speler';
 
     // Badges
     const badgesEl = document.getElementById('detailBadges');
     if (badgesEl) {
+        const ploegBadges = detailPloegen.map(p =>
+            `<span class="member-badge">${p.charAt(0).toUpperCase() + p.slice(1)}</span>`
+        ).join('') || `<span class="member-badge">—</span>`;
         badgesEl.innerHTML = `
             <span class="member-badge">${member.rol === 'admin' ? 'Admin' : 'Speler'}</span>
-            <span class="member-badge">${member.categorie || '—'}</span>`;
+            ${ploegBadges}`;
     }
 
     // Stats
@@ -526,7 +567,11 @@ function editMember(member) {
     document.getElementById('memberName').value = member.naam;
     document.getElementById('memberEmail').value = member.email;
     document.getElementById('memberTelefoon').value = member.telefoon || '';
-    document.getElementById('memberCategorie').value = member.categorie || 'veteranen';
+    // Herstel ploegen checkboxes
+    const memberPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
+        ? member.ploegen
+        : [member.categorie || 'veteranen'];
+    setMemberPloegen(memberPloegen);
     document.getElementById('memberRole').value = member.rol || 'speler';
 
     // Statistieken invullen
@@ -956,7 +1001,11 @@ function populateDesignatedPersonsSelect() {
         checkbox.innerHTML = `
             <label>
                 <input type="checkbox" name="designatedPerson" value="${member.uid}">
-                ${member.naam} (${member.categorie || 'geen categorie'})
+                ${member.naam} (${
+                    Array.isArray(member.ploegen) && member.ploegen.length > 0
+                        ? member.ploegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ')
+                        : member.categorie || 'geen categorie'
+                })
             </label>
         `;
         container.appendChild(checkbox);

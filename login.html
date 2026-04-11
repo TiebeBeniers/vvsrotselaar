@@ -123,13 +123,19 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="requestTeam">Ploeg *</label>
-                            <select id="requestTeam" required>
-                                <option value="">Selecteer een ploeg</option>
-                                <option value="veteranen">Veteranen</option>
-                                <option value="zaterdag">Zaterdag</option>
-                                <option value="zondag">Zondag</option>
-                            </select>
+                            <label>Ploeg(en) * <span style="font-weight:400;font-size:0.82rem;color:var(--text-gray);">(selecteer minimaal 1)</span></label>
+                            <div class="team-checkboxes" id="requestTeamCheckboxes">
+                                <label class="team-checkbox-label">
+                                    <input type="checkbox" name="requestTeam" value="veteranen"> Veteranen
+                                </label>
+                                <label class="team-checkbox-label">
+                                    <input type="checkbox" name="requestTeam" value="zaterdag"> Zaterdag
+                                </label>
+                                <label class="team-checkbox-label">
+                                    <input type="checkbox" name="requestTeam" value="zondag"> Zondag
+                                </label>
+                            </div>
+                            <div class="team-select-error" id="teamSelectError" style="display:none;color:var(--danger);font-size:0.82rem;margin-top:0.35rem;">Selecteer minstens één ploeg.</div>
                         </div>
                         
                         <div class="form-group" style="margin-top:0.5rem;">
@@ -232,7 +238,7 @@
                 clubactiviteiten). Foto's worden nooit gebruikt voor commerciële of
                 advertentiedoeleinden. Je kan jouw toestemming op elk moment intrekken
                 door een e-mail te sturen naar
-                <a href="mailto:info@vvsrotselaar.be" style="color:#1a73e8;text-decoration:underline;">info@vvsrotselaar.be</a>,
+                <a href="/cdn-cgi/l/email-protection#ee87808881ae98989d9c819a9d8b828f8f9cc08c8b" style="color:#1a73e8;text-decoration:underline;"><span class="__cf_email__" data-cfemail="167f7870795660606564796265737a777764387473">[email&#160;protected]</span></a>,
                 waarna de betreffende foto's worden verwijderd.
             </p>
 
