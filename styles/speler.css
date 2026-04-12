@@ -560,38 +560,26 @@ html.dark .uid-copy-btn { color: var(--text-gray); }
     color: white;
 }
 
-.uid-tooltip {
+/* Tooltip via JS als position:fixed — nooit geclipped door overflow:hidden op .info-row */
+#uidTooltipFixed {
     display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
-    width: 220px;
-    background: var(--text-dark);
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    background: var(--text-dark, #1A1A1A);
     color: white;
     font-size: 12px;
     font-weight: 400;
+    font-family: 'Barlow', 'Segoe UI', sans-serif;
     line-height: 1.5;
     padding: 10px 12px;
     border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    z-index: 100;
-    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+    width: max-content;
+    max-width: 220px;
+    white-space: normal;
     letter-spacing: 0;
     text-transform: none;
-}
-
-.uid-tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    right: 4px;
-    border: 6px solid transparent;
-    border-top-color: var(--text-dark);
-}
-
-.uid-help:hover .uid-tooltip,
-.uid-help.active .uid-tooltip {
-    display: block;
 }
 
 .uid-info-row {
@@ -868,7 +856,7 @@ html.dark .profile-info p           { color: var(--text-dark); }
 html.dark .profile-info .user-role  { background: var(--dark-blue); color: var(--white); }
 html.dark .password-card            { background: var(--white); }
 html.dark .password-intro           { color: var(--text-gray); }
-html.dark .uid-tooltip              { background: var(--dark-blue); }
+html.dark #uidTooltipFixed          { background: var(--dark-blue, #003380); }
 /* ═══════════════════════════════════════════════════
    CONTACTGEGEVENS BEWERKEN — MODAL
    ═══════════════════════════════════════════════════ */

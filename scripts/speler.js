@@ -124,7 +124,6 @@ function fillProfile(userData) {
         }, 0);
         const uidEl = document.getElementById('infoUid');
         if (uidEl) {
-            const uidHelp  = uidEl.querySelector('.uid-help') || document.getElementById('uidHelp');
             const uidValue = userData.uid || '—';
 
             // Herbouw de inhoud: tekst-span | copy-knop | vraagteken
@@ -151,8 +150,64 @@ function fillProfile(userData) {
             });
             uidEl.appendChild(copyBtn);
 
-            // Vraagteken (tooltip) altijd als laatste — altijd zichtbaar
-            if (uidHelp) uidEl.appendChild(uidHelp);
+            // Vraagteken — tooltip als position:fixed op <html> zodat overflow:hidden
+            // op .info-row het blokje nooit kan clippen.
+            const helpBtn = document.createElement('span');
+            helpBtn.className = 'uid-help';
+            helpBtn.setAttribute('tabindex', '0');
+            helpBtn.setAttribute('aria-label', 'Info over UID');
+            helpBtn.textContent = '?';
+
+            const TOOLTIP_TEXT = 'Deel deze code met de beheerder als je problemen hebt met je account.';
+
+            function getFixedTooltip() {
+                let tip = document.getElementById('uidTooltipFixed');
+                if (!tip) {
+                    tip = document.createElement('div');
+                    tip.id = 'uidTooltipFixed';
+                    tip.textContent = TOOLTIP_TEXT;
+                    document.documentElement.appendChild(tip);
+                }
+                return tip;
+            }
+
+            function showUidTooltip() {
+                const tip  = getFixedTooltip();
+                const rect = helpBtn.getBoundingClientRect();
+                // Eerst tonen om breedte/hoogte te meten (position:fixed = viewport-coördinaten, geen scrollY)
+                tip.style.visibility = 'hidden';
+                tip.style.display    = 'block';
+                const tipW = tip.offsetWidth;
+                const tipH = tip.offsetHeight;
+                // Boven het vraagteken, rechts uitgelijnd met het vraagteken
+                let top  = rect.top - tipH - 10;
+                let left = rect.right - tipW;
+                // Geen ruimte boven het scherm → flip naar beneden
+                if (top < 8) top = rect.bottom + 10;
+                // Uitsteek naar links → bijsturen
+                if (left < 8) left = 8;
+                tip.style.top        = top  + 'px';
+                tip.style.left       = left + 'px';
+                tip.style.visibility = '';
+                helpBtn.classList.add('active');
+            }
+
+            function hideUidTooltip() {
+                const tip = document.getElementById('uidTooltipFixed');
+                if (tip) tip.style.display = 'none';
+                helpBtn.classList.remove('active');
+            }
+
+            helpBtn.addEventListener('mouseenter', showUidTooltip);
+            helpBtn.addEventListener('mouseleave', hideUidTooltip);
+            helpBtn.addEventListener('focus',      showUidTooltip);
+            helpBtn.addEventListener('blur',       hideUidTooltip);
+            helpBtn.addEventListener('click', () => {
+                const tip = document.getElementById('uidTooltipFixed');
+                (tip && tip.style.display === 'block') ? hideUidTooltip() : showUidTooltip();
+            });
+
+            uidEl.appendChild(helpBtn);
         }
         // Guestbanners verbergen, wachtwoord-sectie tonen
         const guestBanner  = document.getElementById('guestBanner');
