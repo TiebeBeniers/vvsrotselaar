@@ -346,7 +346,7 @@ html.dark .vvs-row td {background: #2555b49d;}
 
 .recent-team { font-size: 1rem; font-weight: 600; color: var(--text-dark); }
 .recent-team:first-child { text-align: right; }
-.recent-team:last-child  { text-align: left; }
+.recent-team:last-child  { text-align: left; overflow: hidden; text-overflow: ellipsis;}
 
 .recent-score {
     font-size: 1.5rem;
@@ -448,7 +448,7 @@ html.dark .vvs-row td {background: #2555b49d;}
 }
 
 .modal-team { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-.modal-team h4 { font-size: 1rem; color: var(--text-dark); margin: 0; text-align: center; word-break: break-word; max-width: 120px; }
+.modal-team h4 { font-size: 0.9rem; color: var(--text-dark); margin: 0; text-align: center; word-break: break-word; max-width: 120px; }
 
 .modal-score     { font-size: 2.5rem; font-weight: 800; color: var(--primary-blue); }
 .modal-separator { font-size: 2rem; color: var(--text-gray); }
