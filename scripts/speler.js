@@ -721,12 +721,14 @@ async function saveField(field, label, isEmail, closeFn) {
             await reauthenticateWithCredential(auth.currentUser, credential);
             await verifyBeforeUpdateEmail(auth.currentUser, newVal);
 
-            // Sla pending e-mail op in Firestore
+            // Sla het nieuwe adres op als pendingEmail — NIET als email.
+            // Na verificatie detecteert onAuthStateChanged in auth.js het verschil
+            // tussen auth.currentUser.email en Firestore email, en sync dan automatisch.
             const ref = await getEditDocRef();
-            if (ref) await updateDoc(ref, { email: newVal });
+            if (ref) await updateDoc(ref, { pendingEmail: newVal });
 
             closeFn();
-            showProfileToast('📧 Verificatiemail verstuurd naar ' + newVal + '. Klik de link om te bevestigen.', 'success');
+            showProfileToast('📧 Verificatiemail verstuurd naar ' + newVal + '. Klik de link om te bevestigen, daarna log je opnieuw in.', 'success');
 
         } else {
             const ref = await getEditDocRef();

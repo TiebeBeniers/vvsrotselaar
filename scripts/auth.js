@@ -6,7 +6,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { encryptPassword } from './crypto-utils.js';
 
 // ===============================================
@@ -564,8 +564,26 @@ onAuthStateChanged(auth, async (user) => {
             const userSnapshot = await getDocs(userQuery);
             
             if (!userSnapshot.empty) {
-                const userData = userSnapshot.docs[0].data();
+                const userDocRef = userSnapshot.docs[0].ref;
+                let userData = userSnapshot.docs[0].data();
                 console.log('User data found:', userData);
+
+                // ── Email-sync na verificatie ─────────────────────────────────
+                // Na een geverifieerde e-mailwijziging is auth.currentUser.email al
+                // bijgewerkt, maar Firestore nog niet. We detecteren dit hier en
+                // updaten Firestore automatisch zodat alles in sync blijft.
+                if (user.email && userData.email !== user.email) {
+                    try {
+                        await updateDoc(userDocRef, {
+                            email: user.email,
+                            pendingEmail: null
+                        });
+                        userData = { ...userData, email: user.email, pendingEmail: null };
+                        console.log('Firestore email gesynchroniseerd naar:', user.email);
+                    } catch (syncErr) {
+                        console.error('Email sync mislukt:', syncErr);
+                    }
+                }
                 
                 // Hide both login and request forms, show logged in view
                 if (loginForm) {
