@@ -59,22 +59,21 @@
     <main class="privacy-main">
 
         <h2>Privacyverklaring</h2>
-        <p class="privacy-subtitle">Laatst bijgewerkt: 8 maart 2026</p>
+        <p class="privacy-subtitle" id="privacyLastUpdated">Laden&hellip;</p>
 
+        <!-- Dynamisch geladen vanuit Firestore (settings/privacy). Valt terug op hard-coded inhoud. -->
+        <div id="privacyDynamic"></div>
+
+        <div id="privacyFallback" style="display:none;">
         <div class="privacy-section">
             <h3>1. Wie zijn wij?</h3>
-            <p>
-                V.V.S Rotselaar is een voetbalclub gevestigd te Rotselaar, België.
-                Deze website (<strong>vvsrotselaar.be</strong>) is bestemd voor leden en
-                supporters van de club en bevat functionaliteit gericht tot leden en bestuursleden.
-            </p>
-            <p style="margin-top:0.75rem;">
-                Verantwoordelijke voor de verwerking:<br>
-                V.V.S Rotselaar &middot; Rotselaar, België<br>
-                <a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a>
-            </p>
+            <p>V.V.S Rotselaar is een voetbalclub gevestigd te Rotselaar, België.
+            Deze website (<strong>vvsrotselaar.be</strong>) is bestemd voor leden en
+            supporters van de club en bevat functionaliteit gericht tot leden en bestuursleden.</p>
+            <p style="margin-top:0.75rem;">Verantwoordelijke voor de verwerking:<br>
+            V.V.S Rotselaar &middot; Rotselaar, België<br>
+            <a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a></p>
         </div>
-
         <div class="privacy-section">
             <h3>2. Welke persoonsgegevens verzamelen wij?</h3>
             <p>Wij verzamelen uitsluitend gegevens die noodzakelijk zijn voor de werking van de ledenzone:</p>
@@ -83,128 +82,64 @@
                 <li>Telefoonnummer (bij accountaanvraag)</li>
                 <li>Wedstrijdstatistieken</li>
             </ul>
-            <p style="margin-top:0.75rem;">
-                Wij verzamelen <strong>geen</strong> locatiegegevens, betalingsgegevens of
-                gezondheidsgegevens. Er worden <strong>geen advertenties</strong> getoond en er
-                vindt <strong>geen profilering of tracking</strong> van gebruikers plaats.
-            </p>
+            <p style="margin-top:0.75rem;">Wij verzamelen <strong>geen</strong> locatiegegevens, betalingsgegevens of
+            gezondheidsgegevens. Er worden <strong>geen advertenties</strong> getoond en er
+            vindt <strong>geen profilering of tracking</strong> van gebruikers plaats.</p>
         </div>
-
         <div class="privacy-section">
             <h3>3. Waarom en op welke basis verwerken wij deze gegevens?</h3>
-            <p>
-                Wij verwerken persoonsgegevens op basis van <strong>gerechtvaardigde belangen</strong>
-                (art.&nbsp;6.1(f) GDPR) en <strong>toestemming</strong> (art.&nbsp;6.1(a) GDPR)
-                bij accountaanvraag. De doeleinden zijn:
-            </p>
+            <p>Wij verwerken persoonsgegevens op basis van <strong>gerechtvaardigde belangen</strong>
+            (art.&nbsp;6.1(f) GDPR) en <strong>toestemming</strong> (art.&nbsp;6.1(a) GDPR)
+            bij accountaanvraag. De doeleinden zijn:</p>
             <ul>
                 <li>Beheer van ledenaccounts en toegangsbeveiliging</li>
                 <li>Weergave van spelersprofielen en statistieken</li>
                 <li>Organisatie van wedstrijden en beschikbaarheidsopvolging</li>
                 <li>Communicatie over clubactiviteiten (incl. telefonisch contact via het opgegeven nummer)</li>
             </ul>
-            <p style="margin-top:0.75rem;">
-                Gegevens worden <strong>nooit verkocht</strong> aan of gedeeld met derden voor
-                commerciële doeleinden.
-            </p>
+            <p style="margin-top:0.75rem;">Gegevens worden <strong>nooit verkocht</strong> aan of gedeeld met derden voor commerciële doeleinden.</p>
         </div>
-
         <div class="privacy-section">
             <h3>4. Lokale opslag (localStorage)</h3>
-            <p>
-                Deze website gebruikt <strong>localStorage</strong> &mdash; een technologie in
-                je browser vergelijkbaar met cookies &mdash; uitsluitend voor twee strikt
-                noodzakelijke doeleinden:
-            </p>
-
+            <p>Deze website gebruikt <strong>localStorage</strong> &mdash; een technologie in je browser vergelijkbaar met cookies &mdash; uitsluitend voor twee strikt noodzakelijke doeleinden:</p>
             <div class="info-cards">
                 <div class="info-card">
                     <div class="info-card-title">firebase:authUser:*</div>
-                    <p style="font-size:0.9rem;margin:0;">
-                        Bewaart het inlogtoken zodat je ingelogd blijft in de ledenzone.
-                        Strikt noodzakelijk voor de werking van de site.
-                    </p>
-                    <div class="info-card-meta">
-                        <span>Eigen</span><span>Tot uitloggen</span>
-                    </div>
+                    <p style="font-size:0.9rem;margin:0;">Bewaart het inlogtoken zodat je ingelogd blijft in de ledenzone. Strikt noodzakelijk voor de werking van de site.</p>
+                    <div class="info-card-meta"><span>Eigen</span><span>Tot uitloggen</span></div>
                 </div>
                 <div class="info-card">
                     <div class="info-card-title">vvs_*</div>
-                    <p style="font-size:0.9rem;margin:0;">
-                        Tijdelijke cache van wedstrijdresultaten, statistieken en
-                        profielgegevens om het aantal serververzoeken te beperken.
-                        Wordt nooit naar een externe server verzonden.
-                    </p>
-                    <div class="info-card-meta">
-                        <span>Eigen</span><span>10 min – 1 week (automatisch gewist)</span>
-                    </div>
+                    <p style="font-size:0.9rem;margin:0;">Tijdelijke cache van wedstrijdresultaten, statistieken en profielgegevens om het aantal serververzoeken te beperken.</p>
+                    <div class="info-card-meta"><span>Eigen</span><span>10 min &ndash; 1 week (automatisch gewist)</span></div>
                 </div>
             </div>
-
-            <p style="margin-top:0.75rem;">
-                Er worden <strong>geen tracking-, analytics- of marketingcookies</strong> gebruikt.
-                Je kan localStorage op elk moment wissen via de browserinstellingen,
-                zonder verlies van persoonlijke gegevens.
-            </p>
+            <p style="margin-top:0.75rem;">Er worden <strong>geen tracking-, analytics- of marketingcookies</strong> gebruikt.</p>
         </div>
-
         <div class="privacy-section">
             <h3>5. Externe diensten (verwerkers)</h3>
-            <p>
-                Wij maken gebruik van de volgende externe diensten die mogelijk persoonsgegevens
-                verwerken. Gegevensoverdracht naar de VS vindt plaats op basis van de
-                <strong>standaard contractuele clausules</strong> (SCC's) goedgekeurd door de
-                Europese Commissie.
-            </p>
-
+            <p>Wij maken gebruik van de volgende externe diensten. Gegevensoverdracht naar de VS vindt plaats op basis van de <strong>standaard contractuele clausules</strong> (SCC&rsquo;s).</p>
             <div class="info-cards">
                 <div class="info-card">
                     <div class="info-card-title normal">Firebase Authentication &amp; Firestore &mdash; Google LLC (VS)</div>
-                    <p style="font-size:0.9rem;margin:0;">
-                        Inlogbeheer en opslag van ledengegevens en wedstrijddata.
-                    </p>
-                    <div class="info-card-meta">
-                        <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">
-                            Privacybeleid Firebase
-                        </a>
-                    </div>
+                    <p style="font-size:0.9rem;margin:0;">Inlogbeheer en opslag van ledengegevens en wedstrijddata.</p>
+                    <div class="info-card-meta"><a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">Privacybeleid Firebase</a></div>
                 </div>
                 <div class="info-card">
                     <div class="info-card-title normal">Cloudflare &mdash; Cloudflare Inc. (VS)</div>
-                    <p style="font-size:0.9rem;margin:0;">
-                        Beveiliging, DDoS-bescherming en e-mailobfuscatie. Cloudflare kan
-                        technisch noodzakelijke cookies plaatsen
-                        (<code>__cf_bm</code>, <code>_cfuvid</code>).
-                    </p>
-                    <div class="info-card-meta">
-                        <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">
-                            Privacybeleid Cloudflare
-                        </a>
-                    </div>
+                    <p style="font-size:0.9rem;margin:0;">Beveiliging en optimalisatie van de website.</p>
+                    <div class="info-card-meta"><a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">Privacybeleid Cloudflare</a></div>
                 </div>
             </div>
         </div>
-
         <div class="privacy-section">
             <h3>6. Hoe lang bewaren wij gegevens?</h3>
-            <p>
-                Accountgegevens en statistieken worden bewaard zolang je actief lid bent van
-                de club. Na uitschrijving worden jouw persoonsgegevens op verzoek verwijderd
-                binnen <strong>30 dagen</strong>. Wedstrijdresultaten kunnen als geanonimiseerde
-                clubhistoriek worden bijgehouden.
-            </p>
+            <p>Accountgegevens en statistieken worden bewaard zolang je actief lid bent van de club. Na uitschrijving worden jouw persoonsgegevens op verzoek verwijderd binnen <strong>30 dagen</strong>. Wedstrijdresultaten kunnen als geanonimiseerde clubhistoriek worden bijgehouden.</p>
         </div>
-
         <div class="privacy-section">
             <h3>7. Beveiliging</h3>
-            <p>
-                Wij nemen redelijke technische maatregelen om jouw gegevens te beschermen:
-                versleutelde verbindingen (HTTPS), beveiligde authenticatie via Firebase en
-                beperkte toegang tot de beheersomgeving. Wachtwoorden worden nooit in
-                leesbare vorm opgeslagen.
-            </p>
+            <p>Wij nemen redelijke technische maatregelen om jouw gegevens te beschermen: versleutelde verbindingen (HTTPS), beveiligde authenticatie via Firebase en beperkte toegang tot de beheersomgeving. Wachtwoorden worden nooit in leesbare vorm opgeslagen.</p>
         </div>
-
         <div class="privacy-section">
             <h3>8. Jouw rechten (GDPR)</h3>
             <p>Op basis van de AVG/GDPR heb je de volgende rechten:</p>
@@ -216,31 +151,18 @@
                 <li><strong>Recht op overdraagbaarheid</strong> &mdash; jouw gegevens opvragen in een leesbaar formaat</li>
                 <li><strong>Recht van bezwaar</strong> &mdash; bezwaar maken tegen de verwerking</li>
             </ul>
-            <p style="margin-top:0.75rem;">
-                Stuur je verzoek naar
-                <a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a> of neem contact op via onze <a href="/contact.html">contactpagina</a>.
-                Wij reageren binnen <strong>30 dagen</strong>.
-            </p>
-            <p style="margin-top:0.75rem;">
-                Je kan ook een klacht indienen bij de toezichthoudende autoriteit:<br>
-                <strong>Gegevensbeschermingsautoriteit (GBA)</strong><br>
-                Drukpersstraat 35, 1000 Brussel<br>
-                <a href="https://www.gegevensbeschermingsautoriteit.be" target="_blank" rel="noopener noreferrer">
-                    www.gegevensbeschermingsautoriteit.be
-                </a>
-                &middot;
-                <a href="mailto:contact@apd-gba.be">contact@apd-gba.be</a>
-            </p>
+            <p style="margin-top:0.75rem;">Stuur je verzoek naar <a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a> of neem contact op via onze <a href="/contact.html">contactpagina</a>. Wij reageren binnen <strong>30 dagen</strong>.</p>
+            <p style="margin-top:0.75rem;">Je kan ook een klacht indienen bij de toezichthoudende autoriteit:<br>
+            <strong>Gegevensbeschermingsautoriteit (GBA)</strong><br>
+            Drukpersstraat 35, 1000 Brussel<br>
+            <a href="https://www.gegevensbeschermingsautoriteit.be" target="_blank" rel="noopener noreferrer">www.gegevensbeschermingsautoriteit.be</a>
+            &middot; <a href="mailto:contact@apd-gba.be">contact@apd-gba.be</a></p>
         </div>
-
         <div class="privacy-section">
             <h3>9. Wijzigingen</h3>
-            <p>
-                Wij kunnen deze verklaring aanpassen bij wijzigingen in de website of nieuwe
-                wettelijke vereisten. De datum bovenaan geeft aan wanneer ze voor het laatst
-                werd bijgewerkt.
-            </p>
+            <p>Wij kunnen deze verklaring aanpassen bij wijzigingen in de website of nieuwe wettelijke vereisten. De datum bovenaan geeft aan wanneer ze voor het laatst werd bijgewerkt.</p>
         </div>
+        </div><!-- /#privacyFallback -->
 
     </main>
 
@@ -248,6 +170,9 @@
         <p>&copy; Tiebe Beniers - Alle rechten voorbehouden. &nbsp;&middot;&nbsp;
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
+
+    <script type="module" src="scripts/firebase-config.js"></script>
+    <script type="module" src="scripts/privacy.js"></script>
     <script type="module" src="scripts/header.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>

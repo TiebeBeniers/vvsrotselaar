@@ -6,7 +6,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { encryptPassword } from './crypto-utils.js';
 
 // ===============================================
@@ -688,6 +688,68 @@ onAuthStateChanged(auth, async (user) => {
         if (requestErrorMessage) requestErrorMessage.style.display = 'none';
     }
 });
+
+// ===============================================
+// DYNAMISCHE ALGEMENE VOORWAARDEN (vanuit Firestore)
+// Firestore: settings/terms → { sections: [{ id, title, body }] }
+// Valt terug op de hard-coded inhoud als er geen data is.
+// ===============================================
+
+async function loadTermsFromFirestore() {
+    const contentEl  = document.getElementById('termsContent');
+    const fallbackEl = document.getElementById('termsFallback');
+    const subtitleEl = document.getElementById('termsSubtitle');
+    if (!contentEl) return;  // element bestaat niet op deze pagina
+
+    // Laadspinner tonen
+    contentEl.innerHTML = `<div style="text-align:center;padding:2rem;color:#888;">
+        <div style="display:inline-block;width:22px;height:22px;border:2.5px solid #ddd;
+            border-top-color:#0047AB;border-radius:50%;animation:tc-spin 0.8s linear infinite;"></div>
+        <p style="margin-top:0.5rem;font-size:0.88rem;">Laden…</p>
+    </div>`;
+    if (!document.getElementById('tcSpinStyle')) {
+        const st = document.createElement('style');
+        st.id = 'tcSpinStyle';
+        st.textContent = '@keyframes tc-spin { to { transform: rotate(360deg); } }';
+        document.head.appendChild(st);
+    }
+
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'terms'));
+
+        if (snap.exists() && snap.data().sections?.length) {
+            const { sections, updatedAt } = snap.data();
+
+            // Datum in subtitle
+            if (subtitleEl && updatedAt?.toDate) {
+                const d = updatedAt.toDate();
+                subtitleEl.textContent = 'V.V.S Rotselaar — ' +
+                    d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' });
+            }
+
+            // Render secties — exact gelijk aan admin3 terms preview
+            contentEl.innerHTML = sections.map(s => `
+                <div class="terms-section">
+                    ${s.title ? `<h4>${s.title}</h4>` : ''}
+                    <div class="terms-body">${s.body || ''}</div>
+                </div>
+            `).join('');
+
+            // Verberg fallback
+            if (fallbackEl) fallbackEl.style.display = 'none';
+            return;
+        }
+    } catch (err) {
+        console.warn('Terms kon niet geladen worden vanuit Firestore:', err.message);
+    }
+
+    // Fallback: verberg spinner, toon hardcoded inhoud
+    contentEl.innerHTML = '';
+    if (fallbackEl) fallbackEl.style.display = '';
+}
+
+// Laad zodra de pagina klaar is
+document.addEventListener('DOMContentLoaded', loadTermsFromFirestore);
 
 // ── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;

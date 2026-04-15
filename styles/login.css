@@ -213,3 +213,61 @@ html.dark .admin-btn {
     accent-color: var(--primary-blue);
     flex-shrink: 0;
 }
+
+/* ── Terms modal — dynamisch geladen inhoud ── */
+
+/* Sectie-container */
+.terms-section {
+    margin-bottom: 1.25rem;
+}
+.terms-section:last-child { margin-bottom: 0; }
+
+/* Sectietitel — h4 */
+.terms-section h4 {
+    font-size: 0.93rem;
+    font-weight: 700;
+    margin: 0 0 0.4rem;
+    color: var(--text-dark, #1a1a1a);
+}
+
+/* Sectie-inhoud — exact gelijk aan admin3 terms preview */
+.terms-body {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--text-dark, #333);
+}
+.terms-body p             { margin: 0 0 0.75rem; }
+.terms-body p:last-child  { margin-bottom: 0; }
+.terms-body ul, .terms-body ol { margin: 0.5rem 0 0.75rem 1.5rem; }
+.terms-body li            { margin-bottom: 0.25rem; }
+.terms-body strong        { font-weight: 700; }
+.terms-body em            { font-style: italic; }
+.terms-body a             { color: #1a73e8; text-decoration: underline; }
+.terms-body a:hover       { color: #0c57c0; }
+.terms-body code          { font-family: monospace; background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+.terms-body hr            { border: none; border-top: 1px solid #eee; margin: 1rem 0; }
+.terms-body h3            { color: #1a1a1a; font-size: 1rem; font-weight: 700; margin: 0.6rem 0 0.3rem; }
+.terms-body h4            { color: #1a1a1a; font-size: 0.9rem; font-weight: 700; margin: 0.5rem 0 0.25rem; }
+
+/* Info-kader in terms modal */
+.terms-body .info-card {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    background: #fafafa;
+    margin: 0.6rem 0;
+}
+.terms-body .info-card-title {
+    font-weight: 700; font-size: 0.88rem; display: block;
+    margin-bottom: 0.3rem; color: #333;
+}
+
+/* Witruimtes */
+.terms-body .spacer-sm { display: block; height: 0.4rem; }
+.terms-body .spacer-lg { display: block; height: 1.5rem; }
+
+/* Dark mode */
+html.dark .terms-section h4   { color: #e0e0e0; }
+html.dark .terms-body         { color: #e0e0e0; }
+html.dark .terms-body .info-card { background: #2a2f45; border-color: rgba(255,255,255,0.1); }
+html.dark .terms-body code    { background: #2a2f45; color: #e0e0e0; }

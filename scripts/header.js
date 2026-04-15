@@ -123,18 +123,51 @@ function buildEvenementenDropdown(isLoggedIn) {
     });
 }
 
-// Auth check: dropdown altijd tonen, werklijst enkel voor ingelogden
+// Auth check: werklijst tonen/verbergen, dropdown listeners initialiseren
 onAuthStateChanged(auth, (user) => {
     const loginLink = document.getElementById('loginLink');
     if (loginLink) loginLink.textContent = user ? 'PROFIEL' : 'LOGIN';
 
-    // Herbouw dropdown (verwijder oude instantie als die al bestaat)
-    const existing = document.getElementById('evenementenDropdownBtn');
-    if (existing) {
-        const li = existing.closest('li');
-        if (li) li.outerHTML = `<li><a href="evenementen.html">EVENEMENTEN</a></li>`;
+    // Als de HTML al een evenementen-dropdown heeft (nieuwe header-structuur):
+    // alleen de werklijst-link tonen/verbergen en listeners koppelen.
+    const existingBtn  = document.getElementById('evenementenDropdownBtn');
+    const existingMenu = document.getElementById('evenementenDropdownMenu');
+
+    if (existingBtn && existingMenu) {
+        // Werklijst-item: toon enkel voor ingelogde gebruikers
+        const wlItem = existingMenu.querySelector('a[href="werklijst.html"]')?.closest('li');
+        if (wlItem) wlItem.style.display = user ? '' : 'none';
+
+        // Koppel listeners als dat nog niet gedaan is (guard via data-attr)
+        if (!existingBtn.dataset.listenerAttached) {
+            existingBtn.dataset.listenerAttached = '1';
+
+            existingBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                existingMenu.classList.contains('open')
+                    ? closeDropdown(existingBtn, existingMenu)
+                    : openDropdown(existingBtn, existingMenu);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!existingBtn.contains(e.target) && !existingMenu.contains(e.target)) {
+                    closeDropdown(existingBtn, existingMenu);
+                }
+            });
+
+            existingMenu.querySelectorAll('a').forEach(link => {
+                link.addEventListener('click', () => {
+                    closeDropdown(existingBtn, existingMenu);
+                    document.getElementById('hamburger')?.classList.remove('active');
+                    document.getElementById('navMenu')?.classList.remove('active');
+                });
+            });
+        }
+    } else {
+        // Fallback voor oude HTML-pagina's die nog geen dropdown hebben:
+        // bouw hem dynamisch op (bestaand gedrag)
+        buildEvenementenDropdown(!!user);
     }
-    buildEvenementenDropdown(!!user);
 });
 
 

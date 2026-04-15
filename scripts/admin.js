@@ -3,6 +3,7 @@
 // V.V.S Rotselaar
 // Fix: CreateUser zonder admin logout + form validation
 // Updated: Password decryption for account requests
+// Updated: Multi-ploeg request handling + oldest-first contact messages
 // ===============================================
 
 import { auth, db, app } from './firebase-config.js';
@@ -15,11 +16,8 @@ console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
 
 // ===============================================
 // SECONDARY FIREBASE APP FOR USER CREATION
-// Dit voorkomt dat de admin uitlogt bij nieuwe user
 // ===============================================
 
-// We gebruiken dezelfde config als de main app
-// maar als een aparte instance
 let secondaryApp = null;
 let secondaryAuth = null;
 
@@ -31,7 +29,7 @@ let currentUser = null;
 let currentUserData = null;
 let allMembers = [];
 let allEvenementen = [];
-let allMatchesCache = [];   // cache for client-side filter
+let allMatchesCache = [];
 let currentMatchFilter = 'all';
 
 // ===============================================
@@ -69,9 +67,7 @@ onAuthStateChanged(auth, async (user) => {
         
         console.log('Admin access granted, initializing page...');
         
-        // Initialize secondary Firebase app for user creation
         await initializeSecondaryApp();
-        
         await initializeAdminPage();
     } catch (error) {
         console.error('Error checking user permissions:', error);
@@ -80,19 +76,14 @@ onAuthStateChanged(auth, async (user) => {
 
 async function initializeSecondaryApp() {
     try {
-        // Get Firebase config from main app
         const firebaseConfig = app.options;
-        
-        // Try to get existing secondary app, or create new one
         try {
             secondaryApp = initializeApp(firebaseConfig, 'Secondary');
         } catch (error) {
-            // App already exists, that's fine
             console.log('Secondary app already initialized');
             const { getApp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
             secondaryApp = getApp('Secondary');
         }
-        
         secondaryAuth = getAuth(secondaryApp);
         console.log('Secondary Firebase app initialized for user creation');
     } catch (error) {
@@ -118,12 +109,10 @@ tabButtons.forEach(btn => {
         btn.classList.add('active');
         document.getElementById(`${targetTab}Tab`).classList.add('active');
 
-        // Lazy-load announcements tab
         if (targetTab === 'announcements') loadAnnouncementTab();
     });
 });
 
-// ── Match filter buttons ──
 document.querySelectorAll('[data-match-filter]').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('[data-match-filter]').forEach(b => b.classList.remove('active'));
@@ -144,8 +133,8 @@ async function initializeAdminPage() {
         await loadMatches();
         await loadEvenementen();
         await loadContactberichten();
-        await updateRequestsBadge(); // Update badge on page load
-        await updateContactberichtenBadge(); // Update contactberichten badge
+        await updateRequestsBadge();
+        await updateContactberichtenBadge();
         console.log('Admin page initialized successfully');
     } catch (error) {
         console.error('Error initializing admin page:', error);
@@ -156,8 +145,6 @@ async function initializeAdminPage() {
 // ANNOUNCEMENTS
 // ===============================================
 
-
-// ── Tab count badges ─────────────────────────────────────────────────────────
 function setTabCount(tabName, count) {
     const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
     if (!btn) return;
@@ -223,7 +210,6 @@ if (addMemberBtn) {
         memberForm.reset();
         setMemberPloegen([]);
 
-        // Show and enable password field for new members
         const passwordField = document.getElementById('memberPassword');
         const passwordGroup = passwordField.closest('.form-group');
         if (passwordGroup) {
@@ -232,7 +218,6 @@ if (addMemberBtn) {
             passwordField.disabled = false;
         }
 
-        // Verberg stats-sectie bij nieuw lid (pas tonen bij bewerken)
         const statsGroup = document.getElementById('statsEditGroup');
         if (statsGroup) statsGroup.style.display = 'none';
         
@@ -246,7 +231,6 @@ if (memberModalCancel) {
     });
 }
 
-// Account Requests Modal
 if (manageRequestsBtn) {
     manageRequestsBtn.addEventListener('click', async () => {
         console.log('Opening account requests modal');
@@ -261,26 +245,22 @@ if (requestsModalClose) {
     });
 }
 
-
-// ── Ploegen helpers voor admin member form ────────────────────────────────────
 function getMemberPloegen() {
     const checked = document.querySelectorAll('input[name="memberPloeg"]:checked');
     return Array.from(checked).map(cb => cb.value);
 }
 
 function setMemberPloegen(ploegen) {
-    // Reset all
     document.querySelectorAll('input[name="memberPloeg"]').forEach(cb => cb.checked = false);
-    // Check the ones in the array
     const arr = Array.isArray(ploegen) ? ploegen : (ploegen ? [ploegen] : []);
     arr.forEach(p => {
         const cb = document.querySelector(`input[name="memberPloeg"][value="${p}"]`);
         if (cb) cb.checked = true;
     });
-    // Sync hidden categorie field (primaire ploeg = eerste)
     const cat = document.getElementById('memberCategorie');
     if (cat) cat.value = arr[0] || 'veteranen';
 }
+
 if (memberForm) {
     memberForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -296,14 +276,12 @@ if (memberForm) {
             if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Opslaan'; }
             return;
         }
-        const categorie = ploegen[0]; // primaire ploeg voor backwards compat
-        // Sync hidden field
+        const categorie = ploegen[0];
         const catField = document.getElementById('memberCategorie');
         if (catField) catField.value = categorie;
         const role = document.getElementById('memberRole').value;
         const uid = document.getElementById('memberUid').value;
         
-        // Stats (alleen bij bewerken)
         const goals       = parseInt(document.getElementById('memberGoals')?.value)  || 0;
         const assists     = parseInt(document.getElementById('memberAssists')?.value) || 0;
         const matchen     = parseInt(document.getElementById('memberMatchen')?.value) || 0;
@@ -321,7 +299,6 @@ if (memberForm) {
         
         try {
             if (uid) {
-                // Update existing member
                 console.log('Updating member with UID:', uid);
                 const memberQuery = query(collection(db, 'users'), where('uid', '==', uid));
                 const memberSnapshot = await getDocs(memberQuery);
@@ -353,8 +330,6 @@ if (memberForm) {
                     await loadMembers();
                 }
             } else {
-                // Create new member using SECONDARY AUTH
-                // This prevents the admin from being logged out!
                 console.log('Creating new member using secondary auth...');
                 
                 if (!password || password.length < 6) {
@@ -365,17 +340,14 @@ if (memberForm) {
                     throw new Error('Secondary auth not initialized. Please refresh the page.');
                 }
                 
-                // Create user in Firebase Auth using SECONDARY app
                 console.log('Creating Firebase Auth user (secondary)...');
                 const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
                 const newUser = userCredential.user;
                 console.log('Auth user created with UID:', newUser.uid);
                 
-                // Sign out the secondary auth immediately
                 await secondaryAuth.signOut();
                 console.log('Secondary auth signed out');
                 
-                // Add user to Firestore using MAIN db instance
                 const userData = {
                     uid: newUser.uid,
                     naam: name,
@@ -386,12 +358,8 @@ if (memberForm) {
                 };
                 
                 console.log('Adding user to Firestore:', userData);
-                // doc-ID = Auth UID — vereist voor security rules
                 await setDoc(doc(db, 'users', newUser.uid), userData);
                 console.log('User document created with UID as doc-ID:', newUser.uid);
-                
-                // Admin blijft ingelogd! 🎉
-                console.log('New user created successfully. Admin remains logged in.');
                 
                 showToast('Nieuw lid succesvol aangemaakt!', 'success');
                 memberModal.classList.remove('active');
@@ -401,11 +369,6 @@ if (memberForm) {
             
         } catch (error) {
             console.error('Error saving member:', error);
-            console.error('Error details:', {
-                code: error.code,
-                message: error.message,
-                stack: error.stack
-            });
             
             let errorText = 'Er is een fout opgetreden: ' + error.message;
             
@@ -518,7 +481,6 @@ function showMemberDetail(member) {
     document.getElementById('detailCategorie').textContent = detailPloegText;
     document.getElementById('detailRol').textContent      = member.rol === 'admin' ? 'Admin' : 'Speler';
 
-    // Badges
     const badgesEl = document.getElementById('detailBadges');
     if (badgesEl) {
         const ploegBadges = detailPloegen.map(p =>
@@ -529,7 +491,6 @@ function showMemberDetail(member) {
             ${ploegBadges}`;
     }
 
-    // Stats
     document.getElementById('detailGoals').textContent   = member.goals        ?? 0;
     document.getElementById('detailAssists').textContent = member.assists      ?? 0;
     document.getElementById('detailMatchen').textContent = member.matchen      ?? 0;
@@ -540,7 +501,6 @@ function showMemberDetail(member) {
     modal.classList.add('active');
 }
 
-// Wire up detail modal close/edit buttons
 document.addEventListener('DOMContentLoaded', () => {
     const detailModal    = document.getElementById('memberDetailModal');
     const closeX         = document.getElementById('memberDetailClose');
@@ -567,14 +527,12 @@ function editMember(member) {
     document.getElementById('memberName').value = member.naam;
     document.getElementById('memberEmail').value = member.email;
     document.getElementById('memberTelefoon').value = member.telefoon || '';
-    // Herstel ploegen checkboxes
     const memberPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
         ? member.ploegen
         : [member.categorie || 'veteranen'];
     setMemberPloegen(memberPloegen);
     document.getElementById('memberRole').value = member.rol || 'speler';
 
-    // Statistieken invullen
     document.getElementById('memberGoals').value   = member.goals       ?? 0;
     document.getElementById('memberAssists').value = member.assists     ?? 0;
     document.getElementById('memberMatchen').value = member.matchen     ?? 0;
@@ -582,11 +540,9 @@ function editMember(member) {
     document.getElementById('memberGeel').value    = member.geelKaarten ?? 0;
     document.getElementById('memberRood').value    = member.roodKaarten ?? 0;
 
-    // Toon stats-sectie (enkel bij bewerken)
     const statsGroup = document.getElementById('statsEditGroup');
     if (statsGroup) statsGroup.style.display = '';
     
-    // CRITICAL FIX: Hide password field completely when editing
     const passwordField = document.getElementById('memberPassword');
     const passwordGroup = passwordField.closest('.form-group');
     if (passwordGroup) {
@@ -691,9 +647,6 @@ async function loadAccountRequests() {
         console.log('Loading account requests...');
         requestsList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
         
-        // Get all pending requests
-        // Note: We removed orderBy to avoid needing a composite index
-        // We'll sort in memory instead
         const requestsQuery = query(
             collection(db, 'account_requests'),
             where('status', '==', 'pending')
@@ -710,7 +663,6 @@ async function loadAccountRequests() {
         
         console.log('Found', requestsSnapshot.size, 'pending requests');
         
-        // Collect all requests and sort by creation date
         const requests = [];
         requestsSnapshot.forEach(docSnap => {
             const request = { id: docSnap.id, ...docSnap.data() };
@@ -724,7 +676,6 @@ async function loadAccountRequests() {
             return b.createdAt.toMillis() - a.createdAt.toMillis();
         });
         
-        // Create cards for sorted requests
         requests.forEach(request => {
             const requestCard = createRequestCard(request);
             requestsList.appendChild(requestCard);
@@ -738,11 +689,12 @@ async function loadAccountRequests() {
     }
 }
 
+// ── FIX 1: createRequestCard toont ALLE aangevraagde ploegen en laat admin per ploeg kiezen ──
+
 function createRequestCard(request) {
     const card = document.createElement('div');
     card.className = 'request-card';
     
-    // Format date
     let dateText = 'Onbekend';
     if (request.createdAt) {
         const date = request.createdAt.toDate();
@@ -755,45 +707,78 @@ function createRequestCard(request) {
         });
     }
     
-    const teamText = request.categorie ? request.categorie.charAt(0).toUpperCase() + request.categorie.slice(1) : 'Onbekend';
+    // Haal alle aangevraagde ploegen op
+    const requestedPloegen = Array.isArray(request.ploegen) && request.ploegen.length > 0
+        ? request.ploegen
+        : (request.categorie ? [request.categorie] : ['onbekend']);
     
-    // Use encryptedPassword instead of plain password
     const encryptedPwd = request.encryptedPassword || '';
-    
     const phoneDisplay = request.telefoon ? `<p><strong>Tel:</strong> ${request.telefoon}</p>` : '';
-    const phonePassed = request.telefoon || '';
+    
+    // Bouw checkboxes voor per-ploeg selectie door admin
+    const ploegCheckboxesHtml = requestedPloegen.map(p => `
+        <label class="admin-team-cb-label">
+            <input type="checkbox" class="req-ploeg-cb" data-ploeg="${p}" checked>
+            ${p.charAt(0).toUpperCase() + p.slice(1)}
+        </label>
+    `).join('');
+    
     card.innerHTML = `
         <div class="request-info">
             <h4>${request.naam}</h4>
             <p><strong>Email:</strong> ${request.email}</p>
             ${phoneDisplay}
-            <p><strong>Ploeg:</strong> ${teamText}</p>
-            <p class="request-date"><strong>Aangevraagd op:</strong> ${dateText}</p>
+            <p style="margin-bottom:0.35rem;"><strong>Aangevraagde ploeg(en):</strong></p>
+            <div class="admin-team-checkboxes request-ploegen-selector">
+                ${ploegCheckboxesHtml}
+            </div>
+            <p class="request-date" style="margin-top:0.6rem;"><strong>Aangevraagd op:</strong> ${dateText}</p>
+            <p class="request-ploeg-hint" style="font-size:0.82rem;color:var(--text-gray);margin-top:0.3rem;">
+                ✏️ Deselecteer ploegen die de speler <em>niet</em> mag deelnemen.
+            </p>
         </div>
         <div class="request-actions">
-            <button class="btn-accept" onclick="acceptRequest('${request.id}', '${request.naam}', '${request.email}', '${encryptedPwd}', '${request.categorie}', '${phonePassed}')">
-                ✓ Goedkeuren
-            </button>
-            <button class="btn-reject" onclick="rejectRequest('${request.id}')">
-                ✗ Afwijzen
-            </button>
+            <button class="btn-accept req-accept-btn">✓ Goedkeuren</button>
+            <button class="btn-reject req-reject-btn">✗ Afwijzen</button>
         </div>
     `;
+    
+    // Accept: haal geselecteerde ploegen op uit checkboxes
+    card.querySelector('.req-accept-btn').addEventListener('click', () => {
+        const selectedPloegen = Array.from(card.querySelectorAll('.req-ploeg-cb:checked'))
+            .map(cb => cb.dataset.ploeg);
+        if (selectedPloegen.length === 0) {
+            showToast('Selecteer minstens één ploeg voor de speler.', 'error');
+            return;
+        }
+        acceptRequest(
+            request.id,
+            request.naam,
+            request.email,
+            encryptedPwd,
+            request.categorie,
+            request.telefoon || '',
+            selectedPloegen
+        );
+    });
+    
+    card.querySelector('.req-reject-btn').addEventListener('click', () => {
+        rejectRequest(request.id);
+    });
     
     return card;
 }
 
-// Make functions globally accessible
-window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorie, telefoon = '') {
-    console.log('Accepting request:', requestId);
+// ── FIX 1b: acceptRequest accepteert nu een ploegen-array ──
+
+window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorieOriginal, telefoon = '', ploegen = []) {
+    console.log('Accepting request:', requestId, 'for ploegen:', ploegen);
     
     try {
-        // Confirm action
-        if (!confirm(`Account goedkeuren voor ${naam}?`)) {
+        if (!confirm(`Account goedkeuren voor ${naam}?\nPloegen: ${ploegen.join(', ')}`)) {
             return;
         }
         
-        // Check if secondary auth is available
         if (!secondaryAuth) {
             showToast('Fout: Secundaire authenticatie niet geïnitialiseerd', 'error');
             return;
@@ -817,36 +802,34 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         
         console.log('User created in Auth:', newUser.uid);
         
-        // Sign out from secondary app immediately to avoid affecting admin session
         await secondaryAuth.signOut();
         
-        // Add user to Firestore — doc-ID = Auth UID (vereist voor security rules)
+        // Bepaal de ploegen om op te slaan
+        const ploegenToSave = ploegen.length > 0 ? ploegen : [categorieOriginal || 'veteranen'];
+        const primaryCategorie = ploegenToSave[0];
+        
+        // Add user to Firestore — doc-ID = Auth UID
         await setDoc(doc(db, 'users', newUser.uid), {
             uid: newUser.uid,
             naam: naam,
             email: email,
-            categorie: categorie,
+            categorie: primaryCategorie,
+            ploegen: ploegenToSave,
             rol: 'speler',
             ...(telefoon && { telefoon })
         });
         
-        console.log('User added to Firestore');
+        console.log('User added to Firestore with ploegen:', ploegenToSave);
         
-        // DELETE the request document completely (don't keep password data)
+        // DELETE the request document
         await deleteDoc(doc(db, 'account_requests', requestId));
-        
         console.log('Request document deleted from Firestore');
         
-        // Reload requests list
         await loadAccountRequests();
-        
-        // Reload members list if on that tab
         await loadMembers();
-        
-        // Update badge count
         updateRequestsBadge();
         
-        showToast(`Account aangemaakt voor ${naam}`, 'success');
+        showToast(`Account aangemaakt voor ${naam} (${ploegenToSave.join(', ')})`, 'success');
         
     } catch (error) {
         console.error('Error accepting request:', error);
@@ -869,20 +852,14 @@ window.rejectRequest = async function(requestId) {
     console.log('Rejecting request:', requestId);
     
     try {
-        // Confirm action
         if (!confirm('Weet je zeker dat je deze aanvraag wilt afwijzen?')) {
             return;
         }
         
-        // DELETE the request document completely (don't keep password data)
         await deleteDoc(doc(db, 'account_requests', requestId));
-        
         console.log('Request document deleted from Firestore');
         
-        // Reload requests list
         await loadAccountRequests();
-        
-        // Update badge count
         updateRequestsBadge();
         
         showToast('Aanvraag afgewezen en verwijderd', 'success');
@@ -909,23 +886,19 @@ if (addMatchBtn) {
         document.getElementById('matchId').value = '';
         matchForm.reset();
         
-        // Reset match type to upcoming (default)
         document.getElementById('matchType').value = 'upcoming';
         document.getElementById('btnUpcoming').classList.add('active');
         document.getElementById('btnFinished').classList.remove('active');
         document.getElementById('scoreFields').style.display = 'none';
         document.getElementById('designatedPersonsGroup').style.display = 'block';
-        // Reset vlaggen
         const fT = document.getElementById('matchForfaitThuis');
         const fU = document.getElementById('matchForfaitUit');
         const fB = document.getElementById('matchBekermatch');
         if (fT) fT.checked = false;
         if (fU) fU.checked = false;
         if (fB) fB.checked = false;
-        // Forfait auto-score listeners
         initForfaitListeners();
         
-        // Remove required from score fields
         document.getElementById('matchHomeScore').removeAttribute('required');
         document.getElementById('matchAwayScore').removeAttribute('required');
         
@@ -940,7 +913,6 @@ if (matchModalCancel) {
     });
 }
 
-// Match type selector functionality
 const btnUpcoming = document.getElementById('btnUpcoming');
 const btnFinished = document.getElementById('btnFinished');
 const scoreFields = document.getElementById('scoreFields');
@@ -951,14 +923,11 @@ const matchAwayScore = document.getElementById('matchAwayScore');
 
 if (btnUpcoming) {
     btnUpcoming.addEventListener('click', () => {
-        console.log('Switched to upcoming match type');
         btnUpcoming.classList.add('active');
         btnFinished.classList.remove('active');
         scoreFields.style.display = 'none';
         designatedPersonsGroup.style.display = 'block';
         matchTypeInput.value = 'upcoming';
-        
-        // Remove required from score fields
         matchHomeScore.removeAttribute('required');
         matchAwayScore.removeAttribute('required');
     });
@@ -966,14 +935,11 @@ if (btnUpcoming) {
 
 if (btnFinished) {
     btnFinished.addEventListener('click', () => {
-        console.log('Switched to finished match type');
         btnFinished.classList.add('active');
         btnUpcoming.classList.remove('active');
         scoreFields.style.display = 'flex';
         designatedPersonsGroup.style.display = 'none';
         matchTypeInput.value = 'finished';
-        
-        // Add required to score fields
         matchHomeScore.setAttribute('required', 'required');
         matchAwayScore.setAttribute('required', 'required');
     });
@@ -981,14 +947,9 @@ if (btnFinished) {
 
 function populateDesignatedPersonsSelect() {
     const container = document.getElementById('designatedPersonsContainer');
-    if (!container) {
-        console.error('designatedPersonsContainer not found in HTML');
-        return;
-    }
+    if (!container) return;
     
     container.innerHTML = '';
-    
-    console.log('Populating designated persons, total members:', allMembers.length);
     
     if (allMembers.length === 0) {
         container.innerHTML = '<p style="padding: 10px;">Geen leden beschikbaar. Voeg eerst leden toe.</p>';
@@ -1027,27 +988,13 @@ if (matchForm) {
         const description = descriptionField ? descriptionField.value.trim() : '';
         const matchType = document.getElementById('matchType').value;
         
-        console.log('Submitting match form:', {
-            matchId,
-            date,
-            time,
-            location,
-            homeTeam,
-            awayTeam,
-            team,
-            description,
-            matchType
-        });
-        
         let matchData;
         
         if (matchType === 'upcoming') {
-            // Planned match
             const checkboxes = document.querySelectorAll('input[name="designatedPerson"]:checked');
             const aangeduidePersonen = Array.from(checkboxes).map(cb => cb.value);
             
             if (aangeduidePersonen.length === 0) {
-                console.warn('No designated persons selected');
                 showToast('Selecteer minstens één persoon met toegang', 'error');
                 return;
             }
@@ -1055,8 +1002,7 @@ if (matchForm) {
             const forfaitVal     = document.querySelector('input[name="matchForfait"]:checked')?.value || 'geen';
             const isForfaitThuis = forfaitVal === 'thuis';
             const isForfaitUit   = forfaitVal === 'uit';
-            const isBekermatch   = document.getElementById('matchBekermatch')?.checked   || false;
-            // Forfait-score meteen zetten als van toepassing
+            const isBekermatch   = document.getElementById('matchBekermatch')?.checked || false;
             const fScoreThuis = isForfaitThuis ? 0 : (isForfaitUit ? 5 : 0);
             const fScoreUit   = isForfaitThuis ? 5 : (isForfaitUit ? 0 : 0);
             matchData = {
@@ -1076,17 +1022,14 @@ if (matchForm) {
                 isBekermatch,
             };
         } else {
-            // Finished match
             const homeScore = parseInt(document.getElementById('matchHomeScore').value) || 0;
             const awayScore = parseInt(document.getElementById('matchAwayScore').value) || 0;
-            
-            // Create timestamp from date and time
             const matchDateTime = new Date(`${date}T${time}`);
             
             const forfaitValF    = document.querySelector('input[name="matchForfait"]:checked')?.value || 'geen';
             const isForfaitThuisF = forfaitValF === 'thuis';
             const isForfaitUitF   = forfaitValF === 'uit';
-            const isBekermatchF   = document.getElementById('matchBekermatch')?.checked   || false;
+            const isBekermatchF   = document.getElementById('matchBekermatch')?.checked || false;
             const finalHomeScore  = isForfaitThuisF ? 0 : (isForfaitUitF ? 5 : homeScore);
             const finalAwayScore  = isForfaitThuisF ? 5 : (isForfaitUitF ? 0 : awayScore);
             matchData = {
@@ -1120,11 +1063,8 @@ if (matchForm) {
         
         try {
             if (matchId) {
-                console.log('Updating match:', matchId);
                 await updateDoc(doc(db, 'matches', matchId), matchData);
-                console.log('Match updated successfully');
             } else {
-                console.log('Creating new match...');
                 const docRef = await addDoc(collection(db, 'matches'), matchData);
                 console.log('Match created with ID:', docRef.id);
             }
@@ -1136,11 +1076,6 @@ if (matchForm) {
             
         } catch (error) {
             console.error('Error saving match:', error);
-            console.error('Error details:', {
-                code: error.code,
-                message: error.message,
-                stack: error.stack
-            });
             showToast('Fout bij opslaan: ' + error.message, 'error');
         } finally {
             if (submitBtn) {
@@ -1153,13 +1088,9 @@ if (matchForm) {
 
 async function loadMatches() {
     const matchesList = document.getElementById('matchesList');
-    if (!matchesList) {
-        console.error('matchesList element not found');
-        return;
-    }
+    if (!matchesList) return;
     
     matchesList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
-    console.log('Loading matches...');
     
     try {
         try {
@@ -1168,7 +1099,6 @@ async function loadMatches() {
             displayMatches(matchesSnapshot);
         } catch (orderError) {
             if (orderError.code === 'failed-precondition') {
-                console.log('Index not found, loading without orderBy');
                 const matchesSnapshot = await getDocs(collection(db, 'matches'));
                 displayMatches(matchesSnapshot);
             } else {
@@ -1186,13 +1116,10 @@ function displayMatches(matchesSnapshot) {
     matchesList.innerHTML = '';
 
     if (matchesSnapshot.empty) {
-        console.log('No matches found');
         allMatchesCache = [];
         renderMatchList();
         return;
     }
-
-    console.log('Found', matchesSnapshot.size, 'matches');
 
     allMatchesCache = [];
     matchesSnapshot.forEach(docSnap => {
@@ -1201,7 +1128,6 @@ function displayMatches(matchesSnapshot) {
 
     setTabCount('matches', allMatchesCache.length);
     renderMatchList();
-    console.log('Matches loaded successfully');
 }
 
 function renderMatchList() {
@@ -1212,12 +1138,10 @@ function renderMatchList() {
 
     if (currentMatchFilter === 'planned') {
         filtered = allMatchesCache.filter(m => m.status === 'planned');
-        // Sort by soonest first
         const today = new Date();
         filtered.sort((a, b) => {
             const da = new Date(a.datum + 'T' + (a.uur || '00:00'));
             const db_ = new Date(b.datum + 'T' + (b.uur || '00:00'));
-            // Future matches first (ascending), then past planned matches
             const aFuture = da >= today;
             const bFuture = db_ >= today;
             if (aFuture && !bFuture) return -1;
@@ -1228,7 +1152,6 @@ function renderMatchList() {
         filtered = allMatchesCache.filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust');
         filtered.sort((a, b) => new Date(b.datum) - new Date(a.datum));
     } else {
-        // All: most recent first
         filtered = [...allMatchesCache].sort((a, b) => new Date(b.datum) - new Date(a.datum));
     }
 
@@ -1250,7 +1173,6 @@ function createMatchCard(match) {
     const statusBadge = getMatchStatusBadge(match.status);
     const dateFormatted = new Date(match.datum).toLocaleDateString('nl-BE');
     
-    // Get designated persons names
     const personenNames = (match.aangeduidePersonen || []).map(uid => {
         const person = allMembers.find(m => m.uid === uid);
         return person ? person.naam : 'Onbekend';
@@ -1290,7 +1212,6 @@ function getMatchStatusBadge(status) {
         'rust': { class: 'live', text: 'Rust' },
         'finished': { class: 'finished', text: 'Afgelopen' }
     };
-    
     const s = statusMap[status] || { class: '', text: status };
     return `<span class="match-badge ${s.class}">${s.text}</span>`;
 }
@@ -1310,7 +1231,6 @@ function editMatch(match) {
     const descField = document.getElementById('matchDescription');
     if (descField) descField.value = match.beschrijving || '';
 
-    // ── Herstel modus (gepland vs afgelopen) ─────────────────────────────────
     const btnUp  = document.getElementById('btnUpcoming');
     const btnFin = document.getElementById('btnFinished');
     const sfEl   = document.getElementById('scoreFields');
@@ -1320,7 +1240,6 @@ function editMatch(match) {
     const asEl   = document.getElementById('matchAwayScore');
 
     if (isFinished) {
-        // Toon "Afgelopen Wedstrijd" modus
         btnFin?.classList.add('active');
         btnUp?.classList.remove('active');
         if (sfEl) sfEl.style.display = 'flex';
@@ -1329,7 +1248,6 @@ function editMatch(match) {
         if (hsEl) { hsEl.value = match.scoreThuis ?? 0; hsEl.setAttribute('required', 'required'); }
         if (asEl) { asEl.value = match.scoreUit   ?? 0; asEl.setAttribute('required', 'required'); }
     } else {
-        // Toon "Geplande Wedstrijd" modus
         btnUp?.classList.add('active');
         btnFin?.classList.remove('active');
         if (sfEl) sfEl.style.display = 'none';
@@ -1339,7 +1257,6 @@ function editMatch(match) {
         if (asEl) asEl.removeAttribute('required');
     }
 
-    // ── Herstel vlaggen ───────────────────────────────────────────────────────
     const efT = document.getElementById('matchForfaitThuis');
     const efU = document.getElementById('matchForfaitUit');
     const efB = document.getElementById('matchBekermatch');
@@ -1349,7 +1266,6 @@ function editMatch(match) {
     if (efB) efB.checked = !!match.isBekermatch;
     initForfaitListeners();
 
-    // ── Aangeduide personen (enkel relevant voor geplande wedstrijden) ────────
     populateDesignatedPersonsSelect();
     (match.aangeduidePersonen || []).forEach(uid => {
         const cb = document.querySelector(`input[name="designatedPerson"][value="${uid}"]`);
@@ -1374,27 +1290,16 @@ async function deleteMatch(match) {
     
     confirmDelete.onclick = async () => {
         try {
-            console.log('Deleting match:', match.id);
-
-            // Delete events subcollection
             const eventsSnapshot = await getDocs(
                 query(collection(db, 'events'), where('matchId', '==', match.id))
             );
-            console.log('Deleting', eventsSnapshot.size, 'events');
-
-            // Delete availability subcollection
             const availabilitySnapshot = await getDocs(
                 collection(db, 'matches', match.id, 'availability')
             );
-            console.log('Deleting', availabilitySnapshot.size, 'availability records');
-
-            // Delete playerMinutes subcollection
             const playerMinutesSnapshot = await getDocs(
                 collection(db, 'matches', match.id, 'playerMinutes')
             );
-            console.log('Deleting', playerMinutesSnapshot.size, 'playerMinutes records');
 
-            // Delete all subcollection docs in parallel, then the match itself
             await Promise.all([
                 ...eventsSnapshot.docs.map(d => deleteDoc(d.ref)),
                 ...availabilitySnapshot.docs.map(d => deleteDoc(d.ref)),
@@ -1402,7 +1307,6 @@ async function deleteMatch(match) {
             ]);
 
             await deleteDoc(doc(db, 'matches', match.id));
-            console.log('Match and all related data deleted');
 
             confirmModal.classList.remove('active');
             await loadMatches();
@@ -1424,7 +1328,6 @@ const evenementModalCancel = document.getElementById('evenementModalCancel');
 
 if (addEvenementBtn) {
     addEvenementBtn.addEventListener('click', () => {
-        console.log('Opening add evenement modal');
         document.getElementById('evenementModalTitle').textContent = 'Nieuw Evenement Aanmaken';
         document.getElementById('evenementId').value = '';
         evenementForm.reset();
@@ -1433,8 +1336,6 @@ if (addEvenementBtn) {
         loadExtraVelden([]);
         evenementModal.classList.add('active');
     });
-} else {
-    console.warn('addEvenementBtn not found');
 }
 
 if (evenementModalCancel) {
@@ -1443,7 +1344,6 @@ if (evenementModalCancel) {
     });
 }
 
-// Toggle max deelnemers field visibility
 const evenementInschrijvingenCb = document.getElementById('evenementInschrijvingen');
 
 if (evenementInschrijvingenCb) {
@@ -1457,7 +1357,6 @@ if (evenementInschrijvingenCb) {
     });
 }
 
-// ── Extra velden builder ──────────────────────────────────────────────
 let extraVeldenCounter = 0;
 
 function addExtraVeldRow(data = {}) {
@@ -1527,7 +1426,6 @@ function loadExtraVelden(velden = []) {
     velden.forEach(v => addExtraVeldRow(v));
 }
 
-
 if (evenementForm) {
     evenementForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1541,8 +1439,6 @@ if (evenementForm) {
         const afbeeldingNaam = document.getElementById('evenementAfbeelding').value.trim();
         const linkField = document.getElementById('evenementLink');
         const link = linkField ? linkField.value.trim() : '';
-        
-        console.log('Submitting evenement form:', { titel, datum, tijd });
         
         const inschrijvingenCb = document.getElementById('evenementInschrijvingen');
         const maxDeelnemersField = document.getElementById('evenementMaxDeelnemers');
@@ -1575,11 +1471,8 @@ if (evenementForm) {
         
         try {
             if (evenementId) {
-                console.log('Updating evenement:', evenementId);
                 await updateDoc(doc(db, 'evenementen', evenementId), evenementData);
-                console.log('Evenement updated');
             } else {
-                console.log('Creating new evenement...');
                 const docRef = await addDoc(collection(db, 'evenementen'), evenementData);
                 console.log('Evenement created with ID:', docRef.id);
             }
@@ -1591,11 +1484,6 @@ if (evenementForm) {
             
         } catch (error) {
             console.error('Error saving evenement:', error);
-            console.error('Error details:', {
-                code: error.code,
-                message: error.message,
-                stack: error.stack
-            });
             showToast('Fout bij opslaan: ' + error.message, 'error');
         } finally {
             if (submitBtn) {
@@ -1619,13 +1507,9 @@ async function togglePinEvenement(evenement, newPinned) {
 
 async function loadEvenementen() {
     const evenementenList = document.getElementById('evenementenList');
-    if (!evenementenList) {
-        console.error('evenementenList element not found');
-        return;
-    }
+    if (!evenementenList) return;
     
     evenementenList.innerHTML = '<div class="loading"><div class="loader"></div></div>';
-    console.log('Loading evenementen...');
     
     try {
         const evenementenSnapshot = await getDocs(collection(db, 'evenementen'));
@@ -1633,12 +1517,9 @@ async function loadEvenementen() {
         evenementenList.innerHTML = '';
         
         if (evenementenSnapshot.empty) {
-            console.log('No evenementen found');
             evenementenList.innerHTML = '<p class="text-center">Geen evenementen gevonden.</p>';
             return;
         }
-        
-        console.log('Found', evenementenSnapshot.size, 'evenementen');
         
         allEvenementen = [];
         evenementenSnapshot.forEach(docSnap => {
@@ -1646,7 +1527,6 @@ async function loadEvenementen() {
             allEvenementen.push(evenement);
         });
         
-        // Sort by date
         allEvenementen.sort((a, b) => new Date(a.datum + 'T' + a.tijd) - new Date(b.datum + 'T' + b.tijd));
         
         allEvenementen.forEach(evenement => {
@@ -1655,7 +1535,6 @@ async function loadEvenementen() {
         });
         
         setTabCount('evenementen', allEvenementen.length);
-        console.log('Evenementen loaded successfully');
         
     } catch (error) {
         console.error('Error loading evenementen:', error);
@@ -1692,8 +1571,8 @@ function createEvenementCard(evenement) {
                 <span class="ev-pin-label">${isPinned ? '📌 Uitgelicht' : 'Uitlichten'}</span>
             </label>
             ${evenement.inschrijvingenAan ? `<button class="action-btn" style="background:#e8f5e9;color:#2e7d32;" id="viewInschrijv_${evenement.id}">Inschrijvingen</button>` : ''}
-            <button class="action-btn edit">Bewerken</button>
-            <button class="action-btn delete">Verwijderen</button>
+            <button class="action-btn edit"><img src="assets/edit.png" class="icon" alt=""></button>
+            <button class="action-btn delete"><img src="assets/delete.png" class="icon" alt=""></button>
         </div>
     `;
 
@@ -1705,7 +1584,6 @@ function createEvenementCard(evenement) {
     });
 
     if (evenement.inschrijvingenAan) {
-        // Load count
         loadInschrijvingenCount(evenement.id, evenement.extraVelden || []);
         card.querySelector(`#viewInschrijv_${evenement.id}`)
             .addEventListener('click', () => openInschrijvingenModal(evenement));
@@ -1715,7 +1593,6 @@ function createEvenementCard(evenement) {
 }
 
 function editEvenement(evenement) {
-    console.log('Editing evenement:', evenement.titel);
     document.getElementById('evenementModalTitle').textContent = 'Evenement Bewerken';
     document.getElementById('evenementId').value = evenement.id;
     document.getElementById('evenementDatum').value = evenement.datum;
@@ -1756,10 +1633,7 @@ async function deleteEvenement(evenement) {
     
     confirmDelete.onclick = async () => {
         try {
-            console.log('Deleting evenement:', evenement.id);
             await deleteDoc(doc(db, 'evenementen', evenement.id));
-            console.log('Evenement deleted');
-            
             confirmModal.classList.remove('active');
             await loadEvenementen();
         } catch (error) {
@@ -1768,8 +1642,6 @@ async function deleteEvenement(evenement) {
         }
     };
 }
-
-// ── Inschrijvingen helpers ────────────────────────────────────────────────────
 
 async function loadInschrijvingenCount(evenementId, extraVelden = []) {
     try {
@@ -1816,9 +1688,7 @@ async function openInschrijvingenModal(evenement) {
         snap.forEach(d => inschrijvingen.push(d.data()));
         inschrijvingen.sort((a, b) => (a.ingeschrevenOp?.toMillis?.() || 0) - (b.ingeschrevenOp?.toMillis?.() || 0));
 
-        // ── Totaaltelling ────────────────────────────────────
         const aantalLeden = inschrijvingen.length;
-        // totaal extra personen per veld
         const veldTotalen = {};
         let totaalExtraPersonen = 0;
         let totaalKosten = 0;
@@ -1836,7 +1706,6 @@ async function openInschrijvingenModal(evenement) {
 
         const totaalPersonen = aantalLeden + totaalExtraPersonen;
 
-        // ── Samenvatting kaarten ─────────────────────────────
         if (samenvatting) {
             const maxBadge = evenement.maxDeelnemers
                 ? `<span style="color:#888;font-size:0.9rem;"> / ${evenement.maxDeelnemers} leden</span>` : '';
@@ -1870,7 +1739,6 @@ async function openInschrijvingenModal(evenement) {
             `;
         }
 
-        // ── Lijst per lid ────────────────────────────────────
         list.innerHTML = inschrijvingen.map((i, idx) => {
             const extraHtml = (i.extraAntwoorden || []).map(ant => {
                 const veld = extraVelden.find(v => v.id === ant.veldId);
@@ -1917,6 +1785,7 @@ if (inschrijvingenModalClose) {
 
 // ===============================================
 // CONTACTBERICHTEN MANAGEMENT
+// FIX 2: Berichten gesorteerd van OUDSTE naar NIEUWSTE
 // ===============================================
 
 let currentFilter = 'all';
@@ -1933,19 +1802,16 @@ async function loadContactberichten() {
     container.innerHTML = '<div class="loading"><div class="loader"></div></div>';
     
     try {
-        // Try to load with ordering - if it fails, we'll catch it and load without ordering
         let snapshot;
         try {
+            // Probeer met ordering — als index ontbreekt, vallen we terug op zonder
             const berichtenQuery = query(
                 collection(db, 'contactberichten'),
-                orderBy('datum', 'desc')
+                orderBy('datum', 'asc')   // ← oudste eerst
             );
             snapshot = await getDocs(berichtenQuery);
         } catch (orderError) {
-            // If ordering fails (likely missing index), load without ordering
             console.warn('Could not order by datum, loading without ordering:', orderError.message);
-            console.log('You may need to create a Firestore index for this query.');
-            
             const berichtenQuery = collection(db, 'contactberichten');
             snapshot = await getDocs(berichtenQuery);
         }
@@ -1973,29 +1839,23 @@ async function loadContactberichten() {
             });
         });
         
-        // Sort manually if we couldn't order in the query
+        // FIX 2: Sorteer OUDSTE eerst (ascending)
         berichten.sort((a, b) => {
             const dateA = a.datum?.toDate ? a.datum.toDate() : new Date(a.createdAt || 0);
             const dateB = b.datum?.toDate ? b.datum.toDate() : new Date(b.createdAt || 0);
-            return dateB - dateA;
+            return dateA - dateB; // ← ascending (oudste eerst)
         });
         
-        console.log('Loaded', berichten.length, 'contactberichten');
+        console.log('Loaded', berichten.length, 'contactberichten (oldest first)');
         
-        // Update stats
         const unreadCount = berichten.filter(b => !b.gelezen).length;
         updateMessageStats(berichten.length, unreadCount);
         
-        // Display berichten
         displayContactberichten(berichten);
-        
-        // Setup filter buttons
         setupFilterButtons(berichten);
         
     } catch (error) {
         console.error('Error loading contactberichten:', error);
-        console.error('Error code:', error.code);
-        console.error('Error message:', error.message);
         
         let errorHTML = '<div class="error-message"><p class="error">Fout bij laden van berichten.</p>';
         
@@ -2006,7 +1866,6 @@ async function loadContactberichten() {
         }
         
         errorHTML += '<button onclick="location.reload()" class="retry-btn">Opnieuw proberen</button></div>';
-        
         container.innerHTML = errorHTML;
     }
 }
@@ -2037,7 +1896,6 @@ function displayContactberichten(berichten) {
     const container = document.getElementById('contactberichtenList');
     if (!container) return;
     
-    // Filter berichten
     let filtered = berichten;
     if (currentFilter === 'unread') {
         filtered = berichten.filter(b => !b.gelezen);
@@ -2076,7 +1934,6 @@ function createMessageCard(bericht) {
         })
         : 'Onbekende datum';
     
-    // Check if message is long (more than 200 characters)
     const isLongMessage = bericht.bericht.length > 200;
     
     card.innerHTML = `
@@ -2103,7 +1960,6 @@ function createMessageCard(bericht) {
         </div>
     `;
     
-    // Add click-to-expand functionality for long messages
     if (isLongMessage) {
         const messageContent = card.querySelector('.message-content');
         const expandHint = card.querySelector('.message-expand-hint');
@@ -2121,7 +1977,6 @@ function createMessageCard(bericht) {
         });
     }
     
-    // Add event listeners
     const markReadBtn = card.querySelector('.mark-read');
     if (markReadBtn) {
         markReadBtn.addEventListener('click', () => markAsRead(bericht.id));
@@ -2135,14 +1990,11 @@ function createMessageCard(bericht) {
 
 async function markAsRead(berichtId) {
     try {
-        console.log('Marking message as read:', berichtId);
         await updateDoc(doc(db, 'contactberichten', berichtId), {
             gelezen: true
         });
-        
-        console.log('Message marked as read');
         await loadContactberichten();
-        await updateContactberichtenBadge(); // Update badge after marking as read
+        await updateContactberichtenBadge();
     } catch (error) {
         console.error('Error marking message as read:', error);
         showToast('Fout bij markeren: ' + error.message, 'error');
@@ -2155,12 +2007,9 @@ async function deleteMessage(berichtId) {
     }
     
     try {
-        console.log('Deleting message:', berichtId);
         await deleteDoc(doc(db, 'contactberichten', berichtId));
-        
-        console.log('Message deleted');
         await loadContactberichten();
-        await updateContactberichtenBadge(); // Update badge after deleting
+        await updateContactberichtenBadge();
     } catch (error) {
         console.error('Error deleting message:', error);
         showToast('Fout bij verwijderen: ' + error.message, 'error');
@@ -2168,11 +2017,9 @@ async function deleteMessage(berichtId) {
 }
 
 // ===============================================
-// RANKING MANAGEMENT — Firebase versie
-// Firestore structuur: ranking/{team} → { teams: [...], updatedAt }
+// RANKING MANAGEMENT
 // ===============================================
 
-// ── Sub-tab switching ──────────────────────────────────────────────────────────
 document.querySelectorAll('.ranking-subtab').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.ranking-subtab').forEach(b => b.classList.remove('active'));
@@ -2180,14 +2027,12 @@ document.querySelectorAll('.ranking-subtab').forEach(btn => {
         btn.classList.add('active');
         document.getElementById(btn.dataset.subtab).classList.add('active');
 
-        // Laad huidig klassement wanneer die tab opengaat
         if (btn.dataset.subtab === 'currentTab') {
             loadCurrentRankingView();
         }
     });
 });
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
 function showRankingStatus(elId, type, message) {
     const el = document.getElementById(elId);
     if (!el) return;
@@ -2197,7 +2042,6 @@ function showRankingStatus(elId, type, message) {
     if (type === 'success') setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
-// ── Parse ranking input (hergebruikt van oud systeem) ──────────────────────────
 function parseRankingInput(input) {
     const lines = input.trim().split('\n');
     const rankingArray = [];
@@ -2216,15 +2060,10 @@ function parseRankingInput(input) {
 
             let teamName = parts[1].replace(/^Logo\s*/i, '').trim();
 
-            // RBFA plakt de naam dubbel aan elkaar (logo-tekst + zichtbare tekst),
-            // soms zonder spatie: "VC TORENPLOEGVC TORENPLOEG"
-            // soms met spatie:    "VC TORENPLOEG VC TORENPLOEG"
-            // Oplossing 1: regex die een aaneengeplakte herhaling vangt
             const concatMatch = teamName.match(/^(.+)\1$/);
             if (concatMatch) {
                 teamName = concatMatch[1].trim();
             } else {
-                // Oplossing 2: spatie-gescheiden herhaling (oude fallback)
                 const words = teamName.split(/\s+/).filter(w => w.trim());
                 const half  = Math.floor(words.length / 2);
                 if (words.length > 0 && words.length % 2 === 0 && half > 0) {
@@ -2252,7 +2091,6 @@ function parseRankingInput(input) {
     return rankingArray;
 }
 
-// ── SUBTAB 1: Verwerken & Opslaan in Firebase ──────────────────────────────────
 const processRankingBtn = document.getElementById('processRankingBtn');
 if (processRankingBtn) {
     processRankingBtn.addEventListener('click', async () => {
@@ -2272,13 +2110,11 @@ if (processRankingBtn) {
                 return;
             }
 
-            // Opslaan in Firestore: ranking/{team}
             await setDoc(doc(db, 'ranking', team), {
                 teams: parsed,
                 updatedAt: serverTimestamp()
             });
 
-            // Preview tonen
             document.getElementById('previewTeamName').textContent =
                 team.charAt(0).toUpperCase() + team.slice(1);
             document.getElementById('rankingPreviewContent').textContent =
@@ -2288,7 +2124,6 @@ if (processRankingBtn) {
             showRankingStatus('rankingStatus', 'success',
                 `✅ ${parsed.length} ploegen opgeslagen voor ${team}!`);
 
-            // Invalideer localStorage cache op team-pagina
             localStorage.removeItem(`vvs_ranking_${team}`);
 
         } catch (err) {
@@ -2311,7 +2146,6 @@ if (clearRankingBtn) {
     });
 }
 
-// ── SUBTAB 2: Matchresultaat ───────────────────────────────────────────────────
 const matchResultTeamSel = document.getElementById('matchResultTeam');
 if (matchResultTeamSel) {
     matchResultTeamSel.addEventListener('change', async () => {
@@ -2392,7 +2226,6 @@ if (applyMatchResultBtn) {
             const awayTeam = teams.find(t => t.team === awayName);
             if (!homeTeam || !awayTeam) throw new Error('Ploeg niet gevonden in klassement.');
 
-            // Update statistieken
             function applyResult(t, goalsFor, goalsAgainst) {
                 t.played = (t.played || 0) + 1;
                 t.goals_for     = (t.goals_for     || 0) + goalsFor;
@@ -2411,7 +2244,6 @@ if (applyMatchResultBtn) {
             applyResult(homeTeam, homeScore, awayScore);
             applyResult(awayTeam, awayScore, homeScore);
 
-            // RBFA: pnt → won → saldo → goals_for
             teams.sort((a, b) =>
                 (b.pnt       - a.pnt)       ||
                 (b.won       - a.won)       ||
@@ -2432,11 +2264,9 @@ if (applyMatchResultBtn) {
                 pos++;
             });
 
-            // Opslaan
             await setDoc(doc(db, 'ranking', team), { teams, updatedAt: serverTimestamp() });
             localStorage.removeItem(`vvs_ranking_${team}`);
 
-            // Preview
             const result = homeScore > awayScore ? `${homeName} wint`
                          : homeScore < awayScore ? `${awayName} wint`
                          : 'Gelijkspel';
@@ -2460,7 +2290,6 @@ if (applyMatchResultBtn) {
     });
 }
 
-// ── SUBTAB 3: Huidig klassement bekijken ──────────────────────────────────────
 const viewRankingTeamSel = document.getElementById('viewRankingTeam');
 if (viewRankingTeamSel) {
     viewRankingTeamSel.addEventListener('change', loadCurrentRankingView);
@@ -2530,9 +2359,9 @@ async function loadCurrentRankingView() {
     }
 }
 
-console.log('Admin.js (FINAL FIX) initialization complete');
+console.log('Admin.js initialization complete');
 
-// ── Toast ────────────────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, type = '') {
     let t = document.getElementById('adminToast');
@@ -2552,7 +2381,6 @@ function showToast(msg, type = '') {
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
 }
-
 
 // ── Forfait auto-score listeners ──────────────────────────────────────────────
 let _forfaitListenersInit = false;

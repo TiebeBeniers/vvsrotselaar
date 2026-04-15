@@ -225,34 +225,35 @@
             <button id="closeTermsBtn" aria-label="Sluiten" style="position:absolute;top:1rem;right:1rem;background:none;border:none;font-size:1.6rem;cursor:pointer;color:#555;line-height:1;">&times;</button>
 
             <h3 style="margin:0 0 0.2rem;">Algemene Voorwaarden</h3>
-            <p style="color:#888;font-size:0.85rem;margin-bottom:1.5rem;">V.V.S Rotselaar &mdash; versie april 2026</p>
+            <p id="termsSubtitle" style="color:#888;font-size:0.85rem;margin-bottom:1.5rem;">V.V.S Rotselaar</p>
 
-            <h4 style="margin:0 0 0.4rem;">1. Opslag van persoonsgegevens</h4>
-            <p style="font-size:0.9rem;line-height:1.75;margin-bottom:1.25rem;">
-                Door een account aan te vragen geef je V.V.S Rotselaar toestemming om je
-                persoonsgegevens (naam, e-mailadres, ploeg en wedstrijdstatistieken) op te
-                slaan en te verwerken. Deze gegevens worden uitsluitend gebruikt voor het
-                beheer van de ledenzone van <strong>vvsrotselaar.be</strong> en worden nooit
-                verkocht aan of gedeeld met derden voor commerciële doeleinden. Je gegevens
-                worden bewaard zolang je actief lid bent van de club en worden op verzoek
-                verwijderd binnen 30 dagen. Meer info vind je in onze
-                <a href="privacy.html" target="_blank" style="color:#1a73e8;text-decoration:underline;">privacyverklaring</a>.
-            </p>
+            <!-- Dynamisch geladen vanuit Firestore (settings/terms).
+                 Valt terug op de hardcoded inhoud in #termsFallback als er geen data is. -->
+            <div id="termsContent"></div>
 
-            <h4 style="margin:0 0 0.4rem;">2. Gebruik van foto's</h4>
-            <p style="font-size:0.9rem;line-height:1.75;margin-bottom:1.5rem;">
-                Door een account aan te vragen geef je V.V.S Rotselaar toestemming om
-                foto's waarop jij zichtbaar bent te gebruiken op de clubwebsite
-                (<strong>vvsrotselaar.be</strong>) en de bijhorende galerij. Dit betreft
-                uitsluitend foto's genomen in een clubcontext (wedstrijden, trainingen,
-                clubactiviteiten). Foto's worden nooit gebruikt voor commerciële of
-                advertentiedoeleinden. Je kan jouw toestemming op elk moment intrekken
-                door een e-mail te sturen naar
-                <a href="mailto:info@vvsrotselaar.be" style="color:#1a73e8;text-decoration:underline;">info@vvsrotselaar.be</a>,
-                waarna de betreffende foto's worden verwijderd.
-            </p>
+            <div id="termsFallback">
+                <div class="terms-section">
+                    <h4>1. Opslag van persoonsgegevens</h4>
+                    <p>Door een account aan te vragen geef je V.V.S Rotselaar toestemming om je
+                    persoonsgegevens (naam, e-mailadres, ploeg en wedstrijdstatistieken) op te
+                    slaan en te verwerken. Deze gegevens worden uitsluitend gebruikt voor het
+                    beheer van de ledenzone van <strong>vvsrotselaar.be</strong> en worden nooit
+                    verkocht aan of gedeeld met derden voor commerciële doeleinden. Je gegevens
+                    worden bewaard zolang je actief lid bent van de club en worden op verzoek
+                    verwijderd binnen 30 dagen. Meer info vind je in onze
+                    <a href="privacy.html" target="_blank" style="color:#1a73e8;text-decoration:underline;">privacyverklaring</a>.</p>
+                </div>
+                <div class="terms-section">
+                    <h4>2. Gebruik van foto's</h4>
+                    <p>Door een account aan te vragen geef je V.V.S Rotselaar toestemming om
+                    foto's waarop jij zichtbaar bent te gebruiken op de clubwebsite
+                    (<strong>vvsrotselaar.be</strong>) en de bijhorende galerij. Dit betreft
+                    uitsluitend foto's genomen in een clubcontext (wedstrijden, trainingen,
+                    clubactiviteiten). Foto's worden nooit gebruikt voor commerciële doeleinden.</p>
+                </div>
+            </div>
 
-            <div style="display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #eee;padding-top:1rem;">
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid #eee;padding-top:1rem;margin-top:1.5rem;">
                 <button id="declineTermsBtn" style="padding:0.6rem 1.2rem;border:1px solid #ccc;border-radius:5px;background:#fff;cursor:pointer;font-size:0.9rem;color:#333;">Weigeren</button>
                 <button id="acceptTermsBtn" style="padding:0.6rem 1.4rem;border:none;border-radius:5px;background:#1a73e8;color:#fff;cursor:pointer;font-size:0.9rem;font-weight:600;">Accepteren</button>
             </div>

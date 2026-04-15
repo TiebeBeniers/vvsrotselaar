@@ -231,6 +231,33 @@
     font-style: italic;
 }
 
+/* ── Card list containers: standaard 2 per rij ── */
+.members-list,
+.matches-list,
+.evenementen-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+/* Laad-indicator en lege-staat tekst mogen volledige breedte innemen */
+.members-list .loading,
+.matches-list .loading,
+.evenementen-list .loading,
+.members-list > p,
+.matches-list > p,
+.evenementen-list > p {
+    grid-column: 1 / -1;
+}
+
+/* Cards: margin-bottom niet nodig, grid-gap regelt de ruimte */
+.member-card,
+.match-card,
+.evenement-card {
+    margin-bottom: 0;
+}
+
 /* ── Card actions ── */
 .card-actions {
     display: flex;
@@ -244,10 +271,12 @@
     flex: 1 1 100%;
 }
 
-/* Bewerken + verwijderen blijven naast elkaar op de volgende rij */
+/* Bewerken + verwijderen altijd even breed naast elkaar */
 .card-actions .action-btn.edit,
 .card-actions .action-btn.delete {
-    flex: 1 1 auto;
+    flex: 1 1 0;            /* gelijke breedte, content bepaalt niet de breedte */
+    min-width: 0;
+    text-align: center;
 }
 
 .action-btn {
@@ -1108,17 +1137,33 @@ html.dark .icon.upload { filter:invert(1); }
         gap: 1rem;
     }
 
-    /* Cards stack vertically */
+    /* Cards stack vertically — info boven, knoppen als rij eronder */
     .member-card,
     .match-card,
-    .evenement-card {          /* ← evenement-card added here */
+    .evenement-card {
         flex-direction: column;
         align-items: stretch;
-        gap: 1rem;
+        gap: 0.75rem;
     }
 
+    /* Knoppen naast elkaar in een rij onderaan de card */
     .card-actions {
-        justify-content: stretch;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    /* Bewerken / Verwijderen even breed naast elkaar */
+    .card-actions .action-btn.edit,
+    .card-actions .action-btn.delete {
+        flex: 1 1 0;
+        text-align: center;
+    }
+
+    /* Inschrijvingen-knop blijft volledige breedte */
+    .card-actions .action-btn[id^="viewInschrijv_"] {
+        flex: 1 1 100%;
     }
 
     /* Header buttons stack */
@@ -3130,4 +3175,175 @@ html.dark .rw-filter-select { color: var(--text-dark); }
     cursor: pointer;
     accent-color: var(--primary-blue);
     flex-shrink: 0;
+}
+
+/* ── Account Requests: per-team accept checkboxes ───────────────────────── */
+.request-team-accept {
+    margin: 0.75rem 0 0.5rem;
+    padding: 0.75rem;
+    background: var(--white);
+    border-radius: 8px;
+    border: 1.5px solid var(--border-color);
+}
+
+.req-accept-label {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+}
+
+.req-team-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+}
+
+.req-team-cb-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-dark);
+}
+
+.req-team-cb-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+}
+
+html.dark .request-team-accept  { background: #2a2f45; border-color: var(--border-color); }
+html.dark .req-team-cb-label    { color: var(--text-dark); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — 1140px: tabs wrappen in 2 rijen
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1140px) {
+
+    /* Tabs wrappen → 2 rijen van ~3 */
+    .admin-tabs {
+        flex-wrap: wrap;
+        gap: 0.4rem 0.5rem;
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+
+    .admin-tabs::after {
+        content: '';
+        display: block;
+        width: 100%;
+        height: 2px;
+        background: var(--border-color);
+        margin-top: 0.25rem;
+    }
+
+    .tab-btn {
+        flex: 1 1 calc(33.33% - 0.4rem);
+        min-width: 120px;
+        padding: 0.75rem 1rem;
+        text-align: center;
+        border: 1.5px solid var(--border-color);
+        border-radius: 8px;
+        border-bottom: 1.5px solid var(--border-color);
+        font-size: 0.9rem;
+        background: var(--white);
+    }
+
+    .tab-btn.active {
+        background: var(--primary-blue);
+        color: var(--white);
+        border-color: var(--primary-blue);
+        border-bottom-color: var(--primary-blue);
+    }
+
+    .tab-btn:hover:not(.active) {
+        background: var(--off-white);
+        border-color: var(--primary-blue);
+    }
+
+    .tab-dot {
+        top: 5px;
+        right: 5px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — 640px: 1 kolom grid voor cards
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+    .members-list,
+    .matches-list,
+    .evenementen-list {
+        grid-template-columns: 1fr;
+    }
+
+    /* 641–500px: rij-layout (info links, knoppen rechts in kolom) */
+    .member-card,
+    .match-card,
+    .evenement-card {
+        flex-direction: row;
+        align-items: center;
+        gap: 0;
+    }
+
+    .card-actions {
+        flex-direction: column;
+        width: auto;
+        flex-shrink: 0;
+        gap: 0.4rem;
+    }
+
+    .card-actions .action-btn.edit,
+    .card-actions .action-btn.delete {
+        flex: none;
+        width: 100%;                /* knoppen even breed binnen de kolom */
+        text-align: center;
+    }
+
+    /* Tabs: 2 per rij op heel smal scherm */
+    .tab-btn {
+        flex: 1 1 calc(50% - 0.4rem);
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   ≤500px: kaarten staan toch op 1 kolom, nu info boven + knoppen
+   als RIJ eronder (naast elkaar, even breed)
+───────────────────────────────────────────────────────────────── */
+@media (max-width: 500px) {
+
+    /* Kolom-layout: info boven, acties als rij eronder */
+    .member-card,
+    .match-card,
+    .evenement-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    /* Knoppen: horizontale rij onderaan de card */
+    .card-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: stretch;
+        width: 100%;
+        gap: 0.5rem;
+    }
+
+    /* Bewerken + Verwijderen: altijd even breed naast elkaar */
+    .card-actions .action-btn.edit,
+    .card-actions .action-btn.delete {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+        width: auto;
+    }
+
+    /* Inschrijvingen-knop (evenementen): volledige breedte */
+    .card-actions .action-btn[id^="viewInschrijv_"] {
+        flex: 1 1 100%;
+    }
 }
