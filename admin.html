@@ -275,15 +275,52 @@
                     <h3>Aankondigingsbanner</h3>
                 </div>
                 <p style="color:var(--text-gray);margin-bottom:1.5rem;font-size:0.95rem;">
-                    De tekst hieronder wordt getoond in de scrollende banner bovenaan de homepagina.
+                    Kies een icoon en typ de bannertekst. De preview toont hoe de banner er op de homepagina uitziet.
                 </p>
-                <div class="form-group">
-                    <label for="announcementText">Bannertekst</label>
-                    <input type="text" id="announcementText" placeholder="bv. Bier van de maand: Primus">
+ 
+                <!-- Editor-rij: [emoji-knop] [tekstveld] [Opslaan] [✓ status] -->
+                <div class="announcement-editor-row">
+ 
+                    <!-- Emoji / icoon picker -->
+                    <div class="ann-icon-picker" id="annIconPicker">
+                        <button class="ann-icon-selected" id="annIconSelectedBtn" type="button" aria-haspopup="true" aria-expanded="false">
+                            <span id="annIconPreview">🍺</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+ 
+                        <!-- Dropdown -->
+                        <div class="ann-icon-dropdown" id="annIconDropdown" role="listbox">
+                            <!-- Emoji grid -->
+                            <div class="ann-icon-grid" id="annEmojiGrid">
+                                <!-- gevuld door JS -->
+                            </div>
+ 
+                            <!-- Eigen bestandspad -->
+                            <div class="ann-icon-custom">
+                                <span class="ann-custom-label">Eigen afbeelding (bv. assets/bier.png)</span>
+                                <div class="ann-custom-row">
+                                    <input type="text" class="ann-custom-input" id="annCustomPath" placeholder="assets/bier.png">
+                                    <button class="ann-custom-apply" id="annCustomApplyBtn" type="button">Gebruik</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+ 
+                    <!-- Tekstveld -->
+                    <input type="text" class="ann-text-input" id="announcementText" placeholder="bv. Bier van de maand: Primus">
+ 
+                    <!-- Opslaan -->
+                    <button class="add-btn ann-save-btn" id="saveAnnouncementBtn" type="button">Opslaan</button>
+ 
+                    <!-- Status -->
+                    <span id="announcementStatus" style="font-size:0.9rem;color:var(--success);display:none;white-space:nowrap;">✓ Opgeslagen</span>
                 </div>
-                <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
-                    <button class="add-btn" id="saveAnnouncementBtn">Opslaan</button>
-                    <span id="announcementStatus" style="font-size:0.9rem;color:var(--success);display:none;">✓ Opgeslagen</span>
+ 
+                <!-- Live preview -->
+                <p class="ann-preview-label">Voorvertoning</p>
+                <div class="ann-preview-bar" id="annPreviewBar">
+                    <span class="ann-preview-icon" id="annPreviewIcon">🍺</span>
+                    <span id="annPreviewText">Bier van de maand: Primus</span>
                 </div>
             </div>
 

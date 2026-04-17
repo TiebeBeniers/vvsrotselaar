@@ -162,16 +162,126 @@ function setTabCount(tabName, count) {
     }
 }
 
+// ===============================================
+// ANNOUNCEMENTS — emoji-picker + preview + opslaan
+// Firestore: settings/announcement → { text, icon }
+// ===============================================
+
+// De 16 beschikbare emoji's
+const ANN_EMOJIS = ['⚠️','❗','🔔','📢','💥','🔆','🔜','🎉','⚽','🏆','📅','🚨','ℹ️','✅','🌟','🍺'];
+ 
+// Huidige icoon-waarde (emoji-string of bestandspad)
+let _annIcon = 'assets/bier.png'; // standaard zoals in announcement.js
+ 
+// Bouw de emoji-grid éénmalig op
+function buildEmojiGrid() {
+    const grid = document.getElementById('annEmojiGrid');
+    if (!grid || grid.dataset.built) return;
+    grid.dataset.built = 'true';
+    ANN_EMOJIS.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ann-emoji-btn';
+        btn.textContent = emoji;
+        btn.setAttribute('aria-label', emoji);
+        btn.addEventListener('click', () => selectIcon(emoji));
+        grid.appendChild(btn);
+    });
+}
+ 
+function selectIcon(value) {
+    _annIcon = value;
+    // Update picker-knop
+    const preview = document.getElementById('annIconPreview');
+    if (preview) {
+        if (value.includes('/') || value.includes('.')) {
+            preview.innerHTML = `<img src="${value}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;">`;
+        } else {
+            preview.textContent = value;
+        }
+    }
+    // Update live preview
+    updateAnnPreview();
+    closeAnnDropdown();
+}
+ 
+function openAnnDropdown() {
+    const dd = document.getElementById('annIconDropdown');
+    const btn = document.getElementById('annIconSelectedBtn');
+    dd?.classList.add('ann-icon-dropdown-open');
+    btn?.setAttribute('aria-expanded', 'true');
+}
+ 
+function closeAnnDropdown() {
+    const dd = document.getElementById('annIconDropdown');
+    const btn = document.getElementById('annIconSelectedBtn');
+    dd?.classList.remove('ann-icon-dropdown-open');
+    btn?.setAttribute('aria-expanded', 'false');
+}
+ 
+function updateAnnPreview() {
+    const text = document.getElementById('announcementText')?.value.trim()
+        || 'Bier van de maand: Primus';
+    const iconEl = document.getElementById('annPreviewIcon');
+    const textEl = document.getElementById('annPreviewText');
+    if (textEl) textEl.textContent = text;
+    if (iconEl) {
+        if (!_annIcon) {
+            iconEl.innerHTML = '';
+        } else if (_annIcon.includes('/') || _annIcon.includes('.')) {
+            iconEl.innerHTML = `<img src="${_annIcon}" alt="" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;">`;
+        } else {
+            iconEl.textContent = _annIcon;
+        }
+    }
+}
+ 
 async function loadAnnouncementTab() {
     const field = document.getElementById('announcementText');
     if (!field || field.dataset.loaded) return;
     field.dataset.loaded = 'true';
+ 
+    buildEmojiGrid();
+ 
+    // Wire up toggle
+    document.getElementById('annIconSelectedBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dd = document.getElementById('annIconDropdown');
+        dd?.classList.contains('ann-icon-dropdown-open') ? closeAnnDropdown() : openAnnDropdown();
+    });
+ 
+    // Sluit dropdown bij klik buiten
+    document.addEventListener('click', (e) => {
+        if (!document.getElementById('annIconPicker')?.contains(e.target)) {
+            closeAnnDropdown();
+        }
+    }, { capture: true });
+ 
+    // Eigen bestandspad "Gebruik"-knop
+    document.getElementById('annCustomApplyBtn')?.addEventListener('click', () => {
+        const path = document.getElementById('annCustomPath')?.value.trim();
+        if (path) selectIcon(path);
+    });
+ 
+    // Live preview on typing
+    field.addEventListener('input', updateAnnPreview);
+ 
+    // Laad bestaande data uit Firestore
     try {
         const snap = await getDoc(doc(db, 'settings', 'announcement'));
-        if (snap.exists() && snap.data().text) field.value = snap.data().text;
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.text) field.value = data.text;
+            if (data.icon !== undefined) {
+                _annIcon = data.icon ?? '';
+                selectIcon(_annIcon);
+            }
+        }
     } catch (e) { console.error('Error loading announcement:', e); }
+ 
+    updateAnnPreview();
 }
-
+ 
 const saveAnnouncementBtn = document.getElementById('saveAnnouncementBtn');
 if (saveAnnouncementBtn) {
     saveAnnouncementBtn.addEventListener('click', async () => {
@@ -180,7 +290,7 @@ if (saveAnnouncementBtn) {
         const text   = field?.value.trim() || '';
         saveAnnouncementBtn.disabled = true;
         try {
-            await setDoc(doc(db, 'settings', 'announcement'), { text }, { merge: true });
+            await setDoc(doc(db, 'settings', 'announcement'), { text, icon: _annIcon }, { merge: true });
             if (status) { status.style.display = 'inline'; setTimeout(() => status.style.display = 'none', 3000); }
         } catch (e) {
             showToast('Fout bij opslaan: ' + e.message, 'error');
