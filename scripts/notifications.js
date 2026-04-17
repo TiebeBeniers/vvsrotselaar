@@ -18,9 +18,12 @@ import { collection, query, where, getDocs, getDoc, doc }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 const DISMISSED_KEY  = 'vvs_notif_dismissed';
-const CHECK_INTERVAL = 60 * 60 * 1000;
+const CHECK_INTERVAL = 2 * 60 * 60 * 1000;  // Om de 2 uur opnieuw checken
 const LAST_CHECK_KEY = 'vvs_notif_last_check';
 const WINDOW_HOURS   = 72;
+// Na hoeveel tijd de melding voor dezelfde wedstrijd opnieuw getoond wordt
+// als beschikbaarheid nog steeds niet ingevuld is (2 uur).
+const AV_REMIND_INTERVAL = 2 * 60 * 60 * 1000;
 
 // ── Gedeelde stack container ──────────────────────────────────────────────────
 function getStack() {
@@ -38,7 +41,10 @@ function isAvDismissed(matchId) {
     try {
         const map = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
         const ts  = map[matchId];
-        return ts && Date.now() - ts < 24 * 60 * 60 * 1000;
+        // Beschouw als "gezien" gedurende AV_REMIND_INTERVAL (2 uur).
+        // Na die tijd wordt de melding opnieuw getoond als beschikbaarheid
+        // nog altijd niet ingevuld is.
+        return ts && Date.now() - ts < AV_REMIND_INTERVAL;
     } catch (_) { return false; }
 }
 
@@ -46,7 +52,8 @@ function avDismiss(matchId) {
     try {
         const map = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
         map[matchId] = Date.now();
-        Object.keys(map).forEach(k => { if (Date.now() - map[k] > 48 * 60 * 60 * 1000) delete map[k]; });
+        // Verwijder vermeldingen ouder dan 4 dagen (opruimen)
+        Object.keys(map).forEach(k => { if (Date.now() - map[k] > 4 * 24 * 60 * 60 * 1000) delete map[k]; });
         localStorage.setItem(DISMISSED_KEY, JSON.stringify(map));
     } catch (_) {}
 }

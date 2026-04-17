@@ -9,7 +9,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp }
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── Standaardinhoud ───────────────────────────────────────────────────────────
@@ -535,6 +535,8 @@ async function initPage() {
             await setDoc(doc(db, 'settings', 'terms'), {
                 sections: termsEditor.getSections(), updatedAt: serverTimestamp()
             });
+            // Stuur eenmalige notificatie naar alle ingelogde gebruikers
+            await stuurBeleidsNotificatie('terms');
             showSaveStatus(termsSaveStatus);
             termsEditor.setStatus('Opgeslagen');
             showToast('Algemene Voorwaarden opgeslagen!', 'success');
@@ -544,6 +546,9 @@ async function initPage() {
             termsSaveBtn.disabled = false; termsSaveBtn.textContent = 'Opslaan';
         }
     });
+
+    // ── Mail tab ──────────────────────────────────────────────────────────────
+    initMailTab();
 
     // ── Opslaan: Privacyverklaring ────────────────────────────────────────────
     const privacySaveBtn    = document.getElementById('privacySaveBtn');
@@ -562,6 +567,8 @@ async function initPage() {
                 lastUpdated: lastUpdated,
                 updatedAt:   serverTimestamp()
             });
+            // Stuur eenmalige notificatie naar alle ingelogde gebruikers
+            await stuurBeleidsNotificatie('privacy');
             showSaveStatus(privacySaveStatus);
             privacyEditor.setStatus('Opgeslagen');
             showToast('Privacyverklaring opgeslagen!', 'success');
@@ -574,6 +581,180 @@ async function initPage() {
 }
 
 // ── Hulpfuncties ──────────────────────────────────────────────────────────────
+
+// ── Beleid-update notificatie ─────────────────────────────────────────────────
+// Maakt een document aan in Firestore notificaties-collection dat aan alle
+// ingelogde gebruikers getoond wordt. Versie wordt verhoogd zodat eerder
+// gedismissed gebruikers de notificatie opnieuw zien.
+
+async function stuurBeleidsNotificatie(type) {
+    const docId  = type === 'privacy' ? 'policy_privacy_update' : 'policy_terms_update';
+    const titel  = type === 'privacy' ? 'Privacyverklaring bijgewerkt' : 'Algemene Voorwaarden bijgewerkt';
+    const tekst  = type === 'privacy'
+        ? 'Onze privacyverklaring werd aangepast. Bekijk de wijzigingen op de privacypagina.'
+        : 'Onze algemene voorwaarden werden aangepast. Lees ze na op de loginpagina.';
+    const link   = type === 'privacy' ? 'privacy.html' : 'login.html';
+
+    try {
+        // Haal huidige versie op om te verhogen
+        const bestaand = await getDoc(doc(db, 'notificaties', docId));
+        const oudeVersie = bestaand.exists() ? (bestaand.data().versie || 1) : 0;
+        const nieuweVersie = oudeVersie + 1;
+
+        await setDoc(doc(db, 'notificaties', docId), {
+            id:        docId,
+            titel:     titel,
+            tekst:     tekst,
+            type:      'info',
+            actief:    true,
+            doelgroep: 'ingelogd',   // enkel voor ingelogde gebruikers
+            versie:    nieuweVersie, // verhoogde versie reset alle dismiss-states
+            link:      link,
+            aangemaakt: serverTimestamp(),
+            // Geen vanDatum/totDatum → blijft actief tot manueel uitgeschakeld
+        });
+        console.log(`Beleid-notificatie aangemaakt: ${docId} v${nieuweVersie}`);
+    } catch (e) {
+        console.warn('Beleid-notificatie aanmaken mislukt:', e.message);
+        // Geen showToast — opslaan is al gelukt
+    }
+}
+
+// ── Mail-tab initialisatie ────────────────────────────────────────────────────
+
+async function initMailTab() {
+    // Laad spelerlijst voor de ontvanger-selector
+    const recipientGroup = document.getElementById('mailRecipientGroup');
+    const recipientList  = document.getElementById('mailRecipientList');
+    const sendBtn        = document.getElementById('mailSendBtn');
+    const mailStatus     = document.getElementById('mailSendStatus');
+    const subjectInput   = document.getElementById('mailSubject');
+    const bodyEditor     = document.getElementById('mailBodyEditor');
+
+    if (!sendBtn) return;
+
+    // Laad alle leden voor de "Specifieke spelers" optie
+    let allUsers = [];
+    try {
+        const snap = await getDocs(collection(db, 'users'));
+        snap.forEach(d => {
+            const u = d.data();
+            if (u.email) allUsers.push({ uid: u.uid || d.id, naam: u.naam || '?', email: u.email, categorie: u.categorie || '', ploegen: u.ploegen || [] });
+        });
+        allUsers.sort((a, b) => a.naam.localeCompare(b.naam));
+    } catch (e) {
+        console.error('Gebruikers laden mislukt:', e);
+    }
+
+    // Ontvanger-type wissel
+    document.querySelectorAll('input[name="mailRecipientType"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const val = radio.value;
+            // Toon individuele spelerslijst enkel bij 'specific'
+            if (recipientList) recipientList.style.display = val === 'specific' ? '' : 'none';
+            if (val === 'specific' && recipientList && !recipientList.dataset.loaded) {
+                recipientList.dataset.loaded = '1';
+                recipientList.innerHTML = allUsers.map(u => `
+                    <label class="mail-user-label">
+                        <input type="checkbox" class="mail-user-cb" value="${u.email}" data-naam="${u.naam}">
+                        <span>${u.naam}</span>
+                        <span class="mail-user-cat">${(u.ploegen.length > 1 ? u.ploegen : [u.categorie]).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ')}</span>
+                    </label>`).join('');
+            }
+        });
+    });
+
+    // Mail-opmaakknoppen (zelfde principe als admin3 rich editor)
+    document.querySelectorAll('.mail-fmt-btn').forEach(btn => {
+        btn.addEventListener('mousedown', e => e.preventDefault());
+        btn.addEventListener('click', () => {
+            if (!bodyEditor) return;
+            bodyEditor.focus();
+            const cmd = btn.dataset.cmd;
+            switch (cmd) {
+                case 'bold':   document.execCommand('bold',   false, null); break;
+                case 'italic': document.execCommand('italic', false, null); break;
+                case 'ul':     document.execCommand('insertUnorderedList', false, null); break;
+                case 'link': {
+                    const url = prompt('URL:', 'https://');
+                    if (url) document.execCommand('createLink', false, url);
+                    break;
+                }
+            }
+        });
+    });
+
+    // Verzenden
+    sendBtn.addEventListener('click', async () => {
+        const subject = subjectInput?.value.trim();
+        const html    = bodyEditor?.innerHTML.trim();
+        if (!subject) { showToast('Vul een onderwerp in.', 'error'); return; }
+        if (!html || html === '<br>') { showToast('Vul een bericht in.', 'error'); return; }
+
+        const type = document.querySelector('input[name="mailRecipientType"]:checked')?.value;
+        let toAddresses = [];
+
+        if (type === 'all') {
+            toAddresses = allUsers.map(u => u.email);
+        } else if (type === 'veteranen' || type === 'zaterdag' || type === 'zondag') {
+            toAddresses = allUsers
+                .filter(u => (u.ploegen.length > 0 ? u.ploegen : [u.categorie]).includes(type))
+                .map(u => u.email);
+        } else if (type === 'specific') {
+            toAddresses = Array.from(document.querySelectorAll('.mail-user-cb:checked')).map(cb => cb.value);
+        }
+
+        if (toAddresses.length === 0) {
+            showToast('Geen ontvangers geselecteerd.', 'error');
+            return;
+        }
+
+        if (!confirm(`Mail versturen naar ${toAddresses.length} ontvanger(s)?`)) return;
+
+        sendBtn.disabled    = true;
+        sendBtn.textContent = 'Bezig...';
+
+        try {
+            // Trigger Email from Firestore Extension: schrijf naar 'mail' collection
+            // De extensie pikt dit op en verzendt de mail.
+            // Meerdere mails in één batch (max ~500 adressen per document is OK;
+            // voor grotere lijsten: split in batches).
+            const BATCH_SIZE = 100;
+            for (let i = 0; i < toAddresses.length; i += BATCH_SIZE) {
+                const batch = toAddresses.slice(i, i + BATCH_SIZE);
+                await addDoc(collection(db, 'mail'), {
+                    to:      batch,
+                    message: {
+                        subject: subject,
+                        html:    html,
+                    },
+                    createdAt: serverTimestamp(),
+                    sentBy:    auth.currentUser?.uid || 'admin',
+                });
+            }
+
+            if (mailStatus) { mailStatus.style.display = 'inline'; setTimeout(() => mailStatus.style.display = 'none', 4000); }
+            showToast(`Mail verstuurd naar ${toAddresses.length} ontvanger(s)!`, 'success');
+            // Reset formulier
+            if (subjectInput) subjectInput.value = '';
+            if (bodyEditor)   bodyEditor.innerHTML = '';
+            document.querySelectorAll('.mail-user-cb:checked').forEach(cb => cb.checked = false);
+        } catch (e) {
+            console.error('Mail verzenden mislukt:', e);
+            showToast('Fout bij verzenden: ' + e.message, 'error');
+        } finally {
+            sendBtn.disabled    = false;
+            sendBtn.textContent = '&#9993; Versturen';
+        }
+    });
+}
+
+// ── Mail-tab koppelen ────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Mail tab initialiseren zodra een admin de pagina laadt
+    // (wordt getriggerd vanuit initPage via onAuthStateChanged)
+});
 
 function showSaveStatus(el) {
     if (!el) return;

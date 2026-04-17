@@ -313,6 +313,54 @@
         html.dark .date-field-row input { background: #2a2f45; border-color: var(--border-color); color: #e0e0e0; }
         html.dark #termsFullPreview,
         html.dark #privacyFullPreview   { background: #12152a; border-color: var(--border-color); }
+
+        /* ── Mail tab styles ── */
+        .mail-section-label {
+            font-size: 0.8rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-gray); margin-bottom: 0.5rem;
+        }
+        .mail-recipient-grid {
+            display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.5rem;
+        }
+        .mail-radio-label {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.4rem 0.9rem; border: 1.5px solid var(--border-color);
+            border-radius: 20px; cursor: pointer; font-size: 0.88rem; font-weight: 500;
+            transition: all 0.15s; user-select: none;
+        }
+        .mail-radio-label:has(input:checked) {
+            background: var(--primary-blue); border-color: var(--primary-blue); color: #fff;
+        }
+        .mail-radio-label input { display: none; }
+        .mail-input {
+            width: 100%; padding: 0.65rem 0.9rem; border: 1.5px solid var(--border-color);
+            border-radius: 8px; font-size: 0.95rem; font-family: inherit;
+            background: var(--white); color: var(--text-dark); outline: none; box-sizing: border-box;
+        }
+        .mail-input:focus { border-color: var(--primary-blue); }
+        .mail-body-editor {
+            border-top: none !important; border-radius: 0 0 8px 8px !important;
+            border: 1.5px solid var(--border-color); min-height: 180px;
+        }
+        .mail-user-list {
+            max-height: 220px; overflow-y: auto;
+            border: 1.5px solid var(--border-color); border-radius: 8px;
+            padding: 0.5rem 0.75rem; background: var(--white);
+            display: flex; flex-direction: column; gap: 0.35rem;
+            margin-bottom: 0.5rem;
+        }
+        .mail-user-label {
+            display: flex; align-items: center; gap: 0.5rem; cursor: pointer;
+            font-size: 0.88rem; padding: 0.2rem 0;
+        }
+        .mail-user-label input { width:15px; height:15px; accent-color:var(--primary-blue); cursor:pointer; }
+        .mail-user-cat {
+            margin-left: auto; font-size: 0.75rem; color: var(--text-gray);
+            background: var(--off-white); padding: 1px 6px; border-radius: 4px;
+        }
+        html.dark .mail-radio-label { border-color: var(--border-color); color: #e0e0e0; }
+        html.dark .mail-input,
+        html.dark .mail-user-list   { background: #252840; border-color: var(--border-color); color: #e0e0e0; }
     </style>
 </head>
 <body>
@@ -373,6 +421,7 @@
             <div class="admin-tabs">
                 <button class="tab-btn active" data-tab="terms">Algemene Voorwaarden</button>
                 <button class="tab-btn" data-tab="privacy">Privacyverklaring</button>
+                <button class="tab-btn" data-tab="mail">&#9993; Mailen</button>
             </div>
 
             <!-- ══ Tab: Algemene Voorwaarden ═══════════════════════════════════ -->
@@ -437,6 +486,70 @@
                 <div class="save-bar">
                     <button class="add-btn" id="privacySaveBtn">&#128190; Opslaan</button>
                     <span class="save-status" id="privacySaveStatus">&#10003; Opgeslagen</span>
+                </div>
+            </div>
+
+            <!-- ══ Tab: Mailen ══════════════════════════════════════════════ -->
+            <div class="tab-content" id="mailTab">
+                <div class="section-header">
+                    <h3>&#9993; Mailen naar leden</h3>
+                </div>
+
+                <p class="ce-intro">
+                    Stuur een e-mail naar een groep leden of specifieke accounts.
+                    De mail wordt verstuurd via de <strong>Trigger Email</strong>-extensie in Firebase.
+                    Zorg dat die extensie correct geconfigureerd is (zie handleiding).
+                </p>
+
+                <!-- Ontvanger selectie -->
+                <div class="mail-section-label">Ontvangers</div>
+                <div class="mail-recipient-grid">
+                    <label class="mail-radio-label">
+                        <input type="radio" name="mailRecipientType" value="all" checked>
+                        <span>&#127760; Alle leden</span>
+                    </label>
+                    <label class="mail-radio-label">
+                        <input type="radio" name="mailRecipientType" value="veteranen">
+                        <span>Veteranen</span>
+                    </label>
+                    <label class="mail-radio-label">
+                        <input type="radio" name="mailRecipientType" value="zaterdag">
+                        <span>Zaterdag</span>
+                    </label>
+                    <label class="mail-radio-label">
+                        <input type="radio" name="mailRecipientType" value="zondag">
+                        <span>Zondag</span>
+                    </label>
+                    <label class="mail-radio-label">
+                        <input type="radio" name="mailRecipientType" value="specific">
+                        <span>&#128100; Specifieke spelers&#8230;</span>
+                    </label>
+                </div>
+
+                <!-- Lijst van individuele spelers (verborgen tenzij "Specifieke spelers" geselecteerd) -->
+                <div id="mailRecipientList" class="mail-user-list" style="display:none;"></div>
+
+                <!-- Onderwerp -->
+                <div class="mail-section-label" style="margin-top:1rem;">Onderwerp</div>
+                <input type="text" id="mailSubject" class="mail-input" placeholder="bv. Nieuw trainingsschema beschikbaar">
+
+                <!-- Bericht -->
+                <div class="mail-section-label" style="margin-top:1rem;">Bericht</div>
+                <div class="format-toolbar" style="margin-bottom:0;border-radius:8px 8px 0 0;">
+                    <div class="fmt-group">
+                        <button class="fmt-btn mail-fmt-btn" data-cmd="bold"   title="Vet"><b>B</b></button>
+                        <button class="fmt-btn mail-fmt-btn" data-cmd="italic" title="Cursief"><i>I</i></button>
+                        <button class="fmt-btn mail-fmt-btn" data-cmd="ul"     title="Lijst">&#8226; Lijst</button>
+                        <button class="fmt-btn mail-fmt-btn" data-cmd="link"   title="Link">&#128279; Link</button>
+                    </div>
+                </div>
+                <div id="mailBodyEditor" class="rich-editor mail-body-editor"
+                     contenteditable="true" spellcheck="true"
+                     data-placeholder="Schrijf hier je bericht..."></div>
+
+                <div class="save-bar">
+                    <button class="add-btn" id="mailSendBtn">📩 Versturen</button>
+                    <span class="save-status" id="mailSendStatus">&#10003; Verzonden</span>
                 </div>
             </div>
 
