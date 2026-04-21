@@ -86,8 +86,17 @@
                             <span class="requests-count-badge" id="requestsCountBadge" style="display:none;"></span>
                         </button>
                         <button class="add-btn" id="addMemberBtn">+ Nieuw Lid</button>
+                        <button class="add-btn temp-account-btn" id="addTempAccountBtn">&#9201; Tijdelijk Account</button>
                     </div>
                 </div>
+                <!-- Tijdelijke accounts sectie -->
+                <div id="tempAccountsSection" style="margin-bottom:1.5rem;display:none;">
+                    <div class="temp-accounts-header">
+                        <span class="temp-accounts-title">&#9201; Tijdelijke accounts</span>
+                    </div>
+                    <div class="temp-accounts-list" id="tempAccountsList"></div>
+                </div>
+
                 <div class="members-list" id="membersList">
                     <div class="loading"><div class="loader"></div></div>
                 </div>
@@ -381,6 +390,41 @@
                         <option value="admin">Admin</option>
                     </select>
                 </div>
+                <div class="form-group" id="memberRechtenGroup">
+                    <label>Toegangsrechten <small style="font-weight:400;color:var(--text-gray);">(alleen voor spelers)</small></label>
+                    <div class="member-rechten-grid">
+                        <label class="member-recht-label">
+                            <input type="checkbox" name="memberRecht" value="score_invullen" id="rechtScoreInvullen">
+                            <div class="member-recht-content">
+                                <span class="member-recht-icon">⚽</span>
+                                <div>
+                                    <strong>Score invullen</strong>
+                                    <span>Kan ALTIJD wedstrijden live invullen</span>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="member-recht-label">
+                            <input type="checkbox" name="memberRecht" value="afgevaardigde" id="rechtAfgevaardigde">
+                            <div class="member-recht-content">
+                                <span class="member-recht-icon">📋</span>
+                                <div>
+                                    <strong>Afgevaardigde</strong>
+                                    <span>Kan aanwezigheidslijst van een ploeg beheren</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <!-- Team selector — alleen zichtbaar als Afgevaardigde aangevinkt -->
+                    <div id="afgevaardigdeTeamGroup" style="display:none;margin-top:0.6rem;">
+                        <label for="afgevaardigdeTeam" style="font-size:0.88rem;font-weight:600;margin-bottom:0.3rem;display:block;">Afgevaardigde voor ploeg *</label>
+                        <select id="afgevaardigdeTeam" style="width:100%;max-width:280px;">
+                            <option value="">Kies ploeg…</option>
+                            <option value="veteranen">Veteranen</option>
+                            <option value="zaterdag">Zaterdag</option>
+                            <option value="zondag">Zondag</option>
+                        </select>
+                    </div>
+                </div>
 
                 <!-- Statistieken (alleen bij bewerken) -->
                 <div id="statsEditGroup" style="display:none;">
@@ -453,6 +497,10 @@
                     <div class="detail-item">
                         <span class="detail-key">Rol</span>
                         <span class="detail-val" id="detailRol">—</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Rechten</span>
+                        <span class="detail-val" id="detailRechten">—</span>
                     </div>
                 </div>
             </div>
@@ -692,6 +740,90 @@
             <div class="modal-actions">
                 <button class="modal-btn cancel" id="inschrijvingenModalClose">Sluiten</button>
             </div>
+        </div>
+    </div>
+
+    <!-- ── Tijdelijk Account Modal ── -->
+    <div class="modal" id="tempAccountModal">
+        <div class="modal-content large">
+            <h3 id="tempAccountModalTitle">Tijdelijk Account Aanmaken</h3>
+            <form id="tempAccountForm" class="admin-form">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tempName">Naam *</label>
+                        <input type="text" id="tempName" placeholder="bv. Kassa Vrijwilliger" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tempEmail">E-mail *</label>
+                        <input type="email" id="tempEmail" placeholder="tijdelijk@vvsrotselaar.be" required>
+                    </div>
+                </div>
+
+                <!-- Nieuw account: wachtwoord instellen -->
+                <div class="form-group" id="tempPasswordGroup">
+                    <label for="tempPassword">Wachtwoord *</label>
+                    <input type="text" id="tempPassword" placeholder="Minimum 6 tekens" minlength="6"
+                           autocomplete="off" spellcheck="false">
+                    <small>Minimaal 6 karakters. Het wachtwoord wordt zichtbaar opgeslagen zodat je het later kan opzoeken.</small>
+                </div>
+
+                <!-- Bestaand account: huidig wachtwoord tonen (readonly) -->
+                <div class="form-group" id="tempPasswordDisplayGroup" style="display:none;">
+                    <label>Huidig wachtwoord</label>
+                    <div class="temp-pw-display-row">
+                        <input type="text" id="tempPasswordDisplay" class="temp-pw-display" readonly
+                               autocomplete="off" spellcheck="false" placeholder="—">
+                        <button type="button" class="temp-pw-copy-btn" id="tempPasswordCopyBtn"
+                                title="Kopieer wachtwoord">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                 width="15" height="15">
+                                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <small style="color:var(--text-gray);">Wachtwoord kan niet gewijzigd worden vanuit de admin. Maak indien nodig een nieuw account aan.</small>
+                </div>
+
+                <div class="form-section-label">Geldigheidsperiode</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tempValidFrom">Geldig vanaf *</label>
+                        <input type="datetime-local" id="tempValidFrom" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tempValidUntil">Geldig tot *</label>
+                        <input type="datetime-local" id="tempValidUntil" required>
+                    </div>
+                </div>
+
+                <div class="form-section-label">Toegangsrechten</div>
+                <div class="temp-permissions-grid">
+                    <label class="temp-perm-label">
+                        <input type="checkbox" name="tempPerm" value="werken">
+                        <span class="temp-perm-icon">🛠️</span>
+                        <span>Werken</span>
+                        <span class="temp-perm-sub">Werklijst + Rock Werchter</span>
+                    </label>
+                    <label class="temp-perm-label">
+                        <input type="checkbox" name="tempPerm" value="score_invullen">
+                        <span class="temp-perm-icon">⚽</span>
+                        <span>Score invullen</span>
+                        <span class="temp-perm-sub">Wedstrijd starten + events</span>
+                    </label>
+                </div>
+
+                <div class="form-group" style="margin-top:1rem;">
+                    <label for="tempNote">Opmerking (optioneel)</label>
+                    <input type="text" id="tempNote" placeholder="bv. Kassa Rock Werchter 2026">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn cancel" id="tempAccountModalCancel">Annuleren</button>
+                    <button type="submit" class="modal-btn confirm">Account Aanmaken</button>
+                </div>
+            </form>
         </div>
     </div>
 

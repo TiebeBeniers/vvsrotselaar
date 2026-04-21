@@ -45,6 +45,30 @@ onAuthStateChanged(auth, async (user) => {
         console.error('User load error:', e);
     }
 
+    // Toegangscheck: enkel admin, bestuurslid, of spelers met 'werken'-recht
+    const rol     = (currentUserData?.rol || '').toLowerCase();
+    const rechten = currentUserData?.rechten || [];
+    const toegang = currentUserData?.toegang || [];
+    const heeftToegang = rol === 'admin' || rol === 'bestuurslid'
+        || rechten.includes('werken')
+        || toegang.includes('werken');   // tijdelijk account
+
+    if (!heeftToegang) {
+        document.getElementById('loadingSpinner').style.display = 'none';
+        const guard = document.getElementById('authGuard');
+        if (guard) {
+            guard.innerHTML = `
+                <div class="auth-guard-inner">
+                    <div class="state-icon">&#128274;</div>
+                    <h2>Geen toegang</h2>
+                    <p>Je hebt geen toegang tot de werklijst. Neem contact op met de beheerder.</p>
+                    <a href="index.html" class="state-action-btn">Terug naar home</a>
+                </div>`;
+            guard.style.display = 'flex';
+        }
+        return;
+    }
+
     await loadActiveWerklijst();
 });
 

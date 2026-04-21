@@ -47,11 +47,33 @@ onAuthStateChanged(auth, async (user) => {
             const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
             if (!snap.empty) {
                 currentUserData = snap.docs[0].data();
-                // Controleer admin/bestuurslid rol
-                const rol = (currentUserData.rol || '').toLowerCase();
+                // Controleer admin/bestuurslid rol + 'werken' recht
+                const rol     = (currentUserData.rol || '').toLowerCase();
+                const rechten = currentUserData.rechten || [];
                 isAdmin = rol === 'admin' || rol === 'bestuurslid';
 
-                $id('loginLink').textContent     = 'PROFIEL';
+                // Spelers met 'werken'-recht hebben ook toegang tot de RW-pagina
+                const toegang = currentUserData.toegang || [];
+                const heeftWerkToegang = isAdmin || rechten.includes('werken')
+                    || toegang.includes('werken');   // tijdelijk account
+
+                $id('loginLink').textContent = 'PROFIEL';
+
+                if (!heeftWerkToegang) {
+                    // Geen toegang: toon een melding in loginBanner
+                    const banner = $id('loginBanner');
+                    if (banner) {
+                        banner.innerHTML = `<div style="text-align:center;padding:2rem;">
+                            <div style="font-size:2.5rem;margin-bottom:0.75rem;">&#128274;</div>
+                            <h3 style="margin:0 0 0.5rem;">Geen toegang</h3>
+                            <p style="color:#888;">Je hebt geen toegang tot deze pagina. Neem contact op met de beheerder.</p>
+                            <a href="index.html" style="display:inline-block;margin-top:1rem;padding:0.6rem 1.4rem;background:#0047AB;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;">Terug naar home</a>
+                        </div>`;
+                        banner.style.display = 'flex';
+                    }
+                    return;
+                }
+
                 $id('loginBanner').style.display = 'none';
                 $id('orderSummary').style.display  = 'block';
                 $id('paymentButtons').style.display = 'flex';

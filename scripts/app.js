@@ -379,9 +379,11 @@ async function checkForStartMatch() {
         return;
     }
 
-    const userPloegen = Array.isArray(currentUserData.ploegen) && currentUserData.ploegen.length > 0
-        ? currentUserData.ploegen : (currentUserData.categorie ? [currentUserData.categorie] : []);
-    const isBestuurslid = userPloegen.includes('bestuurslid') || currentUserData.categorie === 'bestuurslid';
+    const isBestuurslid  = currentUserData.categorie === 'bestuurslid'
+        || (currentUserData.rol || '') === 'bestuurslid';
+    // Spelers met 'score_invullen'-recht of tijdelijk account met score_invullen kunnen wedstrijd starten
+    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('score_invullen')
+        || (currentUserData.rol === 'tijdelijk' && (currentUserData.toegang || []).includes('score_invullen'));
     const now = new Date();
     // Window: from 24u before match kick-off, until end of match day
     const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -403,7 +405,7 @@ async function checkForStartMatch() {
             const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
 
             // Match moet binnen de volgende 24 uur vallen OF binnen de grace period liggen
-            if ((isBestuurslid || isDesignated) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
+            if ((isBestuurslid || isDesignated || heeftWedstrijdRecht) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
                 // Kies de eerstvolgende kwalificerende wedstrijd
                 if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
                     todayMatch = { id: docSnap.id, ...d };

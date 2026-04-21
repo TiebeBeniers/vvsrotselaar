@@ -1198,9 +1198,10 @@ async function loadStatistics() {
     }
 
     try {
-        // Haal alle spelers op en filter client-side op TEAM_TYPE
-        // (ondersteunt zowel het nieuwe ploegen-array als het oude categorie-veld)
-        const usersSnap = await getDocs(collection(db, 'users'));
+        // Haal alle spelers op van de zondagploeg
+        const usersSnap = await getDocs(
+            query(collection(db, 'users'), where('categorie', '==', 'zondag'))
+        );
 
         if (usersSnap.empty) {
             renderStatistics([], []);
@@ -1210,11 +1211,7 @@ async function loadStatistics() {
         const players = [];
         usersSnap.forEach(d => {
             const u = d.data();
-            if (!u.naam) return;
-            const userPloegen = Array.isArray(u.ploegen) && u.ploegen.length > 0
-                ? u.ploegen : (u.categorie ? [u.categorie] : []);
-            if (!userPloegen.includes(TEAM_TYPE)) return;
-            players.push({
+            if (u.naam) players.push({
                 name:    u.naam,
                 uid:     u.uid || null,
                 goals:   u.goals   || 0,
@@ -1331,18 +1328,19 @@ async function loadAvailability(matchId, matchData = {}) {
         }
 
         const userCategorie = userData.categorie;
-        // Ondersteun zowel het nieuwe ploegen-array als het oude categorie-veld
-        const userPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
-            ? userData.ploegen
-            : (userCategorie ? [userCategorie] : []);
+        // ploegen-array: ondersteuning voor spelers in meerdere ploegen
+        const userPloegen   = Array.isArray(userData.ploegen) ? userData.ploegen : [userCategorie];
 
-        console.log('User ploegen:', userPloegen, 'Team type:', TEAM_TYPE);
+        console.log('User categorie:', userCategorie, 'ploegen:', userPloegen, 'Team type:', TEAM_TYPE);
 
-        const isOwnTeam     = userPloegen.includes(TEAM_TYPE);
-        const isBestuurslid = userPloegen.includes('bestuurslid') || userCategorie === 'bestuurslid';
+        const isOwnTeam = userPloegen.includes(TEAM_TYPE);
+        const isBestuurslid = userCategorie === 'bestuurslid'
+            || (userData.rol || '') === 'bestuurslid';
         const isDesignated = matchData.aangeduidePersonen &&
             matchData.aangeduidePersonen.includes(currentUser.uid);
-        const canManageList = isBestuurslid || isDesignated;
+        // Spelers met 'wedstrijd'-recht kunnen ook de aanwezigheidslijst beheren
+        const heeftWedstrijdRecht = (userData.rechten || []).includes('wedstrijd');
+        const canManageList = isBestuurslid || isDesignated || heeftWedstrijdRecht;
         
         if (isOwnTeam) {
             // Eigen ploeg: toon knoppen EN lijst
@@ -1424,9 +1422,8 @@ async function getAllUsers() {
     allUsersCache = [];
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        // Sluit spelers uit die al bij dit team horen (zij hebben eigen knoppen)
-        const userPloegen = Array.isArray(data.ploegen) && data.ploegen.length > 0
-            ? data.ploegen : (data.categorie ? [data.categorie] : []);
+        // Exclude users who are member of this team (they already have availability buttons)
+        const userPloegen = Array.isArray(data.ploegen) ? data.ploegen : [data.categorie];
         if (!userPloegen.includes(TEAM_TYPE)) {
             allUsersCache.push({
                 uid: data.uid || docSnap.id,
@@ -1885,7 +1882,9 @@ function renderMotmSection() {
     if (!match) return; // geen stemperiode actief
 
     const motmResults    = match.motmResults || null;
-    const isDesignated   = match.aangeduidePersonen?.includes(currentUser.uid);
+    const isDesignated       = match.aangeduidePersonen?.includes(currentUser.uid);
+    const heeftWedstrijdRecht = (currentUserData?.rechten || []).includes('wedstrijd');
+    const canSeeStand         = isDesignated || heeftWedstrijdRecht;
     const resultVisible  = motmResults && motmResultsVisible(match);
 
     // Zodra resultaten 24u zichtbaar zijn geweest: niets tonen bovenaan
@@ -1903,7 +1902,7 @@ function renderMotmSection() {
         section.appendChild(voteBtn);
 
         // ── Extra knoppen voor aangeduide persoon
-        if (isDesignated) {
+        if (canSeeStand) {
             const standBtn = document.createElement('button');
             standBtn.className = 'motm-section-stand-btn';
             standBtn.textContent = '📊 Bekijk huidige stand';

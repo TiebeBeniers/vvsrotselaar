@@ -130,6 +130,7 @@ async function initializeAdminPage() {
     console.log('Initializing admin page...');
     try {
         await loadMembers();
+        await loadTempAccounts();
         await loadMatches();
         await loadEvenementen();
         await loadContactberichten();
@@ -319,6 +320,7 @@ if (addMemberBtn) {
         document.getElementById('memberUid').value = '';
         memberForm.reset();
         setMemberPloegen([]);
+        setMemberRechten([], '');
 
         const passwordField = document.getElementById('memberPassword');
         const passwordGroup = passwordField.closest('.form-group');
@@ -371,6 +373,55 @@ function setMemberPloegen(ploegen) {
     if (cat) cat.value = arr[0] || 'veteranen';
 }
 
+// ── Rechten helpers ────────────────────────────────────────────────────────────
+function getMemberRechten() {
+    return Array.from(document.querySelectorAll('input[name="memberRecht"]:checked'))
+        .map(cb => cb.value);
+}
+
+function getMemberAfgevaardigdeTeam() {
+    const el = document.getElementById('afgevaardigdeTeam');
+    return el ? el.value : '';
+}
+
+function setMemberRechten(rechten, afgevaardigdeTeam) {
+    document.querySelectorAll('input[name="memberRecht"]').forEach(cb => cb.checked = false);
+    const arr = Array.isArray(rechten) ? rechten : [];
+    arr.forEach(r => {
+        const cb = document.querySelector(`input[name="memberRecht"][value="${r}"]`);
+        if (cb) cb.checked = true;
+    });
+    // Sync afgevaardigde team selector
+    const teamEl = document.getElementById('afgevaardigdeTeam');
+    if (teamEl) teamEl.value = afgevaardigdeTeam || '';
+    const groupEl = document.getElementById('afgevaardigdeTeamGroup');
+    if (groupEl) groupEl.style.display = arr.includes('afgevaardigde') ? '' : 'none';
+}
+
+function rechtenLabel(rechten, afgevaardigdeTeam) {
+    if (!Array.isArray(rechten) || rechten.length === 0) return 'Geen extra rechten';
+    const labels = {
+        score_invullen: '⚽ Score invullen',
+        afgevaardigde:  `📋 Afgevaardigde${afgevaardigdeTeam ? ` (${afgevaardigdeTeam.charAt(0).toUpperCase() + afgevaardigdeTeam.slice(1)})` : ''}`
+    };
+    return rechten.map(r => labels[r] || r).join(' · ');
+}
+
+// Wire afgevaardigde checkbox → show/hide team selector
+document.addEventListener('DOMContentLoaded', () => {
+    const cbAfg = document.getElementById('rechtAfgevaardigde');
+    const grpAfg = document.getElementById('afgevaardigdeTeamGroup');
+    if (cbAfg && grpAfg) {
+        cbAfg.addEventListener('change', () => {
+            grpAfg.style.display = cbAfg.checked ? '' : 'none';
+            if (!cbAfg.checked) {
+                const t = document.getElementById('afgevaardigdeTeam');
+                if (t) t.value = '';
+            }
+        });
+    }
+});
+
 if (memberForm) {
     memberForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -415,6 +466,8 @@ if (memberForm) {
                 
                 if (!memberSnapshot.empty) {
                     const memberDoc = memberSnapshot.docs[0];
+                    const rechten = getMemberRechten();
+                    const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
                     const updateData = {
                         naam:        name,
                         email:       email,
@@ -422,6 +475,8 @@ if (memberForm) {
                         categorie:   categorie,
                         ploegen:     ploegen,
                         rol:         role,
+                        rechten:     rechten,
+                        afgevaardigdeTeam: rechten.includes('afgevaardigde') ? afgevaardigdeTeam : null,
                         goals,
                         assists,
                         matchen,
@@ -458,6 +513,8 @@ if (memberForm) {
                 await secondaryAuth.signOut();
                 console.log('Secondary auth signed out');
                 
+                const rechten = getMemberRechten();
+                const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
                 const userData = {
                     uid: newUser.uid,
                     naam: name,
@@ -465,6 +522,8 @@ if (memberForm) {
                     rol: role,
                     categorie: categorie,
                     ploegen: ploegen,
+                    rechten: rechten,
+                    afgevaardigdeTeam: rechten.includes('afgevaardigde') ? afgevaardigdeTeam : null,
                 };
                 
                 console.log('Adding user to Firestore:', userData);
@@ -526,8 +585,9 @@ async function loadMembers() {
         
         membersSnapshot.forEach(docSnap => {
             const member = { id: docSnap.id, ...docSnap.data() };
+            // Tijdelijke en externe accounts worden alleen in de tijdelijke accounts sectie getoond
+            if (member.rol === 'tijdelijk' || member.categorie === 'extern') return;
             allMembers.push(member);
-            
             const memberCard = createMemberCard(member);
             membersList.appendChild(memberCard);
         });
@@ -550,6 +610,7 @@ function createMemberCard(member) {
         ? member.ploegen
         : [member.categorie || 'Geen categorie'];
     const categorieText = memberPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
+    const rechtenText   = rechtenLabel(member.rechten || [], member.afgevaardigdeTeam || '');
     
     card.innerHTML = `
         <div class="member-info">
@@ -557,6 +618,7 @@ function createMemberCard(member) {
             <p>${member.email}</p>
             <span class="member-badge">${roleText}</span>
             <span class="member-badge">${categorieText}</span>
+            ${rechtenText !== 'Geen extra rechten' ? `<span class="member-badge" style="background:var(--accent-blue)">${rechtenText}</span>` : ''}
         </div>
         <div class="card-actions">
             <button class="action-btn edit" data-id="${member.id}">Bewerken</button>
@@ -590,6 +652,8 @@ function showMemberDetail(member) {
     const detailPloegText = detailPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ') || '—';
     document.getElementById('detailCategorie').textContent = detailPloegText;
     document.getElementById('detailRol').textContent      = member.rol === 'admin' ? 'Admin' : 'Speler';
+    const detailRechtenEl = document.getElementById('detailRechten');
+    if (detailRechtenEl) detailRechtenEl.textContent = rechtenLabel(member.rechten || [], member.afgevaardigdeTeam || '');
 
     const badgesEl = document.getElementById('detailBadges');
     if (badgesEl) {
@@ -641,6 +705,7 @@ function editMember(member) {
         ? member.ploegen
         : [member.categorie || 'veteranen'];
     setMemberPloegen(memberPloegen);
+    setMemberRechten(member.rechten || [], member.afgevaardigdeTeam || '');
     document.getElementById('memberRole').value = member.rol || 'speler';
 
     document.getElementById('memberGoals').value   = member.goals       ?? 0;
@@ -698,6 +763,246 @@ async function deleteMember(member) {
             showToast('Fout bij verwijderen: ' + error.message, 'error');
         }
     };
+}
+
+
+// ===============================================
+// TIJDELIJKE ACCOUNTS
+// ===============================================
+
+const addTempAccountBtn      = document.getElementById('addTempAccountBtn');
+const tempAccountModal       = document.getElementById('tempAccountModal');
+const tempAccountForm        = document.getElementById('tempAccountForm');
+const tempAccountModalCancel = document.getElementById('tempAccountModalCancel');
+
+// Helper: Date → datetime-local string (lokale tijdzone)
+function toDatetimeLocal(d) {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+if (addTempAccountBtn) {
+    addTempAccountBtn.addEventListener('click', () => openTempAccountModal(null));
+}
+if (tempAccountModalCancel) {
+    tempAccountModalCancel.addEventListener('click', () => closeTempAccountModal());
+}
+tempAccountModal?.addEventListener('click', (e) => {
+    if (e.target === tempAccountModal) closeTempAccountModal();
+});
+
+function openTempAccountModal(acc) {
+    tempAccountForm.reset();
+    delete tempAccountForm.dataset.editId;
+
+    const now  = new Date();
+    const plus = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const emailField    = document.getElementById('tempEmail');
+    const passwordGroup = document.getElementById('tempPasswordGroup');
+    const passwordField = document.getElementById('tempPassword');
+
+    const passwordDisplayGroup = document.getElementById('tempPasswordDisplayGroup');
+    const passwordDisplay      = document.getElementById('tempPasswordDisplay');
+    const passwordCopyBtn      = document.getElementById('tempPasswordCopyBtn');
+
+    if (acc) {
+        document.getElementById('tempAccountModalTitle').textContent = 'Tijdelijk Account Bewerken';
+        document.getElementById('tempName').value = acc.naam || '';
+        emailField.value    = acc.email || '';
+        emailField.disabled = true;
+        if (passwordGroup)        passwordGroup.style.display        = 'none';
+        if (passwordField)        { passwordField.required = false; passwordField.value = ''; }
+        if (passwordDisplayGroup) passwordDisplayGroup.style.display  = '';
+        if (passwordDisplay)      passwordDisplay.value               = acc.wachtwoord || '(niet opgeslagen)';
+        // Kopieer-knop
+        if (passwordCopyBtn) {
+            passwordCopyBtn.onclick = () => {
+                navigator.clipboard.writeText(acc.wachtwoord || '').then(() => {
+                    passwordCopyBtn.textContent = '✓';
+                    setTimeout(() => {
+                        passwordCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+                    }, 2000);
+                });
+            };
+        }
+
+        const from  = acc.validFrom?.toDate  ? acc.validFrom.toDate()  : new Date(acc.validFrom  || now);
+        const until = acc.validUntil?.toDate ? acc.validUntil.toDate() : new Date(acc.validUntil || plus);
+        document.getElementById('tempValidFrom').value  = toDatetimeLocal(from);
+        document.getElementById('tempValidUntil').value = toDatetimeLocal(until);
+        document.getElementById('tempNote').value = acc.note || '';
+        document.querySelectorAll('input[name="tempPerm"]').forEach(cb => {
+            cb.checked = (acc.toegang || []).includes(cb.value);
+        });
+        tempAccountForm.dataset.editId = acc.id;
+    } else {
+        document.getElementById('tempAccountModalTitle').textContent = 'Tijdelijk Account Aanmaken';
+        emailField.disabled = false;
+        if (passwordGroup)        passwordGroup.style.display        = '';
+        if (passwordField)        passwordField.required              = true;
+        if (passwordDisplayGroup) passwordDisplayGroup.style.display  = 'none';
+        if (passwordDisplay)      passwordDisplay.value               = '';
+        document.getElementById('tempValidFrom').value  = toDatetimeLocal(now);
+        document.getElementById('tempValidUntil').value = toDatetimeLocal(plus);
+    }
+
+    tempAccountModal.classList.add('active');
+}
+
+function closeTempAccountModal() {
+    tempAccountModal.classList.remove('active');
+    document.getElementById('tempEmail').disabled = false;
+    const passwordGroup        = document.getElementById('tempPasswordGroup');
+    const passwordField        = document.getElementById('tempPassword');
+    const passwordDisplayGroup = document.getElementById('tempPasswordDisplayGroup');
+    const passwordDisplay      = document.getElementById('tempPasswordDisplay');
+    if (passwordGroup)        passwordGroup.style.display        = '';
+    if (passwordField)        { passwordField.required = true; passwordField.value = ''; }
+    if (passwordDisplayGroup) passwordDisplayGroup.style.display  = 'none';
+    if (passwordDisplay)      passwordDisplay.value               = '';
+    delete tempAccountForm.dataset.editId;
+}
+
+if (tempAccountForm) {
+    tempAccountForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = tempAccountForm.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Bezig…'; }
+
+        const naam       = document.getElementById('tempName').value.trim();
+        const email      = document.getElementById('tempEmail').value.trim();
+        const password   = document.getElementById('tempPassword')?.value || '';
+        const validFrom  = new Date(document.getElementById('tempValidFrom').value);
+        const validUntil = new Date(document.getElementById('tempValidUntil').value);
+        const note       = document.getElementById('tempNote').value.trim();
+        const perms      = Array.from(document.querySelectorAll('input[name="tempPerm"]:checked')).map(cb => cb.value);
+        const editId     = tempAccountForm.dataset.editId;
+
+        if (validUntil <= validFrom) {
+            showToast('"Geldig tot" moet na "Geldig vanaf" liggen.', 'error');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = editId ? 'Opslaan' : 'Account Aanmaken'; }
+            return;
+        }
+        if (perms.length === 0) {
+            showToast('Selecteer minstens één toegangsrecht.', 'error');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = editId ? 'Opslaan' : 'Account Aanmaken'; }
+            return;
+        }
+
+        try {
+            if (editId) {
+                await updateDoc(doc(db, 'users', editId), {
+                    naam, toegang: perms, validFrom, validUntil, note: note || null,
+                });
+                showToast(`Account "${naam}" bijgewerkt.`, 'success');
+            } else {
+                if (!password || password.length < 6) throw new Error('Wachtwoord moet minimaal 6 tekens zijn.');
+                if (!secondaryAuth) throw new Error('Secundaire auth niet beschikbaar.');
+                const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+                const uid  = cred.user.uid;
+                await secondaryAuth.signOut();
+                await setDoc(doc(db, 'users', uid), {
+                    uid, naam, email,
+                    rol: 'tijdelijk', categorie: 'extern', ploegen: [], rechten: [],
+                    toegang: perms, validFrom, validUntil,
+                    note: note || null,
+                    wachtwoord: password,   // leesbaar opgeslagen voor admin-raadpleging
+                    aangemaaktOp: serverTimestamp(),
+                });
+                showToast(`Tijdelijk account aangemaakt voor ${naam}.`, 'success');
+            }
+            closeTempAccountModal();
+            await loadMembers();
+            await loadTempAccounts();
+        } catch (err) {
+            let msg = 'Fout: ' + err.message;
+            if (err.code === 'auth/email-already-in-use') msg = 'Dit e-mailadres is al in gebruik.';
+            showToast(msg, 'error');
+        } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = editId ? 'Opslaan' : 'Account Aanmaken'; }
+        }
+    });
+}
+
+async function loadTempAccounts() {
+    const section = document.getElementById('tempAccountsSection');
+    const listEl  = document.getElementById('tempAccountsList');
+    if (!section || !listEl) return;
+
+    try {
+        const snap = await getDocs(query(collection(db, 'users'), where('rol', '==', 'tijdelijk')));
+        if (snap.empty) { section.style.display = 'none'; return; }
+
+        const accounts = [];
+        snap.forEach(d => accounts.push({ id: d.id, ...d.data() }));
+        accounts.sort((a, b) => (a.validUntil?.toMillis?.() || 0) - (b.validUntil?.toMillis?.() || 0));
+
+        listEl.innerHTML = '';
+        const now = new Date();
+
+        accounts.forEach(acc => {
+            const from  = acc.validFrom?.toDate  ? acc.validFrom.toDate()  : new Date(acc.validFrom  || 0);
+            const until = acc.validUntil?.toDate ? acc.validUntil.toDate() : new Date(acc.validUntil || 0);
+            const expired = until < now;
+            const pending = from  > now;
+
+            const permLabels = { werken: '🛠️ Werken', score_invullen: '⚽ Score invullen' };
+            const permsHtml  = (acc.toegang || []).map(p =>
+                `<span class="temp-perm-badge">${permLabels[p] || p}</span>`
+            ).join('');
+
+            const statusClass = expired ? 'temp-status-expired' : pending ? 'temp-status-pending' : 'temp-status-active';
+            const statusLabel = expired ? 'Verlopen' : pending ? 'Nog niet actief' : 'Actief';
+
+            const card = document.createElement('div');
+            card.className = `temp-account-card${expired ? ' temp-expired' : ''}`;
+            card.innerHTML = `
+                <div class="temp-card-info">
+                    <div class="temp-card-name">
+                        ${acc.naam}
+                        <span class="temp-status-badge ${statusClass}">${statusLabel}</span>
+                    </div>
+                    <div class="temp-card-email">${acc.email}</div>
+                    <div class="temp-card-period">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        ${formatTempDate(from)} → ${formatTempDate(until)}
+                    </div>
+                    <div class="temp-card-perms">${permsHtml}</div>
+                    ${acc.note ? `<div class="temp-card-note">📝 ${acc.note}</div>` : ''}
+                </div>
+                <div class="card-actions">
+                    <button class="action-btn edit">Bewerken</button>
+                    <button class="action-btn delete">Verwijderen</button>
+                </div>
+            `;
+
+            card.querySelector('.action-btn.edit').addEventListener('click', () => openTempAccountModal(acc));
+            card.querySelector('.action-btn.delete').addEventListener('click', () => deleteTempAccount(acc.id, acc.naam));
+            listEl.appendChild(card);
+        });
+
+        section.style.display = 'block';
+    } catch (err) {
+        console.error('loadTempAccounts error:', err);
+    }
+}
+
+function formatTempDate(d) {
+    if (!(d instanceof Date) || isNaN(d)) return '?';
+    return d.toLocaleString('nl-BE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+async function deleteTempAccount(docId, naam) {
+    if (!confirm(`Tijdelijk account "${naam}" verwijderen?\n\nHet Firebase Auth-account blijft bestaan maar inloggen is niet meer mogelijk.`)) return;
+    try {
+        await deleteDoc(doc(db, 'users', docId));
+        showToast(`Account "${naam}" verwijderd.`, 'success');
+        await loadMembers();
+        await loadTempAccounts();
+    } catch (err) {
+        showToast('Fout bij verwijderen: ' + err.message, 'error');
+    }
 }
 
 // ===============================================

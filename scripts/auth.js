@@ -133,6 +133,7 @@ const errorMessage = document.getElementById('errorMessage');
 const logoutBtn = document.getElementById('logoutBtn');
 const adminBtn = document.getElementById('adminBtn');
 const profileBtn = document.getElementById('profileBtn');
+const tijdelijkBtn = document.getElementById('tijdelijkBtn'); // knop naar rockwerchter voor tijdelijke accounts
 const requestAccountView = document.getElementById('requestAccountView');
 const showRequestFormBtn = document.getElementById('showRequestForm');
 const backToLoginBtn = document.getElementById('backToLogin');
@@ -547,6 +548,12 @@ if (profileBtn) {
     });
 }
 
+if (tijdelijkBtn) {
+    tijdelijkBtn.addEventListener('click', () => {
+        window.location.href = 'rockwerchter.html';
+    });
+}
+
 // ===============================================
 // AUTH STATE LISTENER
 // ===============================================
@@ -600,10 +607,39 @@ onAuthStateChanged(auth, async (user) => {
                 const userNameEl = document.getElementById('userName');
                 const userEmailEl = document.getElementById('userEmail');
                 const userRoleEl = document.getElementById('userRole');
-                
-                if (userNameEl) userNameEl.textContent = userData.naam || 'Gebruiker';
+
+                if (userNameEl)  userNameEl.textContent  = userData.naam  || 'Gebruiker';
                 if (userEmailEl) userEmailEl.textContent = userData.email || user.email;
-                
+
+                // ── Tijdelijk account: valideer geldigheidsperiode ──────────
+                if (userData.rol === 'tijdelijk') {
+                    const now   = new Date();
+                    const from  = userData.validFrom?.toDate  ? userData.validFrom.toDate()  : new Date(userData.validFrom);
+                    const until = userData.validUntil?.toDate ? userData.validUntil.toDate() : new Date(userData.validUntil);
+
+                    if (now < from) {
+                        await signOut(auth);
+                        showToast(`Dit account is pas actief vanaf ${from.toLocaleString('nl-BE')}.`, 'error');
+                        return;
+                    }
+                    if (now > until) {
+                        await signOut(auth);
+                        showToast('Dit tijdelijk account is verlopen. Neem contact op met de beheerder.', 'error');
+                        return;
+                    }
+
+                    // Geldig — toon tijdelijke account UI
+                    if (userRoleEl) userRoleEl.textContent = 'Tijdelijk account';
+                    if (adminBtn)   adminBtn.style.display   = 'none';
+                    if (profileBtn) profileBtn.style.display = 'none';
+                    if (tijdelijkBtn) {
+                        tijdelijkBtn.style.display = (userData.toegang || []).includes('rockwerchter') ? 'block' : 'none';
+                    }
+                    return; // verdere knop-logica overslaan
+                }
+
+                // ── Normale accounts ────────────────────────────────────────
+
                 // Show admin button if user is admin
                 if (adminBtn) {
                     if (userData.rol === 'admin') {
@@ -613,6 +649,8 @@ onAuthStateChanged(auth, async (user) => {
                         adminBtn.style.display = 'none';
                     }
                 }
+
+                if (tijdelijkBtn) tijdelijkBtn.style.display = 'none';
 
                 // Profiel-knop: voor gewone leden (niet admin/bestuurslid)
                 if (profileBtn) {

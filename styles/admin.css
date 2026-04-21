@@ -3347,3 +3347,344 @@ html.dark .req-team-cb-label    { color: var(--text-dark); }
         flex: 1 1 100%;
     }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIJDELIJKE ACCOUNTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.temp-account-btn {
+    background: #7c3aed !important;
+}
+.temp-account-btn:hover { background: #6d28d9 !important; }
+
+/* Sectie boven ledenlijst */
+.temp-accounts-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+.temp-accounts-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #7c3aed;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* 2-koloms grid voor temp cards */
+.temp-accounts-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Tijdelijk account card */
+.temp-account-card {
+    background: var(--white);
+    border: 2px solid #e9d5ff;
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    transition: border-color 0.2s;
+}
+.temp-account-card:hover { border-color: #7c3aed; }
+.temp-account-card.temp-expired {
+    opacity: 0.6;
+    border-color: var(--border-color);
+    background: var(--off-white);
+}
+.temp-card-info { flex: 1; }
+.temp-card-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.2rem;
+}
+.temp-card-email { font-size: 0.82rem; color: var(--text-gray); margin-bottom: 0.35rem; }
+.temp-card-period {
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-bottom: 0.4rem;
+}
+.temp-card-perms { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.25rem; }
+.temp-perm-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    background: #ede9fe;
+    color: #5b21b6;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.temp-card-note { font-size: 0.78rem; color: var(--text-gray); font-style: italic; }
+
+/* Status badges */
+.temp-status-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.temp-status-active  { background: #d1fae5; color: #065f46; }
+.temp-status-expired { background: #fee2e2; color: #991b1b; }
+.temp-status-pending { background: #fef3c7; color: #92400e; }
+
+/* Permissions grid in modaal */
+.temp-permissions-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+.temp-perm-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 1rem 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    text-align: center;
+    transition: all 0.2s;
+    user-select: none;
+}
+.temp-perm-label:hover { border-color: #7c3aed; background: #f5f3ff; }
+.temp-perm-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #7c3aed;
+    cursor: pointer;
+    order: -1;
+}
+.temp-perm-label:has(input:checked) {
+    border-color: #7c3aed;
+    background: #ede9fe;
+    color: #5b21b6;
+}
+.temp-perm-icon { font-size: 1.5rem; line-height: 1; }
+
+/* Dark mode */
+html.dark .temp-account-card       { background: var(--white); border-color: #4c1d95; }
+html.dark .temp-account-card.temp-expired { background: #1e2130; }
+html.dark .temp-perm-badge          { background: #3b1f6b; color: #c4b5fd; }
+html.dark .temp-perm-label          { background: var(--white); border-color: var(--border-color); color: var(--text-dark); }
+html.dark .temp-perm-label:hover    { background: #2d1f4a; border-color: #7c3aed; }
+html.dark .temp-perm-label:has(input:checked) { background: #2d1f4a; border-color: #7c3aed; color: #c4b5fd; }
+
+@media (max-width: 768px) {
+    .temp-accounts-list    { grid-template-columns: 1fr; }
+    .temp-permissions-grid { grid-template-columns: 1fr; }
+    .temp-account-card     { flex-direction: column; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVENEMENT CARD — icon-knoppen mogen nooit krimpen
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* De knoppen zelf mogen niet krimpen */
+.evenement-card .card-actions .action-btn.edit,
+.evenement-card .card-actions .action-btn.delete {
+    flex: 0 0 auto;   /* override flex: 1 1 auto uit de responsive regels */
+    padding: 0.5rem 0.65rem;
+}
+
+/* De img binnenin krijgt vaste afmetingen en krimpt nooit */
+.evenement-card .action-btn img.icon,
+.evenement-card .action-btn img.icon-lg {
+    display: block;
+    width: 1.1rem;
+    height: 1.1rem;
+    min-width: 1.1rem;
+    min-height: 1.1rem;
+    flex-shrink: 0;
+    object-fit: contain;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEMBER RECHTEN — Toegangsrechten in lid/speler modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.member-rechten-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    margin-top: 0.25rem;
+}
+
+.member-recht-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.85rem 0.9rem;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--white);
+}
+
+.member-recht-label:hover {
+    border-color: var(--primary-blue);
+    background: #f0f4ff;
+}
+
+.member-recht-label input[type="checkbox"] {
+    margin-top: 3px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.member-recht-label:has(input:checked) {
+    border-color: var(--primary-blue);
+    background: #eef2ff;
+}
+
+.member-recht-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+}
+
+.member-recht-icon {
+    font-size: 1.35rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.member-recht-content > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.member-recht-content strong {
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    font-weight: 700;
+}
+
+.member-recht-content span {
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+/* Afgevaardigde team selector */
+#afgevaardigdeTeamGroup {
+    padding: 0.75rem 0.9rem;
+    background: #f0f4ff;
+    border: 1.5px solid var(--primary-blue);
+    border-radius: 8px;
+}
+
+#afgevaardigdeTeamGroup select {
+    padding: 0.55rem 0.75rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: var(--white);
+    color: var(--text-dark);
+    cursor: pointer;
+}
+
+#afgevaardigdeTeamGroup select:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+/* Temp permissions: 2 cols */
+.temp-permissions-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+}
+
+/* Sub-label in temp permission tile */
+.temp-perm-sub {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-gray);
+    font-weight: 400;
+    margin-top: 0.2rem;
+    line-height: 1.3;
+}
+
+.temp-perm-label:has(input:checked) .temp-perm-sub {
+    color: #7c3aed;
+    opacity: 0.85;
+}
+
+/* Dark mode */
+html.dark .member-recht-label          { background: var(--white); border-color: var(--border-color); }
+html.dark .member-recht-label:hover    { background: #1e2a3a; border-color: var(--primary-blue); }
+html.dark .member-recht-label:has(input:checked) { background: #1a243a; border-color: var(--primary-blue); }
+html.dark .member-recht-content strong { color: var(--text-dark); }
+html.dark #afgevaardigdeTeamGroup      { background: #1a243a; }
+html.dark #afgevaardigdeTeamGroup select { background: var(--white); border-color: var(--border-color); color: var(--text-dark); }
+
+@media (max-width: 640px) {
+    .member-rechten-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Tijdelijk account: wachtwoord weergave (readonly) ── */
+.temp-pw-display-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.temp-pw-display {
+    flex: 1;
+    padding: 0.6rem 0.85rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    font-family: monospace;
+    font-size: 0.95rem;
+    background: var(--off-white);
+    color: var(--text-dark);
+    letter-spacing: 0.05em;
+    cursor: default;
+}
+
+.temp-pw-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    background: var(--white);
+    cursor: pointer;
+    color: var(--text-gray);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    font-size: 0.85rem;
+}
+.temp-pw-copy-btn:hover {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: #fff;
+}

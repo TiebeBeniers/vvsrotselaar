@@ -120,9 +120,13 @@ function checkAccess() {
         if (panel) panel.style.display = 'none';
         return;
     }
-    const isBestuurslid = currentUserData.categorie === 'bestuurslid';
-    const isDesignated  = currentMatch.aangeduidePersonen?.includes(currentUser.uid);
-    hasAccess = isBestuurslid || isDesignated;
+    const isBestuurslid      = currentUserData.categorie === 'bestuurslid'
+        || (currentUserData.rol || '') === 'bestuurslid';
+    const isDesignated       = currentMatch.aangeduidePersonen?.includes(currentUser.uid);
+    // Spelers met 'score_invullen'-recht of tijdelijk account met score_invullen hebben toegang
+    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('score_invullen')
+        || (currentUserData.rol === 'tijdelijk' && (currentUserData.toegang || []).includes('score_invullen'));
+    hasAccess = isBestuurslid || isDesignated || heeftWedstrijdRecht;
     if (hasAccess) {
         if (panel) panel.style.display = 'block';
         setupControlButtons();
