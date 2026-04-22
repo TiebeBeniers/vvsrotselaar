@@ -640,40 +640,73 @@ onAuthStateChanged(auth, async (user) => {
 
                 // ── Normale accounts ────────────────────────────────────────
 
-                // Show admin button if user is admin
-                if (adminBtn) {
-                    if (userData.rol === 'admin') {
-                        adminBtn.style.display = 'block';
-                        console.log('Admin button shown');
-                    } else {
-                        adminBtn.style.display = 'none';
+                // Toon vraagteken-knop voor algemene voorwaarden als ingelogd
+                //TODO: layout fixen.
+                const termsQuickBtn = document.getElementById('termsQuickBtn');
+                if (termsQuickBtn) {
+                    termsQuickBtn.style.display = 'block';
+                    if (!termsQuickBtn.dataset.listenerAttached) {
+                        termsQuickBtn.dataset.listenerAttached = '1';
+                        termsQuickBtn.addEventListener('click', () => {
+                            const modal = document.getElementById('termsModal');
+                            if (modal) modal.style.display = 'block';
+                        });
                     }
+                }
+
+                // Multi-rol: gebruiker kan tegelijk speler én admin zijn
+                const userRollen = Array.isArray(userData.rollen) && userData.rollen.length > 0
+                    ? userData.rollen : [userData.rol || 'speler'];
+                const isAdmin = userRollen.includes('admin') || userData.rol === 'admin';
+                const isSpeler = userRollen.includes('speler') && (
+                    Array.isArray(userData.ploegen) && userData.ploegen.length > 0
+                    || userData.categorie
+                );
+
+                // Show admin button if user has admin access
+                if (adminBtn) {
+                    adminBtn.style.display = isAdmin ? 'block' : 'none';
                 }
 
                 if (tijdelijkBtn) tijdelijkBtn.style.display = 'none';
 
-                // Profiel-knop: voor gewone leden (niet admin/bestuurslid)
+                // Profiel-knop: toon als speler (ook als tevens admin)
                 if (profileBtn) {
                     const userPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
                         ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
                     const isBestuurslid = userPloegen.includes('bestuurslid')
                         || userData.categorie === 'bestuurslid'
                         || userData.rol === 'bestuurslid';
-                    const isPrivileged = userData.rol === 'admin' || isBestuurslid;
-                    profileBtn.style.display = isPrivileged ? 'none' : 'block';
+                    // Toon profiel-knop als speler (ook naast admin-knop bij dual-rol)
+                    profileBtn.style.display = (isSpeler && !isBestuurslid) ? 'block' : 'none';
                 }
 
-                // Roltext aanpassen voor bestuurslid
+                // Layout: naast elkaar bij meerdere knoppen
+                const actionBtns = document.getElementById('profileActionBtns');
+                if (actionBtns) {
+                    const visibleBtns = actionBtns.querySelectorAll('button:not(#logoutBtn):not([style*="display: none"]):not([style*="display:none"])');
+                    actionBtns.classList.toggle('profile-action-btns-grid', visibleBtns.length > 1);
+                }
+
+                // Roltext aanpassen
                 if (userRoleEl) {
                     const userPloegen2 = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
                         ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
                     const isBestuurslid2 = userPloegen2.includes('bestuurslid')
                         || userData.categorie === 'bestuurslid'
                         || userData.rol === 'bestuurslid';
-                    if (userData.rol === 'admin') userRoleEl.textContent = 'Administrator';
+                    if (isAdmin && isSpeler) userRoleEl.textContent = 'Speler + Administrator';
+                    else if (isAdmin) userRoleEl.textContent = 'Administrator';
                     else if (isBestuurslid2) userRoleEl.textContent = 'Bestuurslid';
                     else userRoleEl.textContent = 'Clublid';
                 }
+
+                // Herbereken layout na render (knoppen kunnen display:none zijn)
+                setTimeout(() => {
+                    if (!actionBtns) return;
+                    const vis = Array.from(actionBtns.querySelectorAll('button')).filter(b => b.style.display !== 'none');
+                    actionBtns.classList.toggle('profile-action-btns-grid', vis.length > 2);
+                }, 50);
             } else {
                 console.error('No user data found in Firestore for UID:', user.uid);
                 // Show error and logout

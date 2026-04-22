@@ -59,7 +59,7 @@ onAuthStateChanged(auth, async (user) => {
         currentUserData = userSnapshot.docs[0].data();
         console.log('User data loaded:', currentUserData.naam, 'Role:', currentUserData.rol);
         
-        if (currentUserData.rol !== 'admin') {
+        if (currentUserData.rol !== 'admin' && !(currentUserData.rollen || []).includes('admin')) {
             console.log('User is not admin, redirecting');
             window.location.href = 'index.html';
             return;
@@ -321,6 +321,7 @@ if (addMemberBtn) {
         memberForm.reset();
         setMemberPloegen([]);
         setMemberRechten([], '');
+        setMemberRollen(['speler']);
 
         const passwordField = document.getElementById('memberPassword');
         const passwordGroup = passwordField.closest('.form-group');
@@ -398,13 +399,39 @@ function setMemberRechten(rechten, afgevaardigdeTeam) {
     if (groupEl) groupEl.style.display = arr.includes('afgevaardigde') ? '' : 'none';
 }
 
+// ── Multi-rol helpers ──────────────────────────────────────────────────────────
+function getMemberRollen() {
+    return Array.from(document.querySelectorAll('input[name="memberRol"]:checked'))
+        .map(cb => cb.value);
+}
+
+function setMemberRollen(rollen) {
+    document.querySelectorAll('input[name="memberRol"]').forEach(cb => cb.checked = false);
+    const arr = Array.isArray(rollen) ? rollen : (rollen ? [rollen] : ['speler']);
+    arr.forEach(r => {
+        const cb = document.querySelector(`input[name="memberRol"][value="${r}"]`);
+        if (cb) cb.checked = true;
+    });
+}
+
+function rollenLabel(rollen) {
+    const labels = { speler: 'Speler', admin: 'Admin' };
+    const arr = Array.isArray(rollen) && rollen.length > 0 ? rollen : ['speler'];
+    return arr.map(r => labels[r] || r).join(' + ');
+}
+
+function heeftAdminToegang(userData) {
+    return userData.rol === 'admin'
+        || (Array.isArray(userData.rollen) && userData.rollen.includes('admin'));
+}
+
 function rechtenLabel(rechten, afgevaardigdeTeam) {
     if (!Array.isArray(rechten) || rechten.length === 0) return 'Geen extra rechten';
     const labels = {
-        score_invullen: '⚽ Score invullen',
-        afgevaardigde:  `📋 Afgevaardigde${afgevaardigdeTeam ? ` (${afgevaardigdeTeam.charAt(0).toUpperCase() + afgevaardigdeTeam.slice(1)})` : ''}`
+        score_invullen: 'Score invullen',
+        afgevaardigde:  `Afgevaardigde${afgevaardigdeTeam ? ` (${afgevaardigdeTeam.charAt(0).toUpperCase() + afgevaardigdeTeam.slice(1)})` : ''}`
     };
-    return rechten.map(r => labels[r] || r).join(' · ');
+    return rechten.map(r => labels[r] || r).join(' + ');
 }
 
 // Wire afgevaardigde checkbox → show/hide team selector
@@ -440,7 +467,11 @@ if (memberForm) {
         const categorie = ploegen[0];
         const catField = document.getElementById('memberCategorie');
         if (catField) catField.value = categorie;
-        const role = document.getElementById('memberRole').value;
+        // Multi-rol: lees uit checkboxes, leid primaire rol af
+        const rollen = getMemberRollen();
+        const role = rollen.includes('admin') && !rollen.includes('speler') ? 'admin'
+                   : rollen.includes('admin') ? 'admin'  // admin domineert voor Firestore-compat
+                   : 'speler';
         const uid = document.getElementById('memberUid').value;
         
         const goals       = parseInt(document.getElementById('memberGoals')?.value)  || 0;
@@ -475,6 +506,7 @@ if (memberForm) {
                         categorie:   categorie,
                         ploegen:     ploegen,
                         rol:         role,
+                        rollen:      rollen,
                         rechten:     rechten,
                         afgevaardigdeTeam: rechten.includes('afgevaardigde') ? afgevaardigdeTeam : null,
                         goals,
@@ -520,6 +552,7 @@ if (memberForm) {
                     naam: name,
                     email: email,
                     rol: role,
+                    rollen: rollen,
                     categorie: categorie,
                     ploegen: ploegen,
                     rechten: rechten,
@@ -611,12 +644,21 @@ function createMemberCard(member) {
         : [member.categorie || 'Geen categorie'];
     const categorieText = memberPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
     const rechtenText   = rechtenLabel(member.rechten || [], member.afgevaardigdeTeam || '');
+    // Gebruik rollen-array als die beschikbaar is, anders val terug op rol-veld
+    const effectieveRollen = Array.isArray(member.rollen) && member.rollen.length > 0
+        ? member.rollen
+        : [member.rol || 'speler'];
+    const rolBadges = effectieveRollen.map(r => {
+        const kleur = r === 'admin' ? 'var(--danger)' : 'var(--primary-blue)';
+        const label = r === 'admin' ? 'Admin' : 'Speler';
+        return `<span class="member-badge" style="background:${kleur}">${label}</span>`;
+    }).join('');
     
     card.innerHTML = `
         <div class="member-info">
             <h4 class="member-name-link">${member.naam}</h4>
             <p>${member.email}</p>
-            <span class="member-badge">${roleText}</span>
+            ${rolBadges}
             <span class="member-badge">${categorieText}</span>
             ${rechtenText !== 'Geen extra rechten' ? `<span class="member-badge" style="background:var(--accent-blue)">${rechtenText}</span>` : ''}
         </div>
@@ -706,7 +748,10 @@ function editMember(member) {
         : [member.categorie || 'veteranen'];
     setMemberPloegen(memberPloegen);
     setMemberRechten(member.rechten || [], member.afgevaardigdeTeam || '');
-    document.getElementById('memberRole').value = member.rol || 'speler';
+    // Herstel rollen: gebruik rollen-array als beschikbaar, anders rol-veld
+    const memberRollen = Array.isArray(member.rollen) && member.rollen.length > 0
+        ? member.rollen : [member.rol || 'speler'];
+    setMemberRollen(memberRollen);
 
     document.getElementById('memberGoals').value   = member.goals       ?? 0;
     document.getElementById('memberAssists').value = member.assists     ?? 0;
@@ -836,8 +881,13 @@ function openTempAccountModal(acc) {
             cb.checked = (acc.toegang || []).includes(cb.value);
         });
         tempAccountForm.dataset.editId = acc.id;
+        // Fix: knoptekst aanpassen bij bewerken bestaand account
+        const submitBtnEdit = tempAccountForm.querySelector('button[type="submit"]');
+        if (submitBtnEdit) submitBtnEdit.textContent = 'Opslaan';
     } else {
         document.getElementById('tempAccountModalTitle').textContent = 'Tijdelijk Account Aanmaken';
+        const submitBtnNew = tempAccountForm.querySelector('button[type="submit"]');
+        if (submitBtnNew) submitBtnNew.textContent = 'Account Aanmaken';
         emailField.disabled = false;
         if (passwordGroup)        passwordGroup.style.display        = '';
         if (passwordField)        passwordField.required              = true;

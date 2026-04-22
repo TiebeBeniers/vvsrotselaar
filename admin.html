@@ -383,13 +383,32 @@
                     <!-- Verborgen veld voor backwards compat (primaire ploeg) -->
                     <input type="hidden" id="memberCategorie" value="veteranen">
                 </div>
-                <div class="form-group">
-                    <label for="memberRole">Rol</label>
-                    <select id="memberRole">
-                        <option value="speler">Speler</option>
-                        <option value="admin">Admin</option>
-                    </select>
+                <div class="form-group" id="memberRollenGroup">
+                    <label>Rol(len) <small style="font-weight:400;color:var(--text-gray);">Meerdere rollen mogelijk</small></label>
+                    <div class="member-rechten-grid">
+                        <label class="member-recht-label">
+                            <input type="checkbox" name="memberRol" value="speler" id="rolSpeler" checked>
+                            <div class="member-recht-content">
+                                <span class="member-recht-icon">👤</span>
+                                <div>
+                                    <strong>Speler</strong>
+                                    <span>Heeft spelersprofiel en beschikbaarheidslijst</span>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="member-recht-label">
+                            <input type="checkbox" name="memberRol" value="admin" id="rolAdmin">
+                            <div class="member-recht-content">
+                                <span class="member-recht-icon">🔑</span>
+                                <div>
+                                    <strong>Admin</strong>
+                                    <span>Volledige toegang tot beheerportaal</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
+                <input type="hidden" id="memberRole" value="speler">
                 <div class="form-group" id="memberRechtenGroup">
                     <label>Toegangsrechten <small style="font-weight:400;color:var(--text-gray);">(alleen voor spelers)</small></label>
                     <div class="member-rechten-grid">

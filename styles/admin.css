@@ -206,6 +206,7 @@
     font-size: 0.8rem;
     font-weight: 600;
     margin-right: 0.5rem;
+    margin-bottom: 0.3rem;
 }
 
 .match-badge.upcoming { background: var(--accent-blue); }
@@ -2530,6 +2531,11 @@ html.dark .ranking-instructions {
     margin-bottom: 2rem;
 }
 html.dark .footer-text {color: var(--text-gray) !important}
+html.dark .tab-btn.active,
+html.dark .tab-count,
+html.dark .add-btn,
+html.dark .ann-text-input,
+html.dark .shifts-btn {color: #ffffff !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    MELDINGEN ADMIN CARDS

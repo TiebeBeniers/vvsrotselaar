@@ -184,7 +184,7 @@ function voegToe(naam, n = 1) {
         const totalVereist = vereistItems.reduce((sum, v) => sum + (drankjes[v]?.count ?? 0), 0);
         // Dit item mag max zo vaak als het totaal van de vereiste items
         if (drankjes[naam].count + n > totalVereist) {
-            showToast(`Koop eerst ${vereistItems.join(' of ')} voordat je dit item toevoegt.`, 'error');
+            showToast(`Selecteer eerst ${vereistItems.join(' of ')} .Extra bekers via qr-code.`, 'error');
             return;
         }
     }

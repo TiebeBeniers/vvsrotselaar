@@ -1340,7 +1340,10 @@ async function loadAvailability(matchId, matchData = {}) {
             matchData.aangeduidePersonen.includes(currentUser.uid);
         // Spelers met 'wedstrijd'-recht kunnen ook de aanwezigheidslijst beheren
         const heeftWedstrijdRecht = (userData.rechten || []).includes('wedstrijd');
-        const canManageList = isBestuurslid || isDesignated || heeftWedstrijdRecht;
+        // Afgevaardigde voor deze specifieke ploeg: kan lijst bekijken + spelers toevoegen (geen eigen knoppen)
+        const isAfgevaardigde = (userData.rechten || []).includes('afgevaardigde')
+            && (userData.afgevaardigdeTeam || '').toLowerCase() === (TEAM_TYPE || '').toLowerCase();
+        const canManageList = isBestuurslid || isDesignated || heeftWedstrijdRecht || isAfgevaardigde;
         
         if (isOwnTeam) {
             // Eigen ploeg: toon knoppen EN lijst
@@ -2225,7 +2228,7 @@ function openSharePopup(match, bodyText, liveUrl) {
                 </div>
                 ${datum ? `<div class="spc-date">📅 ${esc2(datum)}${tijd ? ' om ' + esc2(tijd) : ''}</div>` : ''}
                 ${loc   ? `<div class="spc-loc">📍 ${esc2(loc)}</div>` : ''}
-                <div class="spc-live">🔴 Volg live via <strong>live.html</strong></div>
+                <div class="spc-live">🔴 Volg <strong><a href="/live.html">live</a></strong></div>
             </div>
             <div class="share-popup-actions">
                 <a class="share-btn whatsapp" href="https://wa.me/?text=${encodeURIComponent(bodyText)}" target="_blank" rel="noopener">
