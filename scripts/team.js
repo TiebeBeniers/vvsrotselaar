@@ -27,6 +27,10 @@ const CACHE_TTL = {
     timeline:      7 * 24 * 60 * 60 * 1000,   // 1 week — afgelopen wedstrijden veranderen niet
 };
 
+// Hoe lang (minuten) na aftrap een geplande match nog als "bezig" getoond wordt
+// als er geen live-tracking actief is (zelfde waarde als in app.js).
+const MATCH_VISIBLE_WINDOW_MINUTES = 90;
+
 // Detecteer page refresh → negeer localStorage cache zodat verse data geladen wordt
 const PAGE_REFRESHED = (() => {
     try {
@@ -210,14 +214,33 @@ async function loadPlannedMatch(container) {
         );
 
         const now = new Date();
-        const futureMatches = matches.filter(m => new Date(`${m.datum}T${m.uur || '00:00'}`) >= now);
-        allPlannedMatches = futureMatches.length > 0 ? futureMatches : [matches[matches.length - 1]];
+        const windowMs = MATCH_VISIBLE_WINDOW_MINUTES * 60 * 1000;
 
-        tcSet(cacheKey, allPlannedMatches);
+        // Splitter: matches die nog komen INCLUSIEF matches die binnen het bezig-venster vallen
+        const futureAndOngoing = matches.filter(m => {
+            const kickoff = new Date(`${m.datum}T${m.uur || '00:00'}`);
+            const windowEnd = new Date(kickoff.getTime() + windowMs);
+            return kickoff >= now || (now >= kickoff && now <= windowEnd);
+        });
+
+        allPlannedMatches = futureAndOngoing.length > 0 ? futureAndOngoing : [matches[matches.length - 1]];
+
+        // Sla alleen echte toekomstige matches op in cache — niet de "bezig" match,
+        // want die zou anders gecached worden als toekomstig na een refresh.
+        const onlyFuture = matches.filter(m => new Date(`${m.datum}T${m.uur || '00:00'}`) >= now);
+        tcSet(cacheKey, onlyFuture.length > 0 ? onlyFuture : allPlannedMatches);
 
         currentPlannedIdx = 0;
-        displayPlannedMatch(allPlannedMatches[0], container);
-        renderPlannedNav(container);
+        const firstMatch = allPlannedMatches[0];
+        const firstKickoff = new Date(`${firstMatch.datum}T${firstMatch.uur || '00:00'}`);
+        const isBezig = now > firstKickoff;
+
+        if (isBezig) {
+            displayBezigMatch(firstMatch, container);
+        } else {
+            displayPlannedMatch(firstMatch, container);
+            renderPlannedNav(container);
+        }
 
     } catch (error) {
         console.error('Error loading planned matches:', error);
@@ -272,6 +295,37 @@ function navigatePlanned(dir, container) {
     currentPlannedIdx = newIdx;
     displayPlannedMatch(allPlannedMatches[currentPlannedIdx], container);
     updatePlannedNavState();
+}
+
+
+// ── Bezig-kaart: render gewone planned-kaart maar met BEZIG-badge en streepjes ──
+function displayBezigMatch(match, container) {
+    // Render de normale planned-kaart zodat navigatie en availability behouden blijven
+    displayPlannedMatch(match, container);
+    renderPlannedNav(container);
+
+    // Voeg BEZIG-badge toe in de match-date rij, links van de datum
+    const card = container.querySelector('.next-match-card');
+    if (!card) return;
+    card.classList.add('bezig-card');
+
+    const dateRow = card.querySelector('.match-date');
+    if (dateRow) {
+        const badge = document.createElement('span');
+        badge.className = 'bezig-badge';
+        badge.textContent = 'BEZIG';
+        dateRow.prepend(badge);
+    }
+
+    // Vervang VS door streepjes (score onbekend)
+    const vsEl = card.querySelector('.vs');
+    if (vsEl) {
+        vsEl.innerHTML = `
+            <span class="bezig-score">—</span>
+            <span class="bezig-separator">-</span>
+            <span class="bezig-score">—</span>`;
+        vsEl.classList.add('bezig-vs-wrap');
+    }
 }
 
 function displayPlannedMatch(match, container) {

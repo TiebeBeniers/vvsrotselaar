@@ -1062,3 +1062,39 @@ html.dark .vvs-row td {background: #2555b49d;}
 }
 
 /* ── (Admin flag toggle styles zijn verplaatst naar admin.css) ── */
+
+/* ── Bezig-badge op de normale planned-kaart ───────────────────────────────── */
+.bezig-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.65rem;
+    border-radius: 20px;
+    flex-shrink: 0;
+    animation: bezigPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes bezigPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.55; }
+}
+
+/* Score-streepjes naast elkaar ipv "VS" */
+.bezig-vs-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+.bezig-score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-gray);
+}
+.bezig-separator {
+    font-size: 1rem;
+    color: var(--text-gray);
+}

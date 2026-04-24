@@ -25,6 +25,9 @@ const WINDOW_HOURS   = 72;
 // als beschikbaarheid nog steeds niet ingevuld is (2 uur).
 const AV_REMIND_INTERVAL = 2 * 60 * 60 * 1000;
 
+// Bijhouden welke UID het laatst gecheckt werd → bij login altijd direct checken
+let _lastCheckedUid = null;
+
 // ── Gedeelde stack container ──────────────────────────────────────────────────
 function getStack() {
     let stack = document.getElementById('notifStack');
@@ -68,12 +71,15 @@ function customDismiss(id, versie) {
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
-function shouldCheck() {
-    try { return Date.now() - parseInt(localStorage.getItem(LAST_CHECK_KEY) || '0') > CHECK_INTERVAL; }
+function shouldCheck(uid) {
+    // Altijd checken als de ingelogde user veranderd is (login/logout)
+    if (uid !== _lastCheckedUid) return true;
+    try { return Date.now() - parseInt(localStorage.getItem(LAST_CHECK_KEY + '_' + (uid || 'anon')) || '0') > CHECK_INTERVAL; }
     catch (_) { return true; }
 }
-function markChecked() {
-    try { localStorage.setItem(LAST_CHECK_KEY, String(Date.now())); } catch (_) {}
+function markChecked(uid) {
+    _lastCheckedUid = uid;
+    try { localStorage.setItem(LAST_CHECK_KEY + '_' + (uid || 'anon'), String(Date.now())); } catch (_) {}
 }
 
 // ── Banner factory ────────────────────────────────────────────────────────────
@@ -276,8 +282,9 @@ async function checkCustomNotifications(user, ploegen) {
 }
 
 async function runChecks(user) {
-    if (!shouldCheck()) return;
-    markChecked();
+    const uid = user?.uid || null;
+    if (!shouldCheck(uid)) return;
+    markChecked(uid);
 
     // Haal gebruikersprofiel op (enkel nodig als ingelogd)
     let ploegen = [];
