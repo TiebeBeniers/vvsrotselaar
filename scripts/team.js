@@ -5,7 +5,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, getDoc, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, getDocs, getDoc, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Team.js loaded');
 
@@ -100,6 +100,7 @@ console.log('Team type:', TEAM_TYPE);
 // ===============================================
 
 let currentUser = null;
+let currentUserData = null; // Firestore gebruikersprofiel van de ingelogde user
 
 onAuthStateChanged(auth, async (user) => {
     const loginLink = document.getElementById('loginLink');
@@ -107,17 +108,36 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         if (loginLink) loginLink.textContent = 'PROFIEL';
+
+        // Laad Firestore-profiel (gecached in localStorage, 30 min TTL)
+        currentUserData = null;
+        try {
+            const raw = localStorage.getItem(`vvs_authuser_${user.uid}`);
+            if (raw) {
+                const { ts, data } = JSON.parse(raw);
+                if (Date.now() - ts < 30 * 60 * 1000) currentUserData = data;
+            }
+        } catch (_) {}
+
+        if (!currentUserData) {
+            try {
+                const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
+                if (!snap.empty) {
+                    currentUserData = snap.docs[0].data();
+                    localStorage.setItem(`vvs_authuser_${user.uid}`,
+                        JSON.stringify({ ts: Date.now(), data: currentUserData }));
+                }
+            } catch (_) {}
+        }
     } else {
         currentUser = null;
+        currentUserData = null;
         if (loginLink) loginLink.textContent = 'LOGIN';
     }
 
-    // Fix 5: re-render MOTM section when auth state resolves.
-    // loadRecentMatches may have already run before currentUser was set,
-    // so we re-render without a new Firestore fetch.
-    if (allRecentMatches.length > 0) {
-        renderMotmSection();
-    }
+    // Re-render MOTM sectie zodra auth + userData bekend zijn.
+    // loadRecentMatches kan al gelopen hebben vóór login.
+    renderMotmSection();
 });
 
 // ===============================================
@@ -1920,52 +1940,93 @@ function motmResultsVisible(match) {
 function renderMotmSection() {
     const section = document.getElementById('motmSection');
     if (!section) return;
-
     section.innerHTML = '';
+    section.classList.remove('motm-section--active');
 
-    if (!allRecentMatches.length) return;
-    if (!currentUser) return; // niet ingelogd
+    if (!currentUser || !currentUserData) return; // niet ingelogd of profiel nog niet geladen
+
+    // Bepaal rechten van ingelogde user
+    const userPloegen = Array.isArray(currentUserData.ploegen)
+        ? currentUserData.ploegen : (currentUserData.categorie ? [currentUserData.categorie] : []);
+    const isInTeam            = userPloegen.includes(TEAM_TYPE);
+    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('wedstrijd');
+    const isAfgevaardigde     = (currentUserData.rechten || []).includes('afgevaardigde')
+        && (currentUserData.afgevaardigdeTeam || '').toLowerCase() === TEAM_TYPE;
+    const isAdminUser         = currentUserData.rol === 'admin'
+        || (currentUserData.rollen || []).includes('admin');
+
+    // Sectie enkel zichtbaar voor teamleden, aangeduide personen, afgevaardigde, of admin
+    if (!isInTeam && !heeftWedstrijdRecht && !isAfgevaardigde && !isAdminUser) return;
 
     const now = new Date();
 
-    // Zoek de meest recente afgelopen wedstrijd op dezelfde dag (stemperiode)
-    const match = allRecentMatches.find(m => {
+    // 1. Zoek vandaag's wedstrijd in finished matches
+    let match = allRecentMatches.find(m => {
         const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
-        const dayEnd = new Date(dt);
-        dayEnd.setHours(23, 59, 59, 999);
+        const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
         return now >= dt && now <= dayEnd;
     });
 
-    if (!match) return; // geen stemperiode actief
+    // 2. Fallback: live match die vandaag startte
+    if (!match && currentLiveMatch) {
+        const dt     = new Date(`${currentLiveMatch.datum}T${currentLiveMatch.uur || '00:00'}`);
+        const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
+        if (now > dt && now <= dayEnd) match = { ...currentLiveMatch };
+    }
 
-    const motmResults    = match.motmResults || null;
-    const isDesignated       = match.aangeduidePersonen?.includes(currentUser.uid);
-    const heeftWedstrijdRecht = (currentUserData?.rechten || []).includes('wedstrijd');
-    const canSeeStand         = isDesignated || heeftWedstrijdRecht;
-    const resultVisible  = motmResults && motmResultsVisible(match);
+    // 3. Fallback: geplande (bezig) match die vandaag startte maar nog niet finished is
+    if (!match) {
+        match = allPlannedMatches.find(m => {
+            const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
+            const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
+            return now > dt && now <= dayEnd;
+        }) || null;
+    }
 
-    // Zodra resultaten 24u zichtbaar zijn geweest: niets tonen bovenaan
+    if (!match) return; // geen wedstrijd vandaag
+
+    const motmResults   = match.motmResults || null;
+    const isDesignated  = match.aangeduidePersonen?.includes(currentUser.uid);
+    // Wie mag de uitslag onthullen: aangeduid persoon, wedstrijdrecht, afgevaardigde, admin
+    const canReveal     = isDesignated || heeftWedstrijdRecht || isAfgevaardigde || isAdminUser;
+    const resultVisible = motmResults && motmResultsVisible(match);
+
+    // Resultaten zijn bekendgemaakt maar de zichtbaarheidsperiode (24u) is voorbij → niets tonen
     if (motmResults && !resultVisible) return;
 
-    // Wrapper die de sectie zichtbaar maakt
     section.classList.add('motm-section--active');
 
     if (!motmResults) {
-        // ── Stem-knop (iedereen die ingelogd is)
-        const voteBtn = document.createElement('button');
-        voteBtn.className = 'motm-section-vote-btn';
-        voteBtn.innerHTML = '🏆 Stem Man van de Match';
-        voteBtn.addEventListener('click', () => openMotmModal(match));
-        section.appendChild(voteBtn);
+        // ── Stem-knop: alleen voor eigen teamleden die meegespeeld hebben
+        if (isInTeam) {
+            const voteBtn = document.createElement('button');
+            voteBtn.className = 'motm-section-vote-btn';
+            voteBtn.innerHTML = '🏆 Stem Man van de Match';
+            voteBtn.addEventListener('click', () => openMotmModal(match));
+            section.appendChild(voteBtn);
+        }
 
-        // ── Extra knoppen voor aangeduide persoon
-        if (canSeeStand) {
+        // ── Bekijk stand + onthul: voor aangeduide persoon / afgevaardigde / admin
+        if (canReveal) {
             const standBtn = document.createElement('button');
             standBtn.className = 'motm-section-stand-btn';
-            standBtn.textContent = '📊 Bekijk huidige stand';
+            standBtn.textContent = '📊 Bekijk & onthul uitslag';
             standBtn.addEventListener('click', () => openStandModal(match));
             section.appendChild(standBtn);
         }
+    } else if (resultVisible) {
+        // ── Toon bekendgemaakte top 3 als verticale ranglijst-kader
+        const medals = ['🥇','🥈','🥉'];
+        const rows = motmResults.slice(0, 3).map((r, i) => `
+            <div class="motm-pos">
+                <span class="motm-pos-medal">${medals[i]}</span>
+                <span class="motm-pos-name">${r.name}</span>
+                <span class="motm-pos-pts">${r.points} pnt</span>
+            </div>`).join('');
+        const resEl = document.createElement('div');
+        resEl.className = 'motm-section-results';
+        resEl.innerHTML = `<div class="motm-results-title">🏆 Man van de Match</div>${rows}`;
+        section.appendChild(resEl);
     }
 }
 
@@ -2140,6 +2201,30 @@ async function revealMotm(match, tallyArg = null) {
         await setDoc(doc(db, 'matches', match.id),
             { motmResults: top3, motmRevealedAt: revealedAt }, { merge: true });
 
+        // ── Sla MOTM-punten op per speler (1e: 3pnt, 2e: 2pnt, 3e: 1pnt) ──
+        const MOTM_PTS = [3, 2, 1];
+        for (let i = 0; i < top3.length; i++) {
+            const r   = top3[i];
+            const pts = MOTM_PTS[i] ?? 1;
+            // Sla enkel op voor echte Firebase-accounts (niet manual_...)
+            if (r.uid && !String(r.uid).startsWith('manual_')) {
+                try {
+                    await updateDoc(doc(db, 'users', r.uid), {
+                        motmPunten: increment(pts),
+                        motmHistory: arrayUnion({
+                            matchId:  match.id,
+                            datum:    match.datum,
+                            positie:  i + 1,
+                            punten:   pts,
+                            team:     TEAM_TYPE,
+                        })
+                    });
+                } catch (e) {
+                    console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
+                }
+            }
+        }
+
         // Update in-memory array direct zodat de kaart meteen refresht zonder herlaad
         const idx = allRecentMatches.findIndex(m => m.id === match.id);
         if (idx !== -1) {
@@ -2149,7 +2234,7 @@ async function revealMotm(match, tallyArg = null) {
         // Invalideer localStorage cache
         localStorage.removeItem(`vvs_recent_matches_${TEAM_TYPE}`);
 
-        showToast('🏆 Top 3 bekendgemaakt!', 'success');
+        showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
 
         // Re-render kaarten en sectie direct
         const container = document.getElementById('recentMatchesList');
