@@ -542,18 +542,20 @@ async function openLineupForDraft(matchData, isEdit = false) {
         return;
     }
 
-    // Pre-load saved starters when editing
+    // Pre-load saved starters + subs when editing
     const savedStarters = new Set();
+    const savedSubs     = new Set();
     if (isEdit && matchData.lineupDraft) {
         Object.entries(matchData.lineupDraft).forEach(([uid, info]) => {
             if (info.status === 'starter') savedStarters.add(uid);
+            else if (info.status === 'bench') savedSubs.add(uid);
         });
     }
 
-    openLineupModal(savedStarters);
+    openLineupModal(savedStarters, savedSubs);
 }
 
-function openLineupModal(initialStarters = new Set()) {
+function openLineupModal(initialStarters = new Set(), initialSubs = new Set()) {
     let modal = document.getElementById('lineupModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -562,18 +564,51 @@ function openLineupModal(initialStarters = new Set()) {
         modal.innerHTML = `
             <div class="modal-content lineup-modal-content">
                 <h3>Opstelling Aanduiden</h3>
-                <p class="lineup-subtitle">Selecteer de basisspelers. De overige aanwezige spelers worden bankzitters.</p>
-                <div class="lineup-columns">
+                <p class="lineup-subtitle">
+                    Verdeel de aanwezige spelers over <strong>Basis</strong> (exact 11) en
+                    <strong>Wisselspelers</strong> (max 5). Spelers die niet geselecteerd worden
+                    komen niet in aanmerking tijdens de wedstrijd en krijgen geen statistieken.
+                </p>
+
+                <div class="lineup-columns lineup-columns-3">
+
+                    <!-- Kolom 1: niet geselecteerd -->
                     <div class="lineup-col">
-                        <h4>Aanwezig (<span id="lineupAvailCount">0</span>)</h4>
+                        <div class="lineup-col-header lineup-col-header--avail">
+                            <span class="lineup-col-icon">👥</span>
+                            <h4>Aanwezig</h4>
+                            <span class="lineup-col-badge" id="lineupAvailCount">0</span>
+                        </div>
                         <div id="lineupAvailList" class="lineup-list"></div>
+                        <p class="lineup-col-sub">Klik om te plaatsen</p>
                     </div>
+
+                    <!-- Kolom 2: basisspelers -->
                     <div class="lineup-col">
-                        <h4>Basis (<span id="lineupStartCount">0</span>/11)</h4>
+                        <div class="lineup-col-header lineup-col-header--start">
+                            <span class="lineup-col-icon">⚽</span>
+                            <h4>Basis</h4>
+                            <span class="lineup-col-badge" id="lineupStartCount">0</span>
+                            <span class="lineup-col-max">/11</span>
+                        </div>
                         <div id="lineupStartList" class="lineup-list starter-list"></div>
+                        <p class="lineup-col-sub">Exact 11 spelers</p>
+                    </div>
+
+                    <!-- Kolom 3: wisselspelers -->
+                    <div class="lineup-col">
+                        <div class="lineup-col-header lineup-col-header--sub">
+                            <span class="lineup-col-icon">🔄</span>
+                            <h4>Wisselspelers</h4>
+                            <span class="lineup-col-badge" id="lineupSubCount">0</span>
+                            <span class="lineup-col-max">/5</span>
+                        </div>
+                        <div id="lineupSubList" class="lineup-list sub-list"></div>
+                        <p class="lineup-col-sub">Max 5 wisselspelers</p>
                     </div>
                 </div>
-                <div class="lineup-hint" id="lineupHint">Selecteer 7 tot 11 basisspelers.</div>
+
+                <div class="lineup-hint" id="lineupHint">Selecteer 11 basisspelers.</div>
                 <div class="lineup-actions">
                     <button class="modal-btn cancel" id="lineupCancelBtn">Annuleren</button>
                     <button class="modal-btn confirm" id="lineupConfirmBtn" disabled>Bevestigen</button>
@@ -583,54 +618,113 @@ function openLineupModal(initialStarters = new Set()) {
         document.getElementById('lineupCancelBtn').addEventListener('click', () => {
             modal.classList.remove('active');
         });
+        modal.addEventListener('click', e => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
     }
 
-    renderLineupModal(modal, initialStarters);
+    renderLineupModal(modal, initialStarters, initialSubs);
     modal.classList.add('active');
 }
 
-function renderLineupModal(modal, initialStarters = new Set()) {
+// Cycle: avail → starter → sub → avail
+function getNextStatus(uid, starters, subs) {
+    if (starters.has(uid)) return 'sub';
+    if (subs.has(uid)) return 'avail';
+    return 'starter';
+}
+
+function renderLineupModal(modal, initialStarters = new Set(), initialSubs = new Set()) {
     const availList  = modal.querySelector('#lineupAvailList');
     const startList  = modal.querySelector('#lineupStartList');
+    const subList    = modal.querySelector('#lineupSubList');
     const confirmBtn = modal.querySelector('#lineupConfirmBtn');
     const availCount = modal.querySelector('#lineupAvailCount');
     const startCount = modal.querySelector('#lineupStartCount');
+    const subCount   = modal.querySelector('#lineupSubCount');
     const hintEl     = modal.querySelector('#lineupHint');
 
-    const MIN = 7, MAX = 11;
+    const MAX_START = 11;
+    const MIN_START = 7;
+    const MAX_SUBS  = 5;
+
     const starters = new Set(initialStarters);
+    const subs     = new Set(initialSubs);
 
     function refresh() {
         availList.innerHTML = '';
         startList.innerHTML = '';
-        const count = starters.size;
-        availCount.textContent = lineupAvailablePlayers.length - count;
-        startCount.textContent = count;
+        subList.innerHTML   = '';
 
-        const valid = count >= MIN && count <= MAX;
-        confirmBtn.disabled = !valid;
+        const sc = starters.size;
+        const bc = subs.size;
+        const ac = lineupAvailablePlayers.length - sc - bc;
+
+        if (availCount) availCount.textContent = ac;
+        if (startCount) startCount.textContent = sc;
+        if (subCount)   subCount.textContent   = bc;
+
+        const startFull = sc >= MAX_START;
+        const subFull   = bc >= MAX_SUBS;
+        const valid     = sc === MAX_START;
+
+        if (confirmBtn) confirmBtn.disabled = !valid;
 
         if (hintEl) {
-            if (count < MIN)       hintEl.textContent = `Selecteer nog ${MIN - count} speler(s) minimum.`;
-            else if (count > MAX)  hintEl.textContent = `Maximum ${MAX} basisspelers.`;
-            else                   hintEl.textContent = `✓ Klaar (${count} spelers geselecteerd).`;
+            if (sc < MIN_START)
+                hintEl.textContent = `Voeg nog ${MIN_START - sc} basisspeler(s) toe (minimum).`;
+            else if (sc < MAX_START)
+                hintEl.textContent = `Voeg nog ${MAX_START - sc} basisspeler(s) toe.`;
+            else if (bc === 0)
+                hintEl.textContent = `✓ Basis volledig. Voeg optioneel wisselspelers toe.`;
+            else
+                hintEl.textContent = `✓ Klaar — ${sc} basis, ${bc} wissel${bc !== 1 ? 's' : ''}.`;
             hintEl.style.color = valid ? 'var(--success, #28a745)' : 'var(--text-gray, #666)';
         }
 
         lineupAvailablePlayers.forEach(p => {
             const isStarter = starters.has(p.uid);
-            const atMax     = count >= MAX;
+            const isSub     = subs.has(p.uid);
+            const isAvail   = !isStarter && !isSub;
+
             const btn = document.createElement('button');
-            btn.className   = `lineup-player-btn${isStarter ? ' selected' : ''}`;
             btn.textContent = p.name;
-            if (!isStarter && atMax) btn.disabled = true;
+
+            if (isStarter) {
+                btn.className = 'lineup-player-btn lineup-player-btn--starter';
+                btn.title     = 'Klik: verplaats naar wisselbank';
+                startList.appendChild(btn);
+            } else if (isSub) {
+                btn.className = 'lineup-player-btn lineup-player-btn--sub';
+                btn.title     = 'Klik: terugplaatsen naar beschikbaar';
+                subList.appendChild(btn);
+            } else {
+                btn.className = 'lineup-player-btn';
+                btn.title     = startFull
+                    ? (subFull ? 'Basis en bank zijn vol' : 'Klik: voeg toe als wisselspeler')
+                    : 'Klik: voeg toe aan basis';
+                if (startFull && subFull) btn.disabled = true;
+                availList.appendChild(btn);
+            }
+
             btn.addEventListener('click', () => {
-                if (isStarter) starters.delete(p.uid);
-                else if (starters.size < MAX) starters.add(p.uid);
+                if (isStarter) {
+                    // starter → sub (als sub niet vol) anders → avail
+                    starters.delete(p.uid);
+                    if (subs.size < MAX_SUBS) subs.add(p.uid);
+                } else if (isSub) {
+                    // sub → avail
+                    subs.delete(p.uid);
+                } else {
+                    // avail: eerst proberen basis te vullen, daarna bank
+                    if (!startFull) {
+                        starters.add(p.uid);
+                    } else if (!subFull) {
+                        subs.add(p.uid);
+                    }
+                }
                 refresh();
             });
-            if (isStarter) startList.appendChild(btn);
-            else availList.appendChild(btn);
         });
     }
 
@@ -638,18 +732,17 @@ function renderLineupModal(modal, initialStarters = new Set()) {
 
     confirmBtn.textContent = 'Bevestigen';
     confirmBtn.onclick = async () => {
-        if (starters.size < MIN || starters.size > MAX) return;
+        if (starters.size !== MAX_START) return;
         confirmBtn.disabled    = true;
         confirmBtn.textContent = 'Opslaan...';
 
         try {
-            // Build draft lineup object
             const lineupDraft = {};
             lineupAvailablePlayers.forEach(p => {
-                lineupDraft[p.uid] = {
-                    name:   p.name,
-                    status: starters.has(p.uid) ? 'starter' : 'bench'
-                };
+                let status = 'niet_geselecteerd';
+                if (starters.has(p.uid)) status = 'starter';
+                else if (subs.has(p.uid)) status = 'bench';
+                lineupDraft[p.uid] = { name: p.name, status };
             });
 
             await updateDoc(doc(db, 'matches', lineupMatchData.id), {
@@ -657,12 +750,10 @@ function renderLineupModal(modal, initialStarters = new Set()) {
                 lineupDraftConfirmed: true
             });
 
-            // Update local object so wijzig-lineup opens the new draft
             lineupMatchData.lineupDraft          = lineupDraft;
             lineupMatchData.lineupDraftConfirmed = true;
 
             modal.classList.remove('active');
-            // Refresh the start-match button area
             await checkForStartMatch();
 
         } catch (e) {

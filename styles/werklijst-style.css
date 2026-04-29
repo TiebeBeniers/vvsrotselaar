@@ -575,3 +575,60 @@ html.dark .wl-shift-card.is-signed  { background: #1a2a4a; border-color: var(--p
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* ── Rockwerchter: geen-toegang banner ── */
+.rw-geen-toegang-banner {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.rw-geen-toegang-card {
+    background: var(--white, #fff);
+    border-radius: 14px;
+    padding: 2.5rem 2rem;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.rw-geen-toegang-icon {
+    font-size: 3rem;
+    line-height: 1;
+    margin-bottom: 1rem;
+}
+
+.rw-geen-toegang-card h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-dark, #1a1a1a);
+    margin: 0 0 0.6rem;
+}
+
+.rw-geen-toegang-card p {
+    font-size: 0.92rem;
+    color: var(--text-gray, #4a4a4a);
+    line-height: 1.6;
+    margin: 0 0 1.25rem;
+}
+
+.rw-geen-toegang-card a {
+    display: inline-block;
+    background: var(--primary-blue, #0047AB);
+    color: #fff;
+    padding: 0.65rem 1.75rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+.rw-geen-toegang-card a:hover {
+    background: var(--dark-blue, #003585);
+}

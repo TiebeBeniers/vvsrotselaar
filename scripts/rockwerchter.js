@@ -47,38 +47,52 @@ onAuthStateChanged(auth, async (user) => {
             const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
             if (!snap.empty) {
                 currentUserData = snap.docs[0].data();
-                // Controleer admin/bestuurslid rol + 'werken' recht
-                const rol     = (currentUserData.rol || '').toLowerCase();
-                const rechten = currentUserData.rechten || [];
+                const rol      = (currentUserData.rol      || '').toLowerCase();
+                const categorie = (currentUserData.categorie || '').toLowerCase();
+                const rechten  = currentUserData.rechten || [];
+                const toegang  = currentUserData.toegang || [];
                 isAdmin = rol === 'admin' || rol === 'bestuurslid';
 
-                // Spelers met 'werken'-recht hebben ook toegang tot de RW-pagina
-                const toegang = currentUserData.toegang || [];
-                const heeftWerkToegang = isAdmin || rechten.includes('werken')
-                    || toegang.includes('werken');   // tijdelijk account
+                // Toegangslogica:
+                //   - Tijdelijk account (rol === 'tijdelijk' of categorie === 'extern'):
+                //     toegang als toegang[] 'rockwerchter' OF 'werken' bevat
+                //     (werken = werklijst-toegang voor het event → impliceert ook drankkaart)
+                //   - Alle andere ingelogde accounts (speler, admin, bestuurslid):
+                //     altijd toegang
+                const isTijdelijk = rol === 'tijdelijk' || categorie === 'extern';
+                const heeftToegang = isTijdelijk
+                    ? (toegang.includes('rockwerchter') || toegang.includes('werken'))
+                    : true;
 
                 $id('loginLink').textContent = 'PROFIEL';
 
-                if (!heeftWerkToegang) {
-                    // Geen toegang: toon een melding in loginBanner
+                if (!heeftToegang) {
+                    // Klein informatie-kadertje, zelfde stijl als login-banner
+                    $id('orderSummary')   && ($id('orderSummary').style.display   = 'none');
+                    $id('paymentButtons') && ($id('paymentButtons').style.display = 'none');
+
                     const banner = $id('loginBanner');
                     if (banner) {
-                        banner.innerHTML = `<div style="text-align:center;padding:2rem;">
-                            <div style="font-size:2.5rem;margin-bottom:0.75rem;">&#128274;</div>
-                            <h3 style="margin:0 0 0.5rem;">Geen toegang</h3>
-                            <p style="color:#888;">Je hebt geen toegang tot deze pagina. Neem contact op met de beheerder.</p>
-                            <a href="index.html" style="display:inline-block;margin-top:1rem;padding:0.6rem 1.4rem;background:#0047AB;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;">Terug naar home</a>
-                        </div>`;
+                        banner.className = 'login-banner';
+                        banner.innerHTML = `
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="flex-shrink:0">
+                                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <span>Dit account heeft geen toegang tot de drankkaart. Neem contact op met de beheerder.</span>`;
                         banner.style.display = 'flex';
                     }
+                    // Contact altijd zichtbaar voor accounts zonder toegang
+                    $id('contact') && ($id('contact').style.display = 'flex');
                     return;
                 }
 
-                $id('loginBanner').style.display = 'none';
+                // Volledige toegang: verberg banner + contact, toon menu
+                $id('loginBanner').style.display  = 'none';
                 $id('orderSummary').style.display  = 'block';
                 $id('paymentButtons').style.display = 'flex';
+                $id('contact') && ($id('contact').style.display = 'none');
 
-                // Bestellingen-knop voor alle ingelogde users
+                // Bestellingen-knop voor alle ingelogde users met toegang
                 const bestBtn = $id('bestellingenBtn');
                 if (bestBtn) bestBtn.style.display = 'flex';
             } else { guestMode(); }

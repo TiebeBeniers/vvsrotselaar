@@ -529,3 +529,13 @@
 }
 .export-waarschuwing svg { flex-shrink: 0; color: #f0ad4e; margin-top: 0.1rem; }
 .export-waarschuwing strong { color: #6d4c00; }
+
+/* ── Geen-toegang melding (hergebruikt .login-banner stijl) ─────────────────── */
+/* .login-banner bestaat al — enkel dark-mode aanvulling nodig */
+html.dark .login-banner {
+    background: #2a2210;
+    border-color: #b07d00;
+    color: #f0c040;
+}
+html.dark .login-banner a { color: #7eb3ff; }
+html.dark .login-banner svg { color: #f0c040; }

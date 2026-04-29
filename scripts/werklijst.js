@@ -45,13 +45,22 @@ onAuthStateChanged(auth, async (user) => {
         console.error('User load error:', e);
     }
 
-    // Toegangscheck: enkel admin, bestuurslid, of spelers met 'werken'-recht
-    const rol     = (currentUserData?.rol || '').toLowerCase();
-    const rechten = currentUserData?.rechten || [];
-    const toegang = currentUserData?.toegang || [];
-    const heeftToegang = rol === 'admin' || rol === 'bestuurslid'
-        || rechten.includes('werken')
-        || toegang.includes('werken');   // tijdelijk account
+    // Toegangscheck:
+    //   - Elk ingelogd account (speler, admin, bestuurslid) heeft altijd toegang.
+    //   - Uitzondering: accounts met categorie 'extern' hebben expliciet het
+    //     'werken'-recht nodig (via rechten[] of toegang[]).
+    const categorie = (currentUserData?.categorie || '').toLowerCase();
+    const rol       = (currentUserData?.rol || '').toLowerCase();
+    const rechten   = currentUserData?.rechten || [];
+    const toegang   = currentUserData?.toegang || [];
+    const rollen    = currentUserData?.rollen  || [];
+
+    const isExtern         = categorie === 'extern';
+    const heeftWerkenRecht = rechten.includes('werken') || toegang.includes('werken');
+
+    // Extern: enkel toegang met expliciet 'werken'-recht
+    // Alle andere ingelogde accounts (speler/admin/bestuurslid): altijd toegang
+    const heeftToegang = isExtern ? heeftWerkenRecht : true;
 
     if (!heeftToegang) {
         document.getElementById('loadingSpinner').style.display = 'none';

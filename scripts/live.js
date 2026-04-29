@@ -180,6 +180,8 @@ function rebuildLineupFromMatch() {
     outPlayers    = [];
     const lineup = currentMatch.lineup || {};
     for (const [uid, info] of Object.entries(lineup)) {
+        // Spelers die niet geselecteerd zijn (geen starter/bench) worden volledig genegeerd
+        if (info.status === 'niet_geselecteerd') continue;
         const p = { uid, name: info.name };
         if (info.status === 'starter') activePlayers.push(p);
         else if (info.status === 'bench') benchPlayers.push(p);
