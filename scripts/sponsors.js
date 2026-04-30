@@ -91,14 +91,14 @@ function buildSponsorCard(sponsor) {
         a.rel = 'noopener noreferrer';
         if (sponsor.afbeeldingNaam) {
             const img = document.createElement('img');
-            img.src = 'assets/' + sponsor.afbeeldingNaam;
+            img.src = './assets/' + sponsor.afbeeldingNaam;
             img.alt = (sponsor.naam || '') + ' Logo';
             a.appendChild(img);
         }
         logoDiv.appendChild(a);
     } else if (sponsor.afbeeldingNaam) {
         const img = document.createElement('img');
-        img.src = 'assets/' + sponsor.afbeeldingNaam;
+        img.src = './assets/' + sponsor.afbeeldingNaam;
         img.alt = (sponsor.naam || '') + ' Logo';
         logoDiv.appendChild(img);
     }
