@@ -80,7 +80,7 @@ function render(container, sponsors) {
 function buildSponsorCard(sponsor) {
     const card = document.createElement('div');
     card.className = 'sponsor-card';
- 
+
     // Logo column
     const logoDiv = document.createElement('div');
     logoDiv.className = 'sponsor-logo';
@@ -91,32 +91,32 @@ function buildSponsorCard(sponsor) {
         a.rel = 'noopener noreferrer';
         if (sponsor.afbeeldingNaam) {
             const img = document.createElement('img');
-            img.src = ASSETS_BASE + 'assets/' + sponsor.afbeeldingNaam;
+            img.src = 'assets/' + sponsor.afbeeldingNaam;
             img.alt = (sponsor.naam || '') + ' Logo';
             a.appendChild(img);
         }
         logoDiv.appendChild(a);
     } else if (sponsor.afbeeldingNaam) {
         const img = document.createElement('img');
-        img.src = ASSETS_BASE + 'assets/' + sponsor.afbeeldingNaam;
+        img.src = 'assets/' + sponsor.afbeeldingNaam;
         img.alt = (sponsor.naam || '') + ' Logo';
         logoDiv.appendChild(img);
     }
- 
+
     // Info column
     const infoDiv = document.createElement('div');
     infoDiv.className = 'sponsor-info';
- 
+
     const h3 = document.createElement('h3');
     h3.textContent = sponsor.naam || '';
     infoDiv.appendChild(h3);
- 
+
     if (sponsor.beschrijving) {
         const p = document.createElement('p');
         p.textContent = sponsor.beschrijving;
         infoDiv.appendChild(p);
     }
- 
+
     if (sponsor.website) {
         const a = document.createElement('a');
         a.href = sponsor.website;
@@ -126,7 +126,7 @@ function buildSponsorCard(sponsor) {
         a.textContent = sponsor.websiteLabel || 'Bezoek website →';
         infoDiv.appendChild(a);
     }
- 
+
     card.appendChild(logoDiv);
     card.appendChild(infoDiv);
     return card;
