@@ -3694,3 +3694,403 @@ html.dark #afgevaardigdeTeamGroup select { background: var(--white); border-colo
     border-color: var(--primary-blue);
     color: #fff;
 }
+
+/* ═══════════════════════════════════════════════════
+   LEDEN ZOEKBALK
+   ═══════════════════════════════════════════════════ */
+
+.member-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0 0.75rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+}
+.member-search-wrap:focus-within { border-color: var(--primary-blue); }
+
+.member-search-icon { flex-shrink: 0; color: var(--text-gray); }
+
+.member-search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 0.6rem 0;
+    font-size: 0.92rem;
+    font-family: inherit;
+    color: var(--text-dark);
+    outline: none;
+}
+.member-search-input::placeholder { color: var(--text-gray); }
+
+.member-search-clear {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text-gray);
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+.member-search-clear:hover { color: var(--danger); }
+
+.member-search-noresult {
+    color: var(--text-gray);
+    font-size: 0.9rem;
+    font-style: italic;
+    padding: 0.75rem 0;
+    text-align: center;
+    grid-column: 1 / -1;
+}
+
+/* ── Tijdslijn badge op match card ── */
+.match-badges-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    align-items: center;
+    margin-top: 0.4rem;
+}
+ 
+.timeline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #D1FAE5;
+    color: #065F46;
+    border: 1px solid #6EE7B7;
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════
+   RETROACTIEVE TIJDSLIJN — match modal
+   ═══════════════════════════════════════════════════ */
+
+#retroTimelineSection {
+    border-top: 1.5px solid var(--border-color);
+    padding-top: 1.25rem;
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+/* Header */
+.retro-section-header { margin-bottom: 0.25rem; }
+.retro-section-title  { font-weight: 700; font-size: 1rem; color: var(--primary-blue); margin-bottom: 0.25rem; }
+.retro-section-hint   { font-size: 0.81rem; color: var(--text-gray); }
+
+/* ── Stap-kaarten ── */
+.retro-step-card {
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+}
+
+.retro-step-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    margin-bottom: 0.65rem;
+}
+.retro-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--primary-blue);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+.retro-step-hint-inline {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--text-gray);
+}
+
+/* ── Aanwezigen grid ── */
+.retro-players-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 0.6rem 0.75rem;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+}
+.retro-grid-placeholder {
+    font-size: 0.84rem;
+    color: var(--text-gray);
+    font-style: italic;
+    padding: 0.25rem 0;
+}
+.retro-player-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.86rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.retro-player-label input { accent-color: var(--primary-blue); cursor: pointer; }
+
+/* ── Opstelling (basis + bank kolommen) ── */
+.retro-lineup-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.retro-lineup-colhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+}
+.retro-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--border-color);
+    padding: 1px 6px;
+    border-radius: 10px;
+    color: var(--text-dark);
+}
+.retro-slot-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-height: 48px;
+    padding: 0.4rem;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+}
+.retro-slot-empty {
+    font-size: 0.78rem;
+    color: var(--text-gray);
+    font-style: italic;
+    padding: 0.2rem 0.25rem;
+}
+
+/* Chip in basis/bank */
+.retro-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 3px 6px 3px 8px;
+    font-size: 0.82rem;
+}
+.retro-chip-naam { font-weight: 600; color: var(--text-dark); }
+.retro-chip-rm {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-gray); font-size: 1rem; line-height: 1;
+    padding: 0 2px; border-radius: 3px; transition: color 0.15s;
+}
+.retro-chip-rm:hover { color: var(--danger); }
+
+/* Pool (aanwezigen niet in opstelling) */
+.retro-pool-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
+}
+.retro-pool-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 0.4rem;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+}
+.retro-pool-empty {
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    font-style: italic;
+}
+.retro-pool-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 6px;
+    border-radius: 5px;
+    font-size: 0.84rem;
+}
+.retro-pool-row:hover { background: var(--off-white); }
+.retro-pool-naam { font-weight: 500; color: var(--text-dark); }
+.retro-pool-btns { display: flex; gap: 0.3rem; }
+.retro-pool-btn {
+    padding: 2px 9px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 5px;
+    border: 1.5px solid var(--primary-blue);
+    background: var(--primary-blue);
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.15s;
+}
+.retro-pool-btn:hover { opacity: 0.82; }
+.retro-pool-btn-k {
+    background: var(--white);
+    color: var(--primary-blue);
+}
+.retro-pool-btn-k:hover { background: #EFF6FF; }
+
+/* ── Event-toevoegen rij ── */
+.retro-add-row {
+    display: flex;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.55rem;
+    align-items: flex-end;
+}
+.retro-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    flex: 1;
+    min-width: 80px;
+}
+.retro-field label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.retro-field-min  { flex: 0 0 68px; }
+.retro-field-type { flex: 2; }
+.retro-field-team { flex: 1; }
+.retro-optional   { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+.retro-input,
+.retro-select {
+    padding: 0.45rem 0.6rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    font-size: 0.86rem;
+    font-family: inherit;
+    background: var(--white);
+    color: var(--text-dark);
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+.retro-input:focus,
+.retro-select:focus { outline: none; border-color: var(--primary-blue); }
+
+.retro-add-btn {
+    width: 100%;
+    padding: 0.58rem;
+    background: var(--primary-blue);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.86rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.retro-add-btn:hover { background: var(--dark-blue); }
+
+/* ── Preview tijdslijn ── */
+.retro-preview-section {
+    background: var(--off-white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.retro-preview-title {
+    padding: 0.55rem 1rem;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--white);
+}
+.retro-timeline-preview {
+    padding: 0.5rem 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.retro-preview-empty {
+    text-align: center;
+    color: var(--text-gray);
+    font-size: 0.84rem;
+    font-style: italic;
+    padding: 0.75rem 0;
+}
+.retro-event {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.28rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+}
+.retro-event.retro-home { border-left: 3px solid var(--primary-blue); }
+.retro-event.retro-away { border-left: 3px solid var(--danger); opacity: 0.7; }
+.retro-event-min   { font-weight: 700; color: var(--text-gray); font-size: 0.76rem; min-width: 26px; flex-shrink: 0; }
+.retro-event-icon  { font-size: 0.95rem; flex-shrink: 0; }
+.retro-event-desc  { flex: 1; color: var(--text-dark); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.retro-assist      { color: var(--text-gray); font-weight: 400; font-size: 0.8em; }
+.retro-delete-btn  {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-gray); font-size: 1rem; line-height: 1;
+    padding: 2px 4px; border-radius: 3px; flex-shrink: 0;
+    transition: color 0.15s, background 0.15s;
+}
+.retro-delete-btn:hover { color: var(--danger); background: #fee2e2; }
+.retro-marker {
+    display: flex; align-items: center; gap: 0.45rem; margin: 0.15rem 0;
+}
+.retro-marker-line  { flex: 1; height: 1px; background: var(--border-color); }
+.retro-marker-label { font-size: 0.72rem; font-weight: 700; color: var(--text-gray); white-space: nowrap; }
+
+@media (max-width: 500px) {
+    .retro-lineup-wrap { grid-template-columns: 1fr; }
+    .retro-add-row     { flex-direction: column; }
+    .retro-field-min   { flex: 1; }
+}

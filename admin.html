@@ -97,6 +97,16 @@
                     <div class="temp-accounts-list" id="tempAccountsList"></div>
                 </div>
 
+                <!-- Zoekbalk leden -->
+                <div class="member-search-wrap">
+                    <svg class="member-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16">
+                        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input type="text" id="memberSearchInput" class="member-search-input"
+                           placeholder="Zoek op naam, e-mail of ploeg&#8230;" autocomplete="off">
+                    <button type="button" id="memberSearchClear" class="member-search-clear" style="display:none;" title="Wis zoekopdracht">&times;</button>
+                </div>
+
                 <div class="members-list" id="membersList">
                     <div class="loading"><div class="loader"></div></div>
                 </div>
@@ -640,6 +650,119 @@
                     <label for="matchDescription">Beschrijving (optioneel)</label>
                     <textarea id="matchDescription" rows="3" placeholder="Extra informatie over de wedstrijd"></textarea>
                 </div>
+                <!-- ══ Retroactieve tijdslijn (enkel zichtbaar bij afgelopen wedstrijd) ══ -->
+                <div id="retroTimelineSection" style="display:none;">
+                    <div class="retro-section-header">
+                        <div class="retro-section-title">&#128336; Tijdslijn Invoegen</div>
+                        <span class="retro-section-hint">Stap 1: laad aanwezigen &rarr; Stap 2: stel opstelling in &rarr; Stap 3: voeg events toe.</span>
+                    </div>
+
+                    <!-- STAP 1: Aanwezigen -->
+                    <div class="retro-step-card">
+                        <div class="retro-step-label">
+                            <span class="retro-step-num">1</span> Aanwezigen
+                            <span class="retro-step-hint-inline">— iedereen die aanwezig stond op de availability lijst</span>
+                        </div>
+                        <div id="retroAanwezigenGrid" class="retro-players-grid">
+                            <span class="retro-grid-placeholder">Aanwezigen worden geladen&hellip;</span>
+                        </div>
+                    </div>
+
+                    <!-- STAP 2: Opstelling -->
+                    <div class="retro-step-card">
+                        <div class="retro-step-label">
+                            <span class="retro-step-num">2</span> Opstelling
+                            <span class="retro-step-hint-inline">— selecteer basiself en bank</span>
+                        </div>
+                        <div class="retro-lineup-wrap">
+                            <div class="retro-lineup-col">
+                                <div class="retro-lineup-colhead">
+                                    Basiself
+                                    <span class="retro-count" id="retroBasisCount">0/11</span>
+                                </div>
+                                <div id="retroBasisList" class="retro-slot-list"></div>
+                            </div>
+                            <div class="retro-lineup-col">
+                                <div class="retro-lineup-colhead">
+                                    Bank
+                                    <span class="retro-count" id="retroBankCount">0/5</span>
+                                </div>
+                                <div id="retroBankList" class="retro-slot-list"></div>
+                            </div>
+                        </div>
+                        <div class="retro-pool-label">Aanwezigen (niet in opstelling)</div>
+                        <div id="retroPoolList" class="retro-pool-list"></div>
+                    </div>
+
+                    <!-- STAP 3: Events -->
+                    <div class="retro-step-card">
+                        <div class="retro-step-label">
+                            <span class="retro-step-num">3</span> Events toevoegen
+                        </div>
+                        <div class="retro-add-row">
+                            <div class="retro-field retro-field-min">
+                                <label>Min.</label>
+                                <input type="number" id="retroMinute" min="1" max="120" placeholder="45" class="retro-input">
+                            </div>
+                            <div class="retro-field retro-field-type">
+                                <label>Type</label>
+                                <select id="retroEventType" class="retro-select">
+                                    <option value="goal">&#9917; Goal</option>
+                                    <option value="penalty">&#127933; Penalty (gescoord)</option>
+                                    <option value="own-goal">Eigen doelpunt</option>
+                                    <option value="yellow">&#128993; Gele kaart</option>
+                                    <option value="yellow2red">2e geel / Rood</option>
+                                    <option value="red">&#128308; Rode kaart</option>
+                                    <option value="substitution">&#128260; Wissel</option>
+                                    <option value="penalty-missed">Penalty gemist</option>
+                                </select>
+                            </div>
+                            <div class="retro-field retro-field-team">
+                                <label>Ploeg</label>
+                                <select id="retroEventPloeg" class="retro-select">
+                                    <option value="home">Thuis (VVS)</option>
+                                    <option value="away">Uit</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="retro-add-row" id="retroPlayerRow">
+                            <div class="retro-field" id="retroPlayerField">
+                                <label id="retroPlayerLabel">Speler</label>
+                                <select id="retroPlayer" class="retro-select">
+                                    <option value="">&#8212; Selecteer speler &#8212;</option>
+                                </select>
+                                <input type="text" id="retroPlayerManual" class="retro-input"
+                                       placeholder="Typ naam (tegenstander)&hellip;" style="display:none;">
+                            </div>
+                            <div class="retro-field" id="retroAssistField" style="display:none;">
+                                <label>Assist <span class="retro-optional">(optioneel)</span></label>
+                                <select id="retroAssist" class="retro-select">
+                                    <option value="">&#8212; Geen assist &#8212;</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="retro-add-row" id="retroSubFields" style="display:none;">
+                            <div class="retro-field">
+                                <label>Speler eraf</label>
+                                <select id="retroSubOut" class="retro-select"><option value="">&#8212; Selecteer &#8212;</option></select>
+                            </div>
+                            <div class="retro-field">
+                                <label>Speler erin</label>
+                                <select id="retroSubIn" class="retro-select"><option value="">&#8212; Selecteer &#8212;</option></select>
+                            </div>
+                        </div>
+                        <button type="button" class="retro-add-btn" id="retroAddEventBtn">+ Voeg event toe</button>
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="retro-preview-section">
+                        <div class="retro-preview-title">Tijdslijn preview</div>
+                        <div id="retroTimelinePreview" class="retro-timeline-preview">
+                            <div class="retro-preview-empty">Nog geen events ingevoerd.</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-group" id="designatedPersonsGroup">
                     <label>Toegang voor *</label>
                     <small>Selecteer personen die de wedstrijd kunnen starten en beheren</small>
