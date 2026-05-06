@@ -3695,402 +3695,420 @@ html.dark #afgevaardigdeTeamGroup select { background: var(--white); border-colo
     color: #fff;
 }
 
-/* ═══════════════════════════════════════════════════
-   LEDEN ZOEKBALK
-   ═══════════════════════════════════════════════════ */
+/* ===============================================================
+   RETRO WEDSTRIJD INVOER WIZARD
+   =============================================================== */
 
-.member-search-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--white);
-    border: 1.5px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0 0.75rem;
-    margin-bottom: 1rem;
-    transition: border-color 0.2s;
+/* Retro knop op match-card */
+.action-btn.retro-btn {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #a5d6a7;
 }
-.member-search-wrap:focus-within { border-color: var(--primary-blue); }
-
-.member-search-icon { flex-shrink: 0; color: var(--text-gray); }
-
-.member-search-input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    padding: 0.6rem 0;
-    font-size: 0.92rem;
-    font-family: inherit;
-    color: var(--text-dark);
-    outline: none;
-}
-.member-search-input::placeholder { color: var(--text-gray); }
-
-.member-search-clear {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 1.2rem;
-    color: var(--text-gray);
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: color 0.15s;
-    flex-shrink: 0;
-}
-.member-search-clear:hover { color: var(--danger); }
-
-.member-search-noresult {
-    color: var(--text-gray);
-    font-size: 0.9rem;
-    font-style: italic;
-    padding: 0.75rem 0;
-    text-align: center;
-    grid-column: 1 / -1;
+.action-btn.retro-btn:hover {
+    background: #c8e6c9;
 }
 
-/* ── Tijdslijn badge op match card ── */
-.match-badges-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    align-items: center;
-    margin-top: 0.4rem;
-}
- 
-.timeline-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    background: #D1FAE5;
-    color: #065F46;
-    border: 1px solid #6EE7B7;
-    white-space: nowrap;
-}
-
-/* ═══════════════════════════════════════════════════
-   RETROACTIEVE TIJDSLIJN — match modal
-   ═══════════════════════════════════════════════════ */
-
-#retroTimelineSection {
-    border-top: 1.5px solid var(--border-color);
-    padding-top: 1.25rem;
-    margin-top: 0.75rem;
+/* Modal container */
+.retro-modal-content {
+    max-height: 90vh;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0;
 }
 
-/* Header */
-.retro-section-header { margin-bottom: 0.25rem; }
-.retro-section-title  { font-weight: 700; font-size: 1rem; color: var(--primary-blue); margin-bottom: 0.25rem; }
-.retro-section-hint   { font-size: 0.81rem; color: var(--text-gray); }
-
-/* ── Stap-kaarten ── */
-.retro-step-card {
-    background: var(--off-white);
-    border: 1.5px solid var(--border-color);
-    border-radius: 10px;
-    padding: 0.9rem 1rem;
-}
-
-.retro-step-label {
+/* Steps-bar */
+.retro-steps-bar {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 700;
-    font-size: 0.9rem;
-    color: var(--text-dark);
-    margin-bottom: 0.65rem;
+    gap: 0;
+    margin: 0.75rem 0 1.25rem;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--border-color, #e9ecef);
 }
-.retro-step-num {
-    display: inline-flex;
+.retro-step-dot {
+    flex: 1;
+    display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-gray, #6c757d);
+    background: var(--bg-light, #f8f9fa);
+    border-right: 1px solid var(--border-color, #e9ecef);
+    transition: background 0.2s, color 0.2s;
+}
+.retro-step-dot:last-child { border-right: none; }
+.retro-dot-num {
     width: 22px; height: 22px;
     border-radius: 50%;
-    background: var(--primary-blue);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 800;
-    flex-shrink: 0;
+    background: var(--border-color, #dee2e6);
+    color: var(--text-gray, #6c757d);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
 }
-.retro-step-hint-inline {
-    font-weight: 400;
-    font-size: 0.8rem;
-    color: var(--text-gray);
+.retro-step-dot.active {
+    background: #e3f2fd;
+    color: var(--primary-blue, #1565c0);
+}
+.retro-step-dot.active .retro-dot-num {
+    background: var(--primary-blue, #1565c0);
+    color: #fff;
+}
+.retro-step-dot.done {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.retro-step-dot.done .retro-dot-num {
+    background: #2e7d32;
+    color: #fff;
 }
 
-/* ── Aanwezigen grid ── */
-.retro-players-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem 1rem;
-    max-height: 160px;
+/* Content */
+.retro-content {
+    flex: 1;
     overflow-y: auto;
-    padding: 0.6rem 0.75rem;
-    background: var(--white);
-    border: 1.5px solid var(--border-color);
-    border-radius: 8px;
 }
-.retro-grid-placeholder {
-    font-size: 0.84rem;
-    color: var(--text-gray);
+.retro-step-body {
+    padding: 0 0.25rem;
+}
+.retro-step-desc {
+    margin-bottom: 0.85rem;
+    color: var(--text-gray, #6c757d);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Availability list */
+.retro-avail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-light, #fafafa);
+}
+.retro-player-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.3rem 0.25rem;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.1s;
+}
+.retro-player-row:hover { background: var(--hover-bg, #f0f4ff); }
+.retro-player-row input[type="checkbox"] {
+    width: 16px; height: 16px; cursor: pointer; flex-shrink: 0;
+}
+.retro-extern-badge {
+    font-size: 0.72rem;
+    color: #fff;
+    background: #78909c;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-style: normal;
+    font-weight: 600;
+}
+
+/* Manual add row */
+.retro-manual-add-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+}
+#retroManualAddForm {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+#retroManualAddForm input {
+    flex: 1;
+    min-width: 160px;
+}
+
+/* Events lijst */
+.retro-empty {
+    color: var(--text-gray, #999);
+    font-size: 0.87rem;
     font-style: italic;
     padding: 0.25rem 0;
 }
-.retro-player-label {
-    display: inline-flex;
+.retro-event-row {
+    display: flex;
     align-items: center;
-    gap: 0.3rem;
-    font-size: 0.86rem;
-    cursor: pointer;
-    white-space: nowrap;
+    gap: 0.5rem;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--border-color, #f0f0f0);
+    font-size: 0.87rem;
+    flex-wrap: wrap;
 }
-.retro-player-label input { accent-color: var(--primary-blue); cursor: pointer; }
+.retro-event-min {
+    font-weight: 700;
+    color: var(--text-dark, #222);
+    min-width: 80px;
+}
+.retro-event-min small { font-weight: 400; color: var(--text-gray, #888); }
+.retro-event-type { font-weight: 600; min-width: 130px; }
+.retro-event-detail { color: var(--text-gray, #555); flex: 1; }
+.retro-ev-vvs {
+    font-size: 0.72rem; font-weight: 700;
+    background: var(--primary-blue, #1565c0); color: #fff;
+    border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
+}
+.retro-ev-opp {
+    font-size: 0.72rem; font-weight: 700;
+    background: #e0e0e0; color: #444;
+    border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
+}
+.retro-delete-event {
+    border: none; background: none; cursor: pointer;
+    color: var(--danger, #dc3545); font-size: 0.85rem;
+    padding: 2px 5px; border-radius: 4px; margin-left: auto;
+    flex-shrink: 0;
+}
+.retro-delete-event:hover { background: #fde; }
 
-/* ── Opstelling (basis + bank kolommen) ── */
-.retro-lineup-wrap {
+/* Add event form */
+.retro-add-event-form {
+    background: var(--bg-light, #f8f9fa);
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 10px;
+    padding: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Minute warning (info, geen fout) */
+.retro-min-warning {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-radius: 7px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.83rem;
+    color: #795548;
+    margin-bottom: 0.5rem;
+}
+
+/* Finalize section */
+.retro-finalize-section {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 2px solid var(--border-color, #e9ecef);
+    text-align: center;
+}
+
+/* Footer nav */
+.retro-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color, #e9ecef);
+    margin-top: 1rem;
+    gap: 0.75rem;
+}
+
+/* Timeline body extra spacing */
+.retro-timeline-body #retroEventsList {
+    max-height: 260px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color, #e9ecef);
+    border-radius: 10px;
+    padding: 0.25rem 0.5rem;
+    margin-bottom: 0.5rem;
+    background: var(--white, #fff);
+}
+
+/* ── Retro wizard: modal breedte ─────────────────────────────────────────── */
+#retroModal .modal-content {
+    max-width: 820px;
+}
+
+/* ── Retro wizard: opstelling stap 2 ─────────────────────────────────────── */
+
+/* "Aanwezig" chip-rij bovenaan */
+.retro-avail-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.6rem;
+    min-height: 44px;
+    border: 1px dashed #bdbdbd;
+    border-radius: 10px;
+    background: #fafafa;
+    margin-bottom: 1rem;
+}
+.retro-avail-chips.drag-over {
+    border-color: #1565c0;
+    background: #e3f2fd;
+}
+
+/* Basis + Bank kolommen naast elkaar */
+.retro-2col-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
     margin-bottom: 0.75rem;
 }
-.retro-lineup-colhead {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: var(--text-gray);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.4rem;
+@media (max-width: 560px) {
+    .retro-2col-grid { grid-template-columns: 1fr; }
 }
-.retro-count {
-    font-size: 0.75rem;
-    font-weight: 700;
-    background: var(--border-color);
-    padding: 1px 6px;
-    border-radius: 10px;
-    color: var(--text-dark);
-}
-.retro-slot-list {
+
+.retro-lineup-col {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
-    min-height: 48px;
-    padding: 0.4rem;
-    background: var(--white);
-    border: 1.5px solid var(--border-color);
-    border-radius: 8px;
-}
-.retro-slot-empty {
-    font-size: 0.78rem;
-    color: var(--text-gray);
-    font-style: italic;
-    padding: 0.2rem 0.25rem;
-}
-
-/* Chip in basis/bank */
-.retro-chip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--off-white);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 3px 6px 3px 8px;
-    font-size: 0.82rem;
-}
-.retro-chip-naam { font-weight: 600; color: var(--text-dark); }
-.retro-chip-rm {
-    background: none; border: none; cursor: pointer;
-    color: var(--text-gray); font-size: 1rem; line-height: 1;
-    padding: 0 2px; border-radius: 3px; transition: color 0.15s;
-}
-.retro-chip-rm:hover { color: var(--danger); }
-
-/* Pool (aanwezigen niet in opstelling) */
-.retro-pool-label {
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: var(--text-gray);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 0.4rem;
-}
-.retro-pool-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    max-height: 180px;
-    overflow-y: auto;
-    padding: 0.4rem;
-    background: var(--white);
-    border: 1.5px solid var(--border-color);
-    border-radius: 8px;
-}
-.retro-pool-empty {
-    font-size: 0.8rem;
-    color: var(--text-gray);
-    font-style: italic;
-}
-.retro-pool-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 3px 6px;
-    border-radius: 5px;
-    font-size: 0.84rem;
-}
-.retro-pool-row:hover { background: var(--off-white); }
-.retro-pool-naam { font-weight: 500; color: var(--text-dark); }
-.retro-pool-btns { display: flex; gap: 0.3rem; }
-.retro-pool-btn {
-    padding: 2px 9px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 5px;
-    border: 1.5px solid var(--primary-blue);
-    background: var(--primary-blue);
-    color: #fff;
-    cursor: pointer;
-    font-family: inherit;
-    transition: opacity 0.15s;
-}
-.retro-pool-btn:hover { opacity: 0.82; }
-.retro-pool-btn-k {
-    background: var(--white);
-    color: var(--primary-blue);
-}
-.retro-pool-btn-k:hover { background: #EFF6FF; }
-
-/* ── Event-toevoegen rij ── */
-.retro-add-row {
-    display: flex;
-    gap: 0.55rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.55rem;
-    align-items: flex-end;
-}
-.retro-field {
-    display: flex;
-    flex-direction: column;
-    gap: 0.28rem;
-    flex: 1;
-    min-width: 80px;
-}
-.retro-field label {
-    font-size: 0.76rem;
-    font-weight: 700;
-    color: var(--text-gray);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.retro-field-min  { flex: 0 0 68px; }
-.retro-field-type { flex: 2; }
-.retro-field-team { flex: 1; }
-.retro-optional   { font-weight: 400; text-transform: none; letter-spacing: 0; }
-
-.retro-input,
-.retro-select {
-    padding: 0.45rem 0.6rem;
-    border: 1.5px solid var(--border-color);
-    border-radius: 7px;
-    font-size: 0.86rem;
-    font-family: inherit;
-    background: var(--white);
-    color: var(--text-dark);
-    width: 100%;
-    box-sizing: border-box;
-    transition: border-color 0.2s;
-}
-.retro-input:focus,
-.retro-select:focus { outline: none; border-color: var(--primary-blue); }
-
-.retro-add-btn {
-    width: 100%;
-    padding: 0.58rem;
-    background: var(--primary-blue);
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 0.86rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-.retro-add-btn:hover { background: var(--dark-blue); }
-
-/* ── Preview tijdslijn ── */
-.retro-preview-section {
-    background: var(--off-white);
-    border: 1.5px solid var(--border-color);
+    border: 1px solid var(--border-color, #dee2e6);
     border-radius: 10px;
     overflow: hidden;
 }
-.retro-preview-title {
-    padding: 0.55rem 1rem;
-    font-weight: 700;
-    font-size: 0.8rem;
-    color: var(--text-gray);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--white);
-}
-.retro-timeline-preview {
-    padding: 0.5rem 0.65rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    max-height: 260px;
-    overflow-y: auto;
-}
-.retro-preview-empty {
-    text-align: center;
-    color: var(--text-gray);
-    font-size: 0.84rem;
-    font-style: italic;
-    padding: 0.75rem 0;
-}
-.retro-event {
+.retro-lineup-col-hdr {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.28rem 0.45rem;
-    border-radius: 6px;
-    font-size: 0.82rem;
-    background: var(--white);
-    border: 1px solid var(--border-color);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+    flex-shrink: 0;
 }
-.retro-event.retro-home { border-left: 3px solid var(--primary-blue); }
-.retro-event.retro-away { border-left: 3px solid var(--danger); opacity: 0.7; }
-.retro-event-min   { font-weight: 700; color: var(--text-gray); font-size: 0.76rem; min-width: 26px; flex-shrink: 0; }
-.retro-event-icon  { font-size: 0.95rem; flex-shrink: 0; }
-.retro-event-desc  { flex: 1; color: var(--text-dark); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.retro-assist      { color: var(--text-gray); font-weight: 400; font-size: 0.8em; }
-.retro-delete-btn  {
-    background: none; border: none; cursor: pointer;
-    color: var(--text-gray); font-size: 1rem; line-height: 1;
-    padding: 2px 4px; border-radius: 3px; flex-shrink: 0;
-    transition: color 0.15s, background 0.15s;
-}
-.retro-delete-btn:hover { color: var(--danger); background: #fee2e2; }
-.retro-marker {
-    display: flex; align-items: center; gap: 0.45rem; margin: 0.15rem 0;
-}
-.retro-marker-line  { flex: 1; height: 1px; background: var(--border-color); }
-.retro-marker-label { font-size: 0.72rem; font-weight: 700; color: var(--text-gray); white-space: nowrap; }
+.retro-col--start .retro-lineup-col-hdr { background: #e3f2fd; color: #0d47a1; }
+.retro-col--bench .retro-lineup-col-hdr { background: #fff3e0; color: #bf360c; }
 
-@media (max-width: 500px) {
-    .retro-lineup-wrap { grid-template-columns: 1fr; }
-    .retro-add-row     { flex-direction: column; }
-    .retro-field-min   { flex: 1; }
+.retro-lineup-badge {
+    min-width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
+}
+.retro-badge--gray   { background: #9e9e9e; color: #fff; }
+.retro-badge--blue   { background: #1565c0; color: #fff; }
+.retro-badge--orange { background: #e65100; color: #fff; }
+.retro-lineup-max { font-size: 0.75rem; font-weight: 400; color: #888; margin-left: auto; }
+
+.retro-lineup-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    min-height: 80px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.retro-lineup-sub {
+    font-size: 0.7rem;
+    color: #aaa;
+    text-align: center;
+    padding: 0.25rem 0.5rem 0.4rem;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* Pills — hoge specificiteit om button-resets te overrulen */
+#retroModal .retro-player-pill {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.38rem 0.65rem;
+    border-radius: 20px;
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    line-height: 1.3;
+    transition: filter 0.1s, transform 0.1s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+}
+#retroModal .retro-player-pill:active { transform: scale(0.96); }
+
+/* Chip in de beschikbaarheidsrij (breed, afgerond) */
+#retroModal .retro-player-pill.pill--avail {
+    background: #ffffff;
+    border-color: #9e9e9e;
+    color: #212121 !important;
+    width: auto;
+    display: inline-block;
+    padding: 0.28rem 0.75rem;
+    font-size: 0.8rem;
+}
+#retroModal .retro-player-pill.pill--avail:hover {
+    background: #e3f2fd;
+    border-color: #1565c0;
+    color: #1565c0 !important;
+}
+
+/* Basisspeler */
+#retroModal .retro-player-pill.pill--start {
+    background: #1565c0;
+    border-color: #1565c0;
+    color: #ffffff !important;
+}
+#retroModal .retro-player-pill.pill--start:hover {
+    background: #0d47a1;
+    border-color: #0d47a1;
+}
+
+/* Wisselspeler */
+#retroModal .retro-player-pill.pill--bench {
+    background: #e65100;
+    border-color: #e65100;
+    color: #ffffff !important;
+}
+#retroModal .retro-player-pill.pill--bench:hover {
+    background: #bf360c;
+    border-color: #bf360c;
+}
+
+.retro-lineup-hint {
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 0.4rem 0.25rem;
+    min-height: 1.5rem;
+    text-align: center;
+}
+
+/* ── Retro wizard: form input inline ────────────────────────────────────── */
+.modal-input-manual {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-top: 0.3rem;
+    background: var(--white, #fff);
+    color: var(--text-dark, #222);
+    box-sizing: border-box;
+}
+.modal-input-manual:focus {
+    outline: none;
+    border-color: var(--primary-blue, #1565c0);
+    box-shadow: 0 0 0 3px rgba(21,101,192,0.12);
+}
+
+/* ── Match-card: tijdslijn badge ─────────────────────────────────────────── */
+.retro-done-badge {
+    background: #e8f5e9 !important;
+    color: #2e7d32 !important;
+    border: 1px solid #a5d6a7;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }

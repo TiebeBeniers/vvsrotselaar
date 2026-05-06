@@ -9,7 +9,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 
 console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
@@ -1055,50 +1055,6 @@ async function deleteTempAccount(docId, naam) {
     }
 }
 
-
-// ── Leden zoekbalk ────────────────────────────────────────────────────────────
-(function initMemberSearch() {
-    const input = document.getElementById('memberSearchInput');
-    const clearBtn = document.getElementById('memberSearchClear');
-    if (!input) return;
-
-    function filterMembers(query) {
-        const q = query.trim().toLowerCase();
-        clearBtn.style.display = q ? '' : 'none';
-
-        document.querySelectorAll('#membersList .member-card').forEach(card => {
-            const text = card.textContent.toLowerCase();
-            card.style.display = (!q || text.includes(q)) ? '' : 'none';
-        });
-
-        // Lege-toestand bericht
-        const visible = [...document.querySelectorAll('#membersList .member-card')]
-            .filter(c => c.style.display !== 'none').length;
-        let noResult = document.getElementById('memberSearchNoResult');
-        if (visible === 0 && q) {
-            if (!noResult) {
-                noResult = document.createElement('p');
-                noResult.id = 'memberSearchNoResult';
-                noResult.className = 'member-search-noresult';
-                noResult.textContent = 'Geen leden gevonden voor "' + query.trim() + '".';
-                document.getElementById('membersList').appendChild(noResult);
-            } else {
-                noResult.textContent = 'Geen leden gevonden voor "' + query.trim() + '".';
-                noResult.style.display = '';
-            }
-        } else if (noResult) {
-            noResult.style.display = 'none';
-        }
-    }
-
-    input.addEventListener('input', () => filterMembers(input.value));
-    clearBtn.addEventListener('click', () => {
-        input.value = '';
-        filterMembers('');
-        input.focus();
-    });
-})();
-
 // ===============================================
 // ACCOUNT REQUESTS MANAGEMENT
 // ===============================================
@@ -1412,8 +1368,6 @@ if (addMatchBtn) {
         document.getElementById('matchAwayScore').removeAttribute('required');
         
         populateDesignatedPersonsSelect();
-        // Reset tijdslijn
-        resetRetroTimeline();
         matchModal.classList.add('active');
     });
 }
@@ -1421,7 +1375,6 @@ if (addMatchBtn) {
 if (matchModalCancel) {
     matchModalCancel.addEventListener('click', () => {
         matchModal.classList.remove('active');
-        resetRetroTimeline();
     });
 }
 
@@ -1442,9 +1395,6 @@ if (btnUpcoming) {
         matchTypeInput.value = 'upcoming';
         matchHomeScore.removeAttribute('required');
         matchAwayScore.removeAttribute('required');
-        // Verberg tijdslijn-editor
-        const rts = document.getElementById('retroTimelineSection');
-        if (rts) rts.style.display = 'none';
     });
 }
 
@@ -1457,10 +1407,6 @@ if (btnFinished) {
         matchTypeInput.value = 'finished';
         matchHomeScore.setAttribute('required', 'required');
         matchAwayScore.setAttribute('required', 'required');
-        // Toon tijdslijn-editor
-        const rts = document.getElementById('retroTimelineSection');
-        if (rts) rts.style.display = 'block';
-        initRetroTimeline();
     });
 }
 
@@ -1581,29 +1527,16 @@ if (matchForm) {
         }
         
         try {
-            const savedMatchId = matchId
-                ? matchId
-                : (await addDoc(collection(db, 'matches'), matchData)).id;
-
             if (matchId) {
                 await updateDoc(doc(db, 'matches', matchId), matchData);
+            } else {
+                const docRef = await addDoc(collection(db, 'matches'), matchData);
+                console.log('Match created with ID:', docRef.id);
             }
-
-            // Sla retroactieve tijdslijn op als het een afgelopen wedstrijd is
-            const isFinishedSave = document.getElementById('matchType')?.value === 'finished';
-            // Tijdslijn is optioneel — sla enkel op als er iets ingevuld is
-            const hasRetroData = (typeof retroEvents !== 'undefined' && retroEvents.length > 0)
-                || (typeof retroBasis !== 'undefined' && retroBasis.length > 0)
-                || (typeof retroBank  !== 'undefined' && retroBank.length  > 0);
-            if (isFinishedSave && hasRetroData) {
-                const teamVal = document.getElementById('matchTeam')?.value || 'zaterdag';
-                await saveRetroTimeline(savedMatchId, teamVal);
-            }
-
+            
             showToast('Wedstrijd opgeslagen!', 'success');
             matchModal.classList.remove('active');
             matchForm.reset();
-            resetRetroTimeline();
             await loadMatches();
             
         } catch (error) {
@@ -1659,30 +1592,7 @@ function displayMatches(matchesSnapshot) {
     });
 
     setTabCount('matches', allMatchesCache.length);
-
-    // Check welke afgelopen wedstrijden een tijdslijn hebben (events-collectie)
-    // Doe dit parallel en render dan opnieuw
-    const finishedMatches = allMatchesCache.filter(
-        m => m.status === 'finished' || m.status === 'live' || m.status === 'rust'
-    );
-
-    renderMatchList(); // eerste render zonder badges
-
-    if (finishedMatches.length > 0) {
-        Promise.all(
-            finishedMatches.map(m =>
-                getDocs(query(collection(db, 'events'), where('matchId', '==', m.id)))
-                    .then(snap => ({ id: m.id, hasTimeline: !snap.empty }))
-                    .catch(() => ({ id: m.id, hasTimeline: false }))
-            )
-        ).then(results => {
-            results.forEach(r => {
-                const match = allMatchesCache.find(m => m.id === r.id);
-                if (match) match.hasTimeline = r.hasTimeline;
-            });
-            renderMatchList(); // opnieuw renderen met badges
-        });
-    }
+    renderMatchList();
 }
 
 function renderMatchList() {
@@ -1732,10 +1642,6 @@ function createMatchCard(match) {
         const person = allMembers.find(m => m.uid === uid);
         return person ? person.naam : 'Onbekend';
     }).join(', ') || 'Niemand';
-
-    const timelineBadge = match.hasTimeline
-        ? '<span class="timeline-badge" title="Tijdslijn ingevuld">✓ Tijdslijn</span>'
-        : '';
     
     card.innerHTML = `
         <div class="match-info-admin">
@@ -1744,19 +1650,29 @@ function createMatchCard(match) {
             <p>Team: ${match.team || 'Niet gespecificeerd'}</p>
             ${match.beschrijving ? `<p class="match-description">${match.beschrijving}</p>` : ''}
             <p>Toegang: ${personenNames}</p>
-            <div class="match-badges-row">
-                ${statusBadge}
-                ${match.status !== 'planned' ? `<span class="member-badge">Score: ${match.scoreThuis || 0} - ${match.scoreUit || 0}</span>` : ''}
-                ${timelineBadge}
-            </div>
+            ${statusBadge}
+            ${match.status !== 'planned' ? `<span class="member-badge">Score: ${match.scoreThuis || 0} - ${match.scoreUit || 0}</span>` : ''}
         </div>
         <div class="card-actions">
-            <button class="action-btn edit" data-id="${match.id}">Bewerken</button>
+            ${match.status === 'planned' ? `<button class="action-btn edit" data-id="${match.id}">Bewerken</button>` : ''}
+            ${(match.status === 'finished' || match.status === 'live' || match.status === 'rust')
+                ? (match.lineupConfirmed
+                    ? `<span class="match-badge retro-done-badge" title="Tijdslijn en opstelling zijn ingevoerd">✓ Tijdslijn aanwezig</span>`
+                    : `<button class="action-btn retro-btn" data-id="${match.id}">⏱ Achteraf invoeren</button>`)
+                : ''}
             <button class="action-btn delete" data-id="${match.id}">Verwijderen</button>
         </div>
     `;
     
-    card.querySelector('.edit').addEventListener('click', () => editMatch(match));
+    const editBtn = card.querySelector('.edit');
+    if (editBtn) {
+        editBtn.addEventListener('click', () => editMatch(match));
+    }
+    const retroBtn = card.querySelector('.retro-btn');
+    if (retroBtn) {
+        retroBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match); });
+    }
+    
     card.querySelector('.delete').addEventListener('click', () => deleteMatch(match));
     card.querySelector('.match-info-admin').addEventListener('click', () => editMatch(match));
     
@@ -1805,8 +1721,6 @@ function editMatch(match) {
         if (mtEl) mtEl.value = 'finished';
         if (hsEl) { hsEl.value = match.scoreThuis ?? 0; hsEl.setAttribute('required', 'required'); }
         if (asEl) { asEl.value = match.scoreUit   ?? 0; asEl.setAttribute('required', 'required'); }
-        // Laad de retroactieve tijdslijn voor deze wedstrijd
-        openRetroTimelineForMatch(match);
     } else {
         btnUp?.classList.add('active');
         btnFin?.classList.remove('active');
@@ -1815,10 +1729,6 @@ function editMatch(match) {
         if (mtEl) mtEl.value = 'upcoming';
         if (hsEl) hsEl.removeAttribute('required');
         if (asEl) asEl.removeAttribute('required');
-        // Verberg tijdslijn
-        const rts = document.getElementById('retroTimelineSection');
-        if (rts) rts.style.display = 'none';
-        resetRetroTimeline();
     }
 
     const efT = document.getElementById('matchForfaitThuis');
@@ -2988,481 +2898,722 @@ function initForfaitListeners() {
         });
     });
 })();
+// ===============================================
+// RETRO WEDSTRIJD INVOER WIZARD
+// Stap 1: Aanwezigen  |  Stap 2: Opstelling  |  Stap 3: Tijdslijn
+// Doel: database-output identiek aan live.js + app.js
+// ===============================================
 
-// ═══════════════════════════════════════════════════════════════════════
-// RETROACTIEVE TIJDSLIJN
-// ═══════════════════════════════════════════════════════════════════════
+let retroMatch        = null;
+let retroAvailable    = [];        // { uid, name, isExternal }
+let retroSelectedUids = new Set(); // aangevinkte UIDs uit stap 1
+let retroStarters     = new Set();
+let retroBench        = new Set();
+let retroEvents       = [];        // event-objecten klaar voor Firestore
+let retroCurrentStep  = 1;
 
-let retroEvents   = [];   // ingevoerde events
-let retroBasis    = [];   // { uid, naam } basiself max 11
-let retroBank     = [];   // { uid, naam } bank max 5
-let retroAanwezig = [];   // alle aanwezigen geladen vanuit availability
-let _retroInit    = false;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function retroGetMinutes(team) {
-    return (team === 'veteranen') ? { rust: 35, einde: 70 } : { rust: 45, einde: 90 };
+function retroHalfDur() { return retroMatch?.team === 'veteranen' ? 35 : 45; }
+function retroFullDur() { return retroHalfDur() * 2; }
+
+// FIX bug 4: correcte half ook in extra tijd (niet "na het einde")
+function retroCalcHalf(min) {
+    const hd = retroHalfDur(), fd = retroFullDur();
+    if (min <= hd)       return 1;
+    if (min <= fd)       return 2;
+    if (min <= fd + 15)  return 3;
+    return 4;
 }
 
-// ── Reset ────────────────────────────────────────────────────────────
-
-function resetRetroTimeline() {
-    retroEvents = []; retroBasis = []; retroBank = []; retroAanwezig = [];
-    _retroInit = false;
-    const rts = document.getElementById('retroTimelineSection');
-    if (rts) rts.style.display = 'none';
-    ['retroAanwezigenGrid','retroBasisList','retroBankList','retroPoolList'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '';
-    });
-    const prev = document.getElementById('retroTimelinePreview');
-    if (prev) prev.innerHTML = '<div class="retro-preview-empty">Nog geen events ingevoerd.</div>';
-    const basisCount = document.getElementById('retroBasisCount');
-    const bankCount  = document.getElementById('retroBankCount');
-    if (basisCount) basisCount.textContent = '0/11';
-    if (bankCount)  bankCount.textContent  = '0/5';
+function retroVvsSide() {
+    const t = (retroMatch?.thuisploeg || '').toLowerCase();
+    return t.includes('rotselaar') ? 'home' : 'away';
 }
 
-// ── Stap 1: Aanwezigen laden rechtstreeks uit Firestore ──────────────
-// Laadt elke uid uit de availability-subcollectie en zoekt de naam op
-// via (1) allMembers cache, (2) directe doc-id lookup, (3) uid-veld query.
+// ── Modal: eenmalig aanmaken ──────────────────────────────────────────────────
 
-async function loadAanwezigen(matchId) {
-    const grid = document.getElementById('retroAanwezigenGrid');
-    if (!grid) return;
-    grid.innerHTML = '<span class="retro-grid-placeholder">Aanwezigen laden\u2026</span>';
-
-    // 1. Haal alle docs uit availability subcollectie
-    let avDocs = [];
-    try {
-        const snap = await getDocs(collection(db, 'matches', matchId, 'availability'));
-        snap.forEach(d => avDocs.push(d.id));  // doc-ID = user UID
-    } catch (e) {
-        console.error('availability load error:', e);
-        grid.innerHTML = '<span class="retro-grid-placeholder" style="color:var(--danger)">Fout bij laden aanwezigen.</span>';
-        return;
-    }
-
-    if (avDocs.length === 0) {
-        // Geen availability data (bv. geplande wedstrijd omgezet naar afgelopen)
-        // Toon alle leden zodat de admin de opstelling handmatig kan samenstellen
-        grid.innerHTML = '<span class="retro-grid-placeholder" style="color:var(--text-gray)">Geen aanwezigheidsdata — je kan spelers selecteren via de opstelling hieronder.</span>';
-        retroAanwezig = allMembers
-            .filter(m => m.rol !== 'tijdelijk' && m.categorie !== 'extern')
-            .map(m => ({ uid: m.uid || m.id, naam: m.naam }))
-            .sort((a, b) => a.naam.localeCompare(b.naam));
-        renderRetroOpstelling();
-        // Vul ook de pool met alle leden
-        const poolEl = document.getElementById('retroPoolList');
-        if (poolEl) renderPool(retroAanwezig);
-        return;
-    }
-
-    // 2. Zoek naam op voor elke uid
-    const resolved = await Promise.all(avDocs.map(async uid => {
-        // (a) In allMembers cache (meest efficiënt)
-        const cached = allMembers.find(m => m.uid === uid || m.id === uid);
-        if (cached) return { uid, naam: cached.naam };
-
-        // (b) Direct via doc-id (na UID-migratie)
-        try {
-            const dSnap = await getDoc(doc(db, 'users', uid));
-            if (dSnap.exists()) return { uid, naam: dSnap.data().naam || uid };
-        } catch (_) {}
-
-        // (c) Via uid-veld query (voor niet-gemigreerde accounts)
-        try {
-            const qSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
-            if (!qSnap.empty) return { uid, naam: qSnap.docs[0].data().naam || uid };
-        } catch (_) {}
-
-        return { uid, naam: uid }; // onbekend — toon uid als naam
-    }));
-
-    retroAanwezig = resolved.sort((a, b) => a.naam.localeCompare(b.naam));
-
-    // 3. Render checkboxes (iedereen pre-checked = aanwezig)
-    grid.innerHTML = '';
-    retroAanwezig.forEach(p => {
-        const lbl = document.createElement('label');
-        lbl.className = 'retro-player-label';
-        const cb = document.createElement('input');
-        cb.type = 'checkbox'; cb.value = p.uid; cb.dataset.naam = p.naam;
-        cb.checked = true;  // standaard aangevinkt — admin haalt af wie er niet was
-        cb.addEventListener('change', () => {
-            if (!cb.checked) {
-                // Verwijder ook uit basis/bank als die er in zaten
-                retroBasis = retroBasis.filter(x => x.uid !== p.uid);
-                retroBank  = retroBank.filter(x => x.uid !== p.uid);
-            }
-            renderRetroOpstelling();
-        });
-        lbl.appendChild(cb);
-        lbl.appendChild(document.createTextNode('\u00a0' + p.naam));
-        grid.appendChild(lbl);
-    });
-
-    renderRetroOpstelling();
-    vulDropdownsBij();
-}
-
-// ── Stap 2: Opstelling ────────────────────────────────────────────────
-
-function renderRetroOpstelling() {
-    // Bepaal actieve aanwezigen (enkel gecheckte)
-    const actief = [];
-    document.querySelectorAll('#retroAanwezigenGrid input[type=checkbox]:checked').forEach(cb => {
-        actief.push({ uid: cb.value, naam: cb.dataset.naam });
-    });
-
-    const inOpstelling = new Set([...retroBasis, ...retroBank].map(p => p.uid));
-    const pool = actief.filter(p => !inOpstelling.has(p.uid));
-
-    renderSlotList('retroBasisList', retroBasis, 'basis');
-    renderSlotList('retroBankList',  retroBank,  'bank');
-    renderPool(pool);
-
-    const bc = document.getElementById('retroBasisCount');
-    const bk = document.getElementById('retroBankCount');
-    if (bc) bc.textContent = `${retroBasis.length}/11`;
-    if (bk) bk.textContent = `${retroBank.length}/5`;
-
-    vulDropdownsBij();
-}
-
-function renderSlotList(containerId, lijst, type) {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    el.innerHTML = '';
-    if (lijst.length === 0) {
-        const hint = document.createElement('div');
-        hint.className = 'retro-slot-empty';
-        hint.textContent = type === 'basis' ? 'Klik B naast een speler' : 'Klik K naast een speler';
-        el.appendChild(hint);
-        return;
-    }
-    lijst.forEach((p, idx) => {
-        const row = document.createElement('div');
-        row.className = 'retro-chip';
-        row.innerHTML = `<span class="retro-chip-naam">${p.naam}</span>
-            <button type="button" class="retro-chip-rm" title="Verwijder">&times;</button>`;
-        row.querySelector('.retro-chip-rm').addEventListener('click', () => {
-            if (type === 'basis') retroBasis.splice(idx, 1);
-            else                   retroBank.splice(idx, 1);
-            renderRetroOpstelling();
-        });
-        el.appendChild(row);
-    });
-}
-
-function renderPool(pool) {
-    const el = document.getElementById('retroPoolList');
-    if (!el) return;
-    el.innerHTML = '';
-    if (pool.length === 0) {
-        el.innerHTML = '<span class="retro-pool-empty">Iedereen in opstelling.</span>';
-        return;
-    }
-    pool.forEach(p => {
-        const row = document.createElement('div');
-        row.className = 'retro-pool-row';
-        row.innerHTML = `<span class="retro-pool-naam">${p.naam}</span>
-            <div class="retro-pool-btns">
-                <button type="button" class="retro-pool-btn" data-role="basis" title="Voeg toe aan basiself">B</button>
-                <button type="button" class="retro-pool-btn retro-pool-btn-k" data-role="bank" title="Voeg toe aan bank">K</button>
-            </div>`;
-        row.querySelector('[data-role="basis"]').addEventListener('click', () => {
-            if (retroBasis.length >= 11) { showToast('Basiself is vol (11/11).', 'error'); return; }
-            retroBasis.push(p);
-            renderRetroOpstelling();
-        });
-        row.querySelector('[data-role="bank"]').addEventListener('click', () => {
-            if (retroBank.length >= 5) { showToast('Bank is vol (5/5).', 'error'); return; }
-            retroBank.push(p);
-            renderRetroOpstelling();
-        });
-        el.appendChild(row);
-    });
-}
-
-function vulDropdownsBij() {
-    const alleSpelers = [...retroBasis, ...retroBank];
-    ['retroPlayer', 'retroAssist', 'retroSubOut', 'retroSubIn'].forEach(id => {
-        const sel = document.getElementById(id);
-        if (!sel) return;
-        const isAssist = id === 'retroAssist';
-        const prev = sel.value;
-        sel.innerHTML = isAssist
-            ? '<option value="">— Geen assist —</option>'
-            : '<option value="">— Selecteer speler —</option>';
-        alleSpelers.forEach(p => {
-            const opt = new Option(p.naam, p.uid);
-            sel.appendChild(opt);
-        });
-        if (prev) sel.value = prev;
-    });
-}
-
-// ── Init event listeners ──────────────────────────────────────────────
-
-function initRetroTimeline() {
-    if (_retroInit) return;
-    _retroInit = true;
-    document.getElementById('retroEventType')?.addEventListener('change', updateRetroVelden);
-    document.getElementById('retroEventPloeg')?.addEventListener('change', updateRetroVelden);
-    document.getElementById('retroAddEventBtn')?.addEventListener('click', retroEventToevoegen);
-    updateRetroVelden();
-}
-
-function updateRetroVelden() {
-    const type  = document.getElementById('retroEventType')?.value;
-    const ploeg = document.getElementById('retroEventPloeg')?.value;
-    const isSub  = type === 'substitution';
-    const isGoal = type === 'goal' || type === 'penalty';
-    const isAway = ploeg === 'away';
-
-    const playerRow   = document.getElementById('retroPlayerRow');
-    const assistField = document.getElementById('retroAssistField');
-    const subFields   = document.getElementById('retroSubFields');
-    const playerSel   = document.getElementById('retroPlayer');
-    const playerMan   = document.getElementById('retroPlayerManual');
-    const lbl         = document.getElementById('retroPlayerLabel');
-
-    if (playerRow)   playerRow.style.display   = isSub ? 'none' : '';
-    if (assistField) assistField.style.display  = (isGoal && !isAway) ? '' : 'none';
-    if (subFields)   subFields.style.display    = isSub ? '' : 'none';
-    if (playerSel)   playerSel.style.display    = isAway ? 'none' : '';
-    if (playerMan)   playerMan.style.display    = isAway ? '' : 'none';
-    if (lbl) {
-        const labels = { goal: 'Schutter', penalty: 'Schutter', 'own-goal': 'Speler',
-                         yellow: 'Speler', yellow2red: 'Speler', red: 'Speler', 'penalty-missed': 'Schutter' };
-        lbl.textContent = labels[type] || 'Speler';
-    }
-}
-
-// ── Event toevoegen ───────────────────────────────────────────────────
-
-function retroEventToevoegen() {
-    const min = parseInt(document.getElementById('retroMinute')?.value, 10);
-    if (!min || min < 1 || min > 120) {
-        showToast('Vul een geldige minuut in (1–120).', 'error'); return;
-    }
-
-    const type  = document.getElementById('retroEventType').value;
-    const ploeg = document.getElementById('retroEventPloeg').value;
-    const ev    = { id: Date.now(), minuut: min, type, ploeg };
-
-    if (type === 'substitution') {
-        const outSel = document.getElementById('retroSubOut');
-        const inSel  = document.getElementById('retroSubIn');
-        ev.subOutUid = outSel.value;
-        ev.subOut    = outSel.options[outSel.selectedIndex]?.text || '';
-        ev.subInUid  = inSel.value;
-        ev.subIn     = inSel.options[inSel.selectedIndex]?.text  || '';
-        if (!ev.subOutUid || !ev.subInUid) {
-            showToast('Selecteer speler eraf én speler erin.', 'error'); return;
-        }
-    } else {
-        const isAway = ploeg === 'away';
-        if (isAway) {
-            ev.speler    = document.getElementById('retroPlayerManual')?.value.trim() || 'Tegenstander';
-            ev.spelerUid = '';
-        } else {
-            const pSel   = document.getElementById('retroPlayer');
-            ev.spelerUid = pSel.value;
-            ev.speler    = pSel.options[pSel.selectedIndex]?.text || '';
-        }
-        if ((type === 'goal' || type === 'penalty') && ploeg === 'home') {
-            const aSel   = document.getElementById('retroAssist');
-            ev.assistUid = aSel.value;
-            ev.assist    = ev.assistUid ? (aSel.options[aSel.selectedIndex]?.text || '') : '';
-        }
-    }
-
-    retroEvents.push(ev);
-    retroEvents.sort((a, b) => a.minuut - b.minuut);
-    const minEl = document.getElementById('retroMinute');
-    if (minEl) minEl.value = '';
-    renderRetroPreview();
-}
-
-// ── Preview tijdslijn ─────────────────────────────────────────────────
-
-const RETRO_ICONS = {
-    goal: '&#9917;', penalty: '&#127933;', 'own-goal': '&#128308;',
-    yellow: '&#128993;', yellow2red: '&#128993;&#128308;', red: '&#128308;',
-    substitution: '&#128260;', 'penalty-missed': '&#10060;'
-};
-
-function renderRetroPreview() {
-    const container = document.getElementById('retroTimelinePreview');
-    if (!container) return;
-    const team  = document.getElementById('matchTeam')?.value || 'zaterdag';
-    const { rust, einde } = retroGetMinutes(team);
-
-    if (retroEvents.length === 0) {
-        container.innerHTML = '<div class="retro-preview-empty">Nog geen events ingevoerd.</div>';
-        return;
-    }
-
-    let html = '';
-    let rustDone = false, eindeDone = false;
-    for (const ev of retroEvents) {
-        if (!rustDone  && ev.minuut > rust)  { html += retroMarker(rust,  '&#9208; Rust');  rustDone  = true; }
-        if (!eindeDone && ev.minuut > einde) { html += retroMarker(einde, '&#127937; Einde'); eindeDone = true; }
-        const icon = RETRO_ICONS[ev.type] || '&#9679;';
-        let desc = '';
-        if (ev.type === 'substitution') {
-            desc = `<strong>${ev.subOut}</strong> &rarr; ${ev.subIn}`;
-        } else {
-            desc = ev.speler || '';
-            if (ev.assist) desc += ` <span class="retro-assist">(assist: ${ev.assist})</span>`;
-        }
-        html += `<div class="retro-event retro-${ev.ploeg}">
-            <span class="retro-event-min">${ev.minuut}'</span>
-            <span class="retro-event-icon">${icon}</span>
-            <span class="retro-event-desc">${desc}</span>
-            <button type="button" class="retro-delete-btn" data-id="${ev.id}" title="Verwijder">&#215;</button>
+function getRetroModal() {
+    let m = document.getElementById('retroModal');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id        = 'retroModal';
+    m.className = 'modal';
+    m.innerHTML = `
+        <div class="modal-content large retro-modal-content">
+            <button class="modal-close-x" id="retroClose">&times;</button>
+            <h3 id="retroTitle">Wedstrijd Achteraf Invoeren</h3>
+            <div class="retro-steps-bar" id="retroStepsBar">
+                <div class="retro-step-dot active" data-s="1"><span class="retro-dot-num">1</span>Aanwezigen</div>
+                <div class="retro-step-dot" data-s="2"><span class="retro-dot-num">2</span>Opstelling</div>
+                <div class="retro-step-dot" data-s="3"><span class="retro-dot-num">3</span>Tijdslijn</div>
+            </div>
+            <div id="retroContent" class="retro-content"></div>
+            <div class="retro-footer">
+                <button class="modal-btn cancel"  id="retroBack" style="display:none">← Vorige</button>
+                <button class="modal-btn confirm" id="retroNext">Volgende →</button>
+            </div>
         </div>`;
-    }
-    if (!rustDone)  html += retroMarker(rust,  '&#9208; Rust');
-    if (!eindeDone) html += retroMarker(einde, '&#127937; Einde');
-
-    container.innerHTML = html;
-    container.querySelectorAll('.retro-delete-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            retroEvents = retroEvents.filter(e => e.id != btn.dataset.id);
-            renderRetroPreview();
-        });
-    });
+    document.body.appendChild(m);
+    m.querySelector('#retroClose').addEventListener('click', () => m.classList.remove('active'));
+    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('active'); });
+    m.querySelector('#retroBack').addEventListener('click', () => retroNav(-1));
+    m.querySelector('#retroNext').addEventListener('click', () => retroNav(+1));
+    return m;
 }
 
-function retroMarker(min, label) {
-    return `<div class="retro-marker">
-        <div class="retro-marker-line"></div>
-        <span class="retro-marker-label">${label} (${min}')</span>
-        <div class="retro-marker-line"></div>
-    </div>`;
+// ── Wizard openen ─────────────────────────────────────────────────────────────
+
+async function openRetroWizard(match) {
+    retroMatch        = match;
+    retroAvailable    = [];
+    retroSelectedUids = new Set();
+    retroStarters     = new Set();
+    retroBench        = new Set();
+    retroEvents       = [];
+    retroCurrentStep  = 1;
+
+    const modal = getRetroModal();
+    modal.querySelector('#retroTitle').textContent =
+        `Achteraf invoeren — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`;
+    modal.classList.add('active');
+    await renderRetroStep(1);
 }
 
-// ── Open voor een wedstrijd ───────────────────────────────────────────
+// ── Stap renderen ─────────────────────────────────────────────────────────────
 
-function openRetroTimelineForMatch(match) {
-    resetRetroTimeline();
-    const rts = document.getElementById('retroTimelineSection');
-    if (rts) rts.style.display = 'block';
-    initRetroTimeline();
+async function renderRetroStep(step) {
+    retroCurrentStep = step;
+    const content  = document.getElementById('retroContent');
+    const backBtn  = document.getElementById('retroBack');
+    const nextBtn  = document.getElementById('retroNext');
+    const stepsBar = document.getElementById('retroStepsBar');
 
-    // Laad bestaande events
-    if (match?.id) {
-        getDocs(query(collection(db, 'events'), where('matchId', '==', match.id)))
-            .then(snap => {
-                retroEvents = [];
-                snap.forEach(d => {
-                    const ev = d.data();
-                    retroEvents.push({
-                        id: d.id, minuut: ev.minuut || 0, type: ev.type || 'goal', ploeg: ev.ploeg || 'home',
-                        speler: ev.speler || '', spelerUid: ev.spelerUid || '',
-                        assist: ev.assist || '', assistUid: ev.assistUid || '',
-                        subOut: ev.spelerEraf || '', subOutUid: ev.spelerErafUid || '',
-                        subIn:  ev.spelerErin || '', subInUid:  ev.spelerErinUid  || '',
-                    });
-                });
-                retroEvents.sort((a, b) => a.minuut - b.minuut);
-                renderRetroPreview();
-            }).catch(() => {});
-    }
+    stepsBar.querySelectorAll('.retro-step-dot').forEach(d => {
+        const s = parseInt(d.dataset.s);
+        d.classList.toggle('active', s === step);
+        d.classList.toggle('done',   s < step);
+    });
 
-    // Laad aanwezigen
-    if (match?.id) {
-        loadAanwezigen(match.id);
-    } else {
-        // Nieuw afgelopen match: toon alle leden
-        retroAanwezig = allMembers.map(m => ({ uid: m.uid || m.id, naam: m.naam }));
-        renderRetroOpstelling();
-    }
+    backBtn.style.display = step > 1 ? '' : 'none';
+    nextBtn.style.display = step < 3 ? '' : 'none';
+    nextBtn.disabled      = false;
+
+    content.innerHTML = '<div class="loading"><div class="loader"></div></div>';
+
+    if (step === 1) await renderRetroStep1(content);
+    if (step === 2) renderRetroStep2(content);
+    if (step === 3) renderRetroStep3(content);
 }
 
-// ── Opslaan + statistieken ────────────────────────────────────────────
+// ── Stap 1: Aanwezigen ────────────────────────────────────────────────────────
+// FIX bug 1: enkel spelers met available:true — niemand als de lijst leeg is
+// FIX bug 2: displayName gebruiken voor manuele/externe spelers
 
-async function saveRetroTimeline(matchId, team) {
-    const { einde } = retroGetMinutes(team);
-    const alleInOpstelling = [...retroBasis, ...retroBank];
-    if (retroEvents.length === 0 && alleInOpstelling.length === 0) return;
-
-    // 1. Verwijder bestaande events
-    const exSnap = await getDocs(query(collection(db, 'events'), where('matchId', '==', matchId)));
-    await Promise.all(exSnap.docs.map(d => deleteDoc(d.ref)));
-
-    // 2. Schrijf nieuwe events
-    await Promise.all(retroEvents.map(ev => {
-        const base = { matchId, minuut: ev.minuut, type: ev.type, ploeg: ev.ploeg, timestamp: serverTimestamp() };
-        if (ev.type === 'substitution') {
-            Object.assign(base, { spelerEraf: ev.subOut, spelerErafUid: ev.subOutUid, spelerErin: ev.subIn, spelerErinUid: ev.subInUid });
-        } else {
-            Object.assign(base, { speler: ev.speler || '', spelerUid: ev.spelerUid || '' });
-            if (ev.assist) Object.assign(base, { assist: ev.assist, assistUid: ev.assistUid || '' });
-        }
-        return addDoc(collection(db, 'events'), base);
-    }));
-
-    // 3. Bereken statistieken per speler
-    const stats = {};
-    const ensure = (uid, naam) => {
-        if (!uid) return;
-        if (!stats[uid]) stats[uid] = { naam: naam || '', minuten: 0, matchen: 0, goals: 0, assists: 0, geelKaarten: 0, roodKaarten: 0 };
-    };
-
-    // Basisspelers: volle speeltijd
-    retroBasis.forEach(p => { ensure(p.uid, p.naam); stats[p.uid].matchen = 1; stats[p.uid].minuten = einde; });
-    // Banksitters: 1 match, 0 minuten tenzij ingevallen
-    retroBank.forEach(p => { ensure(p.uid, p.naam); stats[p.uid].matchen = 1; });
-
-    // Wissels: pas minuten aan
-    retroEvents.filter(e => e.type === 'substitution').forEach(ev => {
-        if (ev.subOutUid && stats[ev.subOutUid]) stats[ev.subOutUid].minuten = ev.minuut;
-        if (ev.subInUid) {
-            ensure(ev.subInUid, ev.subIn);
-            const gespeeld = Math.max(0, einde - ev.minuut);
-            if (stats[ev.subInUid].minuten < gespeeld) stats[ev.subInUid].minuten = gespeeld;
-            if (!stats[ev.subInUid].matchen) stats[ev.subInUid].matchen = 1;
-        }
-    });
-
-    // Goals / assists / kaarten (enkel VVS)
-    retroEvents.forEach(ev => {
-        if (ev.ploeg !== 'home') return;
-        if ((ev.type === 'goal' || ev.type === 'penalty') && ev.spelerUid) { ensure(ev.spelerUid, ev.speler); stats[ev.spelerUid].goals++; }
-        if ((ev.type === 'goal' || ev.type === 'penalty') && ev.assistUid) { ensure(ev.assistUid, ev.assist); stats[ev.assistUid].assists++; }
-        if (ev.type === 'yellow'     && ev.spelerUid) { ensure(ev.spelerUid, ev.speler); stats[ev.spelerUid].geelKaarten++; }
-        if (ev.type === 'yellow2red' && ev.spelerUid) { ensure(ev.spelerUid, ev.speler); stats[ev.spelerUid].geelKaarten++; stats[ev.spelerUid].roodKaarten++; }
-        if (ev.type === 'red'        && ev.spelerUid) { ensure(ev.spelerUid, ev.speler); stats[ev.spelerUid].roodKaarten++; }
-    });
-
-    // 4. Update gebruikersstatistieken in Firestore
-    for (const [uid, delta] of Object.entries(stats)) {
-        try {
-            let ref = null;
-            const direct = await getDoc(doc(db, 'users', uid));
-            if (direct.exists()) {
-                ref = direct.ref;
-            } else {
-                const q = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
-                if (!q.empty) ref = q.docs[0].ref;
-            }
-            if (!ref) continue;
-            const cur = (await getDoc(ref)).data();
-            await updateDoc(ref, {
-                goals:       (cur.goals       || 0) + delta.goals,
-                assists:     (cur.assists     || 0) + delta.assists,
-                geelKaarten: (cur.geelKaarten || 0) + delta.geelKaarten,
-                roodKaarten: (cur.roodKaarten || 0) + delta.roodKaarten,
-                matchen:     (cur.matchen     || 0) + delta.matchen,
-                minuten:     (cur.minuten     || 0) + delta.minuten,
+async function renderRetroStep1(content) {
+    try {
+        const snap = await getDocs(
+            collection(db, 'matches', retroMatch.id, 'availability')
+        );
+        retroAvailable = [];
+        snap.forEach(d => {
+            const data = d.data();
+            // BUG FIX 1: skip spelers die NIET beschikbaar zijn
+            if (!data.available) return;
+            // BUG FIX 2: gebruik displayName voor manuel/externe spelers
+            const name = data.displayName || data.naam || d.id;
+            retroAvailable.push({
+                uid:        d.id,
+                name:       name,
+                isExternal: !!data.isExternalPlayer
             });
-        } catch (e) { console.warn('Stats update failed for', uid, e); }
+        });
+        retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) {
+        console.error('Error loading availability:', e);
     }
 
-    // 5. Markeer wedstrijd als volledig
-    try { await updateDoc(doc(db, 'matches', matchId), { hasTimeline: true }); } catch (_) {}
-    console.log('Retro saved:', retroEvents.length, 'events,', Object.keys(stats).length, 'players');
+    content.innerHTML = `
+        <div class="retro-step-body">
+            <p class="retro-step-desc">
+                ${retroAvailable.length === 0
+                    ? '<strong>Geen beschikbaarheidslijst gevonden.</strong> Je kunt spelers handmatig toevoegen.'
+                    : `<strong>${retroAvailable.length} beschikbare speler(s)</strong> geladen uit de beschikbaarheidslijst.`}
+            </p>
+            <div id="retroAvailList" class="retro-avail-list">
+                ${retroAvailable.map(p => `
+                    <label class="retro-player-row">
+                        <input type="checkbox" class="retro-avail-cb" value="${p.uid}" checked>
+                        <span>${p.name}${p.isExternal ? ' <em class="retro-extern-badge">extern</em>' : ''}</span>
+                    </label>`).join('')}
+                ${retroAvailable.length === 0
+                    ? '<p class="retro-empty">Geen spelers. Voeg ze hieronder handmatig toe.</p>'
+                    : ''}
+            </div>
+            <div class="retro-manual-add-row">
+                <button class="action-btn" id="retroToggleManualAdd">+ Speler handmatig toevoegen</button>
+                <div id="retroManualAddForm" style="display:none;">
+                    <input type="text" id="retroManualName" class="modal-input-manual" placeholder="Naam speler">
+                    <button class="action-btn edit" id="retroManualAddBtn">Toevoegen</button>
+                </div>
+            </div>
+        </div>`;
+
+    content.querySelector('#retroToggleManualAdd').addEventListener('click', () => {
+        const f = content.querySelector('#retroManualAddForm');
+        f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    content.querySelector('#retroManualAddBtn').addEventListener('click', () => {
+        const input = content.querySelector('#retroManualName');
+        const name  = input.value.trim();
+        if (!name) return;
+        const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const ts       = Date.now();
+        const uid      = `manual_${safeName}_${ts}`;
+        retroAvailable.push({ uid, name, isExternal: true });
+
+        const list = content.querySelector('#retroAvailList');
+        const row  = document.createElement('label');
+        row.className = 'retro-player-row';
+        row.innerHTML = `
+            <input type="checkbox" class="retro-avail-cb" value="${uid}" checked>
+            <span>${name} <em class="retro-extern-badge">handmatig</em></span>`;
+        list.appendChild(row);
+        input.value = '';
+        // Lege-state-tekst verwijderen
+        list.querySelector('.retro-empty')?.remove();
+    });
+}
+
+// ── Stap 2: Opstelling ────────────────────────────────────────────────────────
+// FIX bug 5: sla op in exact hetzelfde formaat als app.js (lineupDraft + lineup)
+
+function renderRetroStep2(content) {
+    const players = retroAvailable.filter(p => retroSelectedUids.has(p.uid));
+
+    // Pre-fill vanuit bestaande lineupDraft
+    if (retroStarters.size === 0 && retroBench.size === 0 && retroMatch.lineupDraft) {
+        Object.entries(retroMatch.lineupDraft).forEach(([uid, info]) => {
+            if (players.find(p => p.uid === uid)) {
+                if (info.status === 'starter') retroStarters.add(uid);
+                else if (info.status === 'bench') retroBench.add(uid);
+            }
+        });
+    }
+
+    const MAX_START = 11, MAX_BENCH = 5;
+
+    content.innerHTML = `
+        <div class="retro-step-body">
+            <p class="retro-step-desc">
+                Klik een speler om hem van <em>Aanwezig</em> naar <strong>Basis</strong> of <strong>Bank</strong> te sturen.
+                Klik opnieuw om terug te plaatsen. Basis = exact 11 spelers.
+            </p>
+
+            <div style="margin-bottom:0.4rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+                    <span style="font-size:0.8rem;font-weight:700;color:#555;">👥 AANWEZIG</span>
+                    <span class="retro-lineup-badge retro-badge--gray" id="retroAvailCount">0</span>
+                </div>
+                <div id="retroAvailChips" class="retro-avail-chips"></div>
+            </div>
+
+            <div class="retro-2col-grid">
+                <div class="retro-lineup-col retro-col--start">
+                    <div class="retro-lineup-col-hdr">
+                        <span>⚽ Basis</span>
+                        <span class="retro-lineup-badge retro-badge--blue" id="retroStartCount">0</span>
+                        <span class="retro-lineup-max">/11</span>
+                    </div>
+                    <div id="retroStartColList" class="retro-lineup-list"></div>
+                    <p class="retro-lineup-sub">Klik speler om terug of naar bank</p>
+                </div>
+                <div class="retro-lineup-col retro-col--bench">
+                    <div class="retro-lineup-col-hdr">
+                        <span>🔄 Bank</span>
+                        <span class="retro-lineup-badge retro-badge--orange" id="retroBenchCount">0</span>
+                        <span class="retro-lineup-max">/5</span>
+                    </div>
+                    <div id="retroBenchColList" class="retro-lineup-list"></div>
+                    <p class="retro-lineup-sub">Klik speler om terug te plaatsen</p>
+                </div>
+            </div>
+
+            <div class="retro-lineup-hint" id="retroLineupHint"></div>
+        </div>`;
+
+    function refresh() {
+        const chipsEl   = document.getElementById('retroAvailChips');
+        const startList = document.getElementById('retroStartColList');
+        const benchList = document.getElementById('retroBenchColList');
+        const hintEl    = document.getElementById('retroLineupHint');
+        const nextBtn   = document.getElementById('retroNext');
+        if (!chipsEl) return;
+
+        [chipsEl, startList, benchList].forEach(l => l.innerHTML = '');
+
+        const sc    = retroStarters.size;
+        const bc    = retroBench.size;
+        const valid = sc === MAX_START;
+
+        document.getElementById('retroAvailCount').textContent = players.length - sc - bc;
+        document.getElementById('retroStartCount').textContent = sc;
+        document.getElementById('retroBenchCount').textContent = bc;
+
+        if (nextBtn) {
+            nextBtn.disabled    = !valid;
+            nextBtn.textContent = valid ? 'Volgende →' : `Volgende (${sc}/11 basis)`;
+        }
+
+        if (hintEl) {
+            if      (sc < MAX_START) hintEl.textContent = `Nog ${MAX_START - sc} basisspeler${MAX_START - sc !== 1 ? 's' : ''} nodig.`;
+            else if (bc === 0)       hintEl.textContent = `✓ Basis volledig. Voeg optioneel wisselspelers toe.`;
+            else                     hintEl.textContent = `✓ Klaar — ${sc} basis, ${bc} wissel${bc !== 1 ? 's' : ''}.`;
+            hintEl.style.color = valid ? '#28a745' : '#e65100';
+        }
+
+        // Toon lege-kolom placeholder
+        if (sc === 0) {
+            const em = document.createElement('p');
+            em.className = 'retro-empty'; em.textContent = 'Nog geen basisspelers';
+            startList.appendChild(em);
+        }
+        if (bc === 0) {
+            const em = document.createElement('p');
+            em.className = 'retro-empty'; em.textContent = 'Nog geen wisselspelers';
+            benchList.appendChild(em);
+        }
+
+        players.forEach(p => {
+            const isStart = retroStarters.has(p.uid);
+            const isBench = retroBench.has(p.uid);
+            const btn     = document.createElement('button');
+            btn.textContent = p.name;
+            btn.className   = 'retro-player-pill ' +
+                (isStart ? 'pill--start' : isBench ? 'pill--bench' : 'pill--avail');
+            btn.title = isStart ? 'Klik: naar bank'
+                      : isBench ? 'Klik: terug naar aanwezig'
+                      : sc < MAX_START ? 'Klik: naar basis' : 'Klik: naar bank';
+
+            if      (isStart) startList.appendChild(btn);
+            else if (isBench) benchList.appendChild(btn);
+            else              chipsEl.appendChild(btn);
+
+            btn.addEventListener('click', () => {
+                if (isStart) {
+                    retroStarters.delete(p.uid);
+                    if (retroBench.size < MAX_BENCH) retroBench.add(p.uid);
+                } else if (isBench) {
+                    retroBench.delete(p.uid);
+                } else {
+                    if      (retroStarters.size < MAX_START) retroStarters.add(p.uid);
+                    else if (retroBench.size   < MAX_BENCH)  retroBench.add(p.uid);
+                }
+                refresh();
+            });
+        });
+
+        if (players.filter(p => !retroStarters.has(p.uid) && !retroBench.has(p.uid)).length === 0) {
+            const em = document.createElement('p');
+            em.className = 'retro-empty'; em.style.fontSize = '0.8rem';
+            em.textContent = 'Alle spelers zijn ingedeeld';
+            chipsEl.appendChild(em);
+        }
+    }
+
+    refresh();
+}
+
+
+// ── Stap 3: Tijdslijn ─────────────────────────────────────────────────────────
+// FIX bug 3: events opgeslagen in exact hetzelfde formaat als live.js
+// FIX bug 4: correcte half berekening voor extra tijd
+
+function renderRetroStep3(content) {
+    const hd  = retroHalfDur();
+    const fd  = retroFullDur();
+    const vvs = retroVvsSide();
+    const oppSide = vvs === 'home' ? 'away' : 'home';
+
+    const allLineuped = retroAvailable.filter(p =>
+        retroStarters.has(p.uid) || retroBench.has(p.uid)
+    );
+
+    function playerOpts(empty = '— Selecteer speler —') {
+        return `<option value="">${empty}</option>` +
+            allLineuped.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    }
+
+    function halvesLabel(min) {
+        const h = retroCalcHalf(min);
+        if (h === 1) return `1e helft`;
+        if (h === 2) return `2e helft`;
+        if (h === 3) return `VT 1e helft`;
+        return `VT 2e helft`;
+    }
+
+    function refreshEventsList() {
+        const list = document.getElementById('retroEventsList');
+        if (!list) return;
+        if (retroEvents.length === 0) {
+            list.innerHTML = '<p class="retro-empty">Nog geen events. Gebruik het formulier hierboven.</p>';
+            return;
+        }
+        const sorted = [...retroEvents]
+            .map((ev, origIdx) => ({ ...ev, origIdx }))
+            .sort((a, b) => (a.minuut || 0) - (b.minuut || 0) || a.half - b.half);
+
+        const TYPE_LABELS = {
+            goal: '⚽ Goal', penalty: '⚽ Penalty', 'penalty-missed': '❌ Penalty gemist',
+            'own-goal': '↩️ Eigen doelpunt', yellow: '🟡 Gele kaart',
+            yellow2red: '🟥 2e Gele/Rood', red: '🔴 Rode kaart', substitution: '🔄 Wissel'
+        };
+
+        list.innerHTML = sorted.map(ev => {
+            let detail = ev.speler || '';
+            if (ev.assist)          detail += ` (assist: ${ev.assist})`;
+            if (ev.spelersUit?.length) detail = `Uit: ${ev.spelersUit.join(', ')} → In: ${ev.spelersIn?.join(', ') || '—'}`;
+            const sideLabel = ev.ploeg === vvs
+                ? `<span class="retro-ev-vvs">VVS</span>`
+                : `<span class="retro-ev-opp">Teg.</span>`;
+            return `<div class="retro-event-row">
+                <span class="retro-event-min">${ev.minuut}' <small>(${halvesLabel(ev.minuut)})</small></span>
+                ${sideLabel}
+                <span class="retro-event-type">${TYPE_LABELS[ev.type] || ev.type}</span>
+                <span class="retro-event-detail">${detail}</span>
+                <button class="retro-delete-event" data-idx="${ev.origIdx}">✕</button>
+            </div>`;
+        }).join('');
+
+        list.querySelectorAll('.retro-delete-event').forEach(btn => {
+            btn.addEventListener('click', () => {
+                retroEvents.splice(parseInt(btn.dataset.idx), 1);
+                refreshEventsList();
+                updateRetroCount();
+            });
+        });
+    }
+
+    function updateRetroCount() {
+        const el = document.getElementById('retroEventsCount');
+        if (el) el.textContent = retroEvents.length;
+    }
+
+    content.innerHTML = `
+        <div class="retro-step-body retro-timeline-body">
+            <p class="retro-step-desc">
+                Voeg wedstrijdevents toe.
+                <em>Aftrap (0'), rust (${hd}') en einde (${fd}') worden automatisch aangemaakt bij opslaan.</em>
+            </p>
+
+            <div class="retro-add-event-form">
+                <div class="form-row" style="flex-wrap:wrap;gap:0.5rem;">
+                    <div class="form-group" style="flex:2;min-width:140px;">
+                        <label>Type *</label>
+                        <select id="retroEvType">
+                            <option value="goal">⚽ Goal</option>
+                            <option value="penalty">⚽ Penalty</option>
+                            <option value="penalty-missed">❌ Penalty gemist</option>
+                            <option value="own-goal">↩️ Eigen doelpunt</option>
+                            <option value="yellow">🟡 Gele kaart</option>
+                            <option value="yellow2red">🟥 2e Gele / Rood</option>
+                            <option value="red">🔴 Rode kaart</option>
+                            <option value="substitution">🔄 Wissel</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:0 0 90px;">
+                        <label>Minuut *</label>
+                        <input type="number" id="retroEvMin" min="0" max="999" placeholder="${fd}">
+                    </div>
+                    <div class="form-group" style="flex:2;min-width:140px;">
+                        <label>Ploeg *</label>
+                        <select id="retroEvPloeg">
+                            <option value="${vvs}">${vvs === 'home' ? retroMatch.thuisploeg : retroMatch.uitploeg} (VVS)</option>
+                            <option value="${oppSide}">${oppSide === 'home' ? retroMatch.thuisploeg : retroMatch.uitploeg} (Teg.)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="retroEvSingle">
+                    <div class="form-group">
+                        <label>Speler</label>
+                        <select id="retroEvSpeler" style="display:block;">${playerOpts()}</select>
+                        <input type="text" id="retroEvSpelerMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                    </div>
+                    <div class="form-group" id="retroEvAssistGroup">
+                        <label>Assist (optioneel)</label>
+                        <select id="retroEvAssist">${playerOpts('— Geen assist —')}</select>
+                        <input type="text" id="retroEvAssistMan" class="modal-input-manual" placeholder="Of typ naam...">
+                    </div>
+                </div>
+
+                <div id="retroEvSub" style="display:none;">
+                    <div class="form-group">
+                        <label>Speler UIT</label>
+                        <select id="retroEvSubOut">${playerOpts('— Speler uit —')}</select>
+                        <input type="text" id="retroEvSubOutMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                    </div>
+                    <div class="form-group">
+                        <label>Speler IN</label>
+                        <select id="retroEvSubIn">${playerOpts('— Speler in —')}</select>
+                        <input type="text" id="retroEvSubInMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                    </div>
+                </div>
+
+                <div id="retroEvMinWarning" class="retro-min-warning" style="display:none;"></div>
+                <button class="action-btn edit" id="retroAddEventBtn">+ Event toevoegen</button>
+            </div>
+
+            <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border-color,#e9ecef);">
+            <h4 style="margin-bottom:0.5rem;">Toegevoegde events (<span id="retroEventsCount">0</span>)</h4>
+            <div id="retroEventsList"></div>
+
+            <div class="retro-finalize-section">
+                <p style="color:var(--text-gray);font-size:0.85rem;margin-bottom:0.75rem;">
+                    Dit slaat de <strong>opstelling</strong> (lineupDraft + lineup) en <strong>tijdslijn</strong> (events) op in de database — identiek aan een live wedstrijd.
+                </p>
+                <button class="modal-btn confirm" id="retroFinalizeBtn">💾 Opslaan in database</button>
+            </div>
+        </div>`;
+
+    // Form type-toggle logica
+    const evType    = content.querySelector('#retroEvType');
+    const ploegSel  = content.querySelector('#retroEvPloeg');
+    const singleSec = content.querySelector('#retroEvSingle');
+    const subSec    = content.querySelector('#retroEvSub');
+    const assistGrp = content.querySelector('#retroEvAssistGroup');
+    const spelerSel = content.querySelector('#retroEvSpeler');
+
+    function updateFormLayout() {
+        const t      = evType.value;
+        const isVvs  = ploegSel.value === vvs;
+        const isSub  = t === 'substitution';
+        singleSec.style.display    = isSub ? 'none' : '';
+        subSec.style.display       = isSub ? '' : 'none';
+        assistGrp.style.display    = (t === 'goal' || t === 'penalty') ? '' : 'none';
+        spelerSel.style.display    = isVvs ? '' : 'none';
+    }
+    evType.addEventListener('change', updateFormLayout);
+    ploegSel.addEventListener('change', updateFormLayout);
+    updateFormLayout();
+
+    // Minuut-warning voor extra tijd (geen fout, enkel info)
+    content.querySelector('#retroEvMin').addEventListener('input', () => {
+        const min  = parseInt(content.querySelector('#retroEvMin').value) || 0;
+        const warn = content.querySelector('#retroEvMinWarning');
+        const h    = retroCalcHalf(min);
+        if (h >= 3 && warn) {
+            warn.style.display  = '';
+            warn.textContent    = `ℹ️ Minuut ${min}' valt in verlengingen (${halvesLabel(min)}, half ${h}).`;
+        } else if (warn) {
+            warn.style.display = 'none';
+        }
+    });
+
+    // Event toevoegen
+    content.querySelector('#retroAddEventBtn').addEventListener('click', () => {
+        const type   = evType.value;
+        const minuut = parseInt(content.querySelector('#retroEvMin').value);
+        if (isNaN(minuut) || minuut < 0) {
+            showToast('Voer een geldige minuut in.', 'error');
+            return;
+        }
+        // FIX bug 4: correcte half ook voor extra tijd
+        const half   = retroCalcHalf(minuut);
+        const ploeg  = ploegSel.value;
+        const isVvs  = ploeg === vvs;
+
+        const getVal = (selId, manId) => {
+            const sel = content.querySelector('#' + selId);
+            const man = content.querySelector('#' + manId);
+            return (sel?.value) || (man?.value.trim() || '');
+        };
+
+        if (type === 'substitution') {
+            const spelerUit = getVal('retroEvSubOut', 'retroEvSubOutMan');
+            const spelerIn  = getVal('retroEvSubIn',  'retroEvSubInMan');
+            // Exact formaat van live.js executeMultiSub
+            retroEvents.push({
+                type: 'substitution', minuut, half, ploeg,
+                speler:     '',
+                spelerUit:  spelerUit,
+                spelerIn:   spelerIn,
+                spelersUit: spelerUit ? [spelerUit] : [],
+                spelersIn:  spelerIn  ? [spelerIn]  : [],
+                multiSub:   false,
+            });
+        } else {
+            const speler = isVvs
+                ? getVal('retroEvSpeler', 'retroEvSpelerMan')
+                : (content.querySelector('#retroEvSpelerMan')?.value.trim() || '');
+            const assist = (type === 'goal' || type === 'penalty')
+                ? (isVvs ? getVal('retroEvAssist', 'retroEvAssistMan') : '')
+                : '';
+            const ev = { type, minuut, half, ploeg, speler };
+            if (assist) ev.assist = assist;
+            retroEvents.push(ev);
+        }
+
+        refreshEventsList();
+        updateRetroCount();
+
+        // Reset velden
+        ['retroEvMin','retroEvSpelerMan','retroEvAssistMan','retroEvSubOutMan','retroEvSubInMan'].forEach(id => {
+            const el = content.querySelector('#' + id);
+            if (el) el.value = '';
+        });
+        ['retroEvSpeler','retroEvAssist','retroEvSubOut','retroEvSubIn'].forEach(id => {
+            const el = content.querySelector('#' + id);
+            if (el) el.value = '';
+        });
+        const warn = content.querySelector('#retroEvMinWarning');
+        if (warn) warn.style.display = 'none';
+    });
+
+    refreshEventsList();
+    // Verberg "Volgende" op stap 3
+    document.getElementById('retroNext').style.display = 'none';
+
+    content.querySelector('#retroFinalizeBtn').addEventListener('click', retroFinalize);
+}
+
+// ── Navigatie ─────────────────────────────────────────────────────────────────
+
+async function retroNav(dir) {
+    const next = retroCurrentStep + dir;
+    if (next < 1 || next > 3) return;
+    // Stap 1 → 2: vang de aangevinkte UIDs op VÓÓR content wordt gecleared
+    if (retroCurrentStep === 1 && dir === 1) {
+        const modal   = document.getElementById('retroModal');
+        const checked = modal.querySelectorAll('.retro-avail-cb:checked');
+        retroSelectedUids = new Set(Array.from(checked).map(cb => cb.value));
+    }
+    await renderRetroStep(next);
+}
+
+// ── Finaliseren: opslaan in Firestore ─────────────────────────────────────────
+// FIX bug 3 + 5: formaat identiek aan app.js (lineup) en live.js (events)
+
+async function retroFinalize() {
+    const btn = document.getElementById('retroFinalizeBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Bezig...'; }
+
+    try {
+        const matchId  = retroMatch.id;
+        const matchRef = doc(db, 'matches', matchId);
+        const hd       = retroHalfDur();
+        const fd       = retroFullDur();
+
+        // ── 1. lineupDraft — exact app.js formaat ────────────────────────────
+        const lineupDraft = {};
+        retroAvailable.forEach(p => {
+            let status = 'niet_geselecteerd';
+            if (retroStarters.has(p.uid))  status = 'starter';
+            else if (retroBench.has(p.uid)) status = 'bench';
+            lineupDraft[p.uid] = { name: p.name, status };
+        });
+
+        // lineup = kopie van lineupDraft (wat finalizeMatchStart ook doet)
+        const lineup = Object.fromEntries(
+            Object.entries(lineupDraft).map(([uid, v]) => [uid, { ...v }])
+        );
+
+        // ── 2. startedAt op wedstrijddatum ────────────────────────────────────
+        const matchDT = new Date(`${retroMatch.datum}T${retroMatch.uur}`);
+        const startedAt = Timestamp.fromDate(matchDT);
+        const resumeAt  = Timestamp.fromDate(new Date(matchDT.getTime() + hd * 60 * 1000));
+
+        // ── 3. Bepaal finale fase ─────────────────────────────────────────────
+        const hasET      = retroEvents.some(e => e.half >= 3);
+        const has2ndET   = retroEvents.some(e => e.half === 4);
+        const finalPhase = has2ndET ? 4 : (hasET ? 3 : 2);
+
+        // ── 4. Wedstrijd doc bijwerken ────────────────────────────────────────
+        await updateDoc(matchRef, {
+            lineupDraft,
+            lineupDraftConfirmed: true,
+            lineupConfirmed:      true,
+            lineup,
+            startedAt,
+            resumeStartedAt:   resumeAt,
+            phase:             finalPhase,
+            halfTimeReached:   true,
+            extraTimeStarted:  hasET,
+            etHalfTimeReached: has2ndET,
+            pausedAt:          null,
+        });
+
+        // ── 5. playerMinutes voor basisspelers — exact app.js / live.js ──────
+        const pmPromises = [];
+        for (const [uid, info] of Object.entries(lineup)) {
+            if (uid.startsWith('manual_')) continue;
+            if (info.status === 'starter') {
+                pmPromises.push(setDoc(
+                    doc(db, 'matches', matchId, 'playerMinutes', uid),
+                    { uid, name: info.name, minuteOn: 0, minuteOff: null, totalMinutes: fd }
+                ));
+            }
+        }
+        await Promise.all(pmPromises);
+
+        // ── 6. Bestaande events verwijderen (geen duplicaten) ─────────────────
+        const existSnap = await getDocs(
+            query(collection(db, 'events'), where('matchId', '==', matchId))
+        );
+        await Promise.all(existSnap.docs.map(d => deleteDoc(d.ref)));
+
+        // ── 7. Events aanmaken — exact live.js formaat ────────────────────────
+        const allEvDocs = [];
+
+        // Aftrap (zoals app.js finalizeMatchStart)
+        allEvDocs.push({ matchId, minuut: 0, half: 1, type: 'aftrap', ploeg: 'center', speler: '' });
+
+        // Rust halftime (zoals live.js handlePause)
+        allEvDocs.push({ matchId, minuut: hd, half: 1, type: 'rust', ploeg: 'center', speler: '' });
+
+        // Gebruikersevents
+        retroEvents.forEach(ev => {
+            // FIX bug 4: half correct berekend via retroCalcHalf (ook voor extra tijd)
+            const evDoc = {
+                matchId,
+                minuut:  ev.minuut,
+                half:    ev.half,          // al correct gezet via retroCalcHalf
+                type:    ev.type,
+                ploeg:   ev.ploeg,
+                speler:  ev.speler || '',
+            };
+            if (ev.assist)      evDoc.assist      = ev.assist;
+            if (ev.spelerUit)   evDoc.spelerUit   = ev.spelerUit;
+            if (ev.spelerIn)    evDoc.spelerIn    = ev.spelerIn;
+            if (ev.spelersUit)  evDoc.spelersUit  = ev.spelersUit;
+            if (ev.spelersIn)   evDoc.spelersIn   = ev.spelersIn;
+            if (ev.multiSub !== undefined) evDoc.multiSub = ev.multiSub;
+            allEvDocs.push(evDoc);
+        });
+
+        // Einde reguliere tijd + ET rust indien van toepassing
+        if (hasET) {
+            allEvDocs.push({ matchId, minuut: fd, half: 2, type: 'einde-regulier', ploeg: 'center', speler: '' });
+            allEvDocs.push({ matchId, minuut: fd + 15, half: 3, type: 'rust', ploeg: 'center', speler: '' });
+        }
+
+        // Einde wedstrijd
+        const eindeFd   = has2ndET ? fd + 30 : (hasET ? fd + 15 : fd);
+        const eindeHalf = has2ndET ? 4 : (hasET ? 3 : 2);
+        allEvDocs.push({ matchId, minuut: eindeFd, half: eindeHalf, type: 'einde', ploeg: 'center', speler: '' });
+
+        await Promise.all(
+            allEvDocs.map(ev => addDoc(collection(db, 'events'), { ...ev, timestamp: serverTimestamp() }))
+        );
+
+        showToast('✅ Opstelling en tijdslijn opgeslagen!', 'success');
+        document.getElementById('retroModal').classList.remove('active');
+        await loadMatches();
+
+    } catch (e) {
+        console.error('retroFinalize error:', e);
+        showToast('Fout bij opslaan: ' + e.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '💾 Opslaan in database'; }
+    }
 }
