@@ -592,6 +592,49 @@ if (memberForm) {
     });
 }
 
+// ── Leden zoekbalk ────────────────────────────────────────────────────────────
+(function initMemberSearch() {
+    const input = document.getElementById('memberSearchInput');
+    const clearBtn = document.getElementById('memberSearchClear');
+    if (!input) return;
+
+    function filterMembers(query) {
+        const q = query.trim().toLowerCase();
+        clearBtn.style.display = q ? '' : 'none';
+
+        document.querySelectorAll('#membersList .member-card').forEach(card => {
+            const text = card.textContent.toLowerCase();
+            card.style.display = (!q || text.includes(q)) ? '' : 'none';
+        });
+
+        // Lege-toestand bericht
+        const visible = [...document.querySelectorAll('#membersList .member-card')]
+            .filter(c => c.style.display !== 'none').length;
+        let noResult = document.getElementById('memberSearchNoResult');
+        if (visible === 0 && q) {
+            if (!noResult) {
+                noResult = document.createElement('p');
+                noResult.id = 'memberSearchNoResult';
+                noResult.className = 'member-search-noresult';
+                noResult.textContent = 'Geen leden gevonden voor "' + query.trim() + '".';
+                document.getElementById('membersList').appendChild(noResult);
+            } else {
+                noResult.textContent = 'Geen leden gevonden voor "' + query.trim() + '".';
+                noResult.style.display = '';
+            }
+        } else if (noResult) {
+            noResult.style.display = 'none';
+        }
+    }
+
+    input.addEventListener('input', () => filterMembers(input.value));
+    clearBtn.addEventListener('click', () => {
+        input.value = '';
+        filterMembers('');
+        input.focus();
+    });
+})();
+
 async function loadMembers() {
     const membersList = document.getElementById('membersList');
     if (!membersList) {
@@ -1653,27 +1696,30 @@ function createMatchCard(match) {
             ${statusBadge}
             ${match.status !== 'planned' ? `<span class="member-badge">Score: ${match.scoreThuis || 0} - ${match.scoreUit || 0}</span>` : ''}
         </div>
-        <div class="card-actions">
-            ${match.status === 'planned' ? `<button class="action-btn edit" data-id="${match.id}">Bewerken</button>` : ''}
-            ${(match.status === 'finished' || match.status === 'live' || match.status === 'rust')
-                ? (match.lineupConfirmed
-                    ? `<span class="match-badge retro-done-badge" title="Tijdslijn en opstelling zijn ingevoerd">✓ Tijdslijn aanwezig</span>`
-                    : `<button class="action-btn retro-btn" data-id="${match.id}">⏱ Achteraf invoeren</button>`)
-                : ''}
-            <button class="action-btn delete" data-id="${match.id}">Verwijderen</button>
+        <div class="card-actions match-card-actions">
+            ${match.status === 'planned' ? `<button class="action-btn edit match-action-edit" data-id="${match.id}">Bewerken</button>` : ''}
+            ${(() => {
+                const isAfgelopen = match.status === 'finished' || match.status === 'live' || match.status === 'rust';
+                if (!isAfgelopen) return '';
+                if (match.isForfait) {
+                    return `<span class="match-badge match-badge-forfait" title="Forfaitwedstrijd — geen tijdslijn nodig">🏳 Forfait</span>`;
+                }
+                if (match.lineupConfirmed) {
+                    return `<span class="match-badge retro-done-badge" title="Tijdslijn en opstelling zijn ingevoerd">✓ Tijdslijn</span>`;
+                }
+                return `<button class="action-btn retro-btn match-action-retro" data-id="${match.id}">⏱ Tijdslijn invoeren</button>`;
+            })()}
+            <button class="action-btn delete match-action-delete" data-id="${match.id}">Verwijderen</button>
         </div>
     `;
     
-    const editBtn = card.querySelector('.edit');
-    if (editBtn) {
-        editBtn.addEventListener('click', () => editMatch(match));
-    }
-    const retroBtn = card.querySelector('.retro-btn');
-    if (retroBtn) {
-        retroBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match); });
-    }
-    
-    card.querySelector('.delete').addEventListener('click', () => deleteMatch(match));
+    const editBtn = card.querySelector('.match-action-edit');
+    if (editBtn) editBtn.addEventListener('click', () => editMatch(match));
+
+    const retroBtn = card.querySelector('.match-action-retro');
+    if (retroBtn) retroBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match); });
+
+    card.querySelector('.match-action-delete').addEventListener('click', () => deleteMatch(match));
     card.querySelector('.match-info-admin').addEventListener('click', () => editMatch(match));
     
     return card;
@@ -2900,38 +2946,78 @@ function initForfaitListeners() {
 })();
 // ===============================================
 // RETRO WEDSTRIJD INVOER WIZARD
-// Stap 1: Aanwezigen  |  Stap 2: Opstelling  |  Stap 3: Tijdslijn
-// Doel: database-output identiek aan live.js + app.js
 // ===============================================
 
 let retroMatch        = null;
-let retroAvailable    = [];        // { uid, name, isExternal }
-let retroSelectedUids = new Set(); // aangevinkte UIDs uit stap 1
+let retroAvailable    = [];
+let retroSelectedUids = new Set();
 let retroStarters     = new Set();
 let retroBench        = new Set();
-let retroEvents       = [];        // event-objecten klaar voor Firestore
+let retroEvents       = [];
 let retroCurrentStep  = 1;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function retroHalfDur() { return retroMatch?.team === 'veteranen' ? 35 : 45; }
 function retroFullDur() { return retroHalfDur() * 2; }
+function retroVvsSide() {
+    return (retroMatch?.thuisploeg || '').toLowerCase().includes('rotselaar') ? 'home' : 'away';
+}
 
-// FIX bug 4: correcte half ook in extra tijd (niet "na het einde")
-function retroCalcHalf(min) {
+/**
+ * Parseer minuut-input. Ondersteunt:
+ *   - Gewone getallen:  "67"  → { min: 67, extra: 0 }
+ *   - Plusnotatie:     "45+2" → { min: 45, extra: 2 }
+ *   - Verlengingen:    "45+2", "90+3", maar ook "93" (gewone verlenging)
+ * Geeft null terug bij ongeldige input.
+ */
+function parseMinuut(raw) {
+    const s = (raw || '').trim();
+    const plusMatch = s.match(/^(\d{1,3})\+(\d{1,2})$/);
+    if (plusMatch) {
+        return { min: parseInt(plusMatch[1]), extra: parseInt(plusMatch[2]), raw: s };
+    }
+    const plain = parseInt(s);
+    if (!isNaN(plain) && plain >= 0) {
+        return { min: plain, extra: 0, raw: s };
+    }
+    return null;
+}
+
+/**
+ * Bepaal de half op basis van base-minuut + plusnotatie.
+ * - 45+x  → half 1 (nog in eerste helft, extra tijd)
+ * - 90+x  → half 2 (nog in tweede helft, extra tijd)
+ * - Gewone waarde ≤ hd  → half 1
+ * - Gewone waarde ≤ fd  → half 2
+ * - Daarna → verlengingen (half 3/4)
+ */
+function calcHalfFromParsed(parsed) {
     const hd = retroHalfDur(), fd = retroFullDur();
+    const { min, extra } = parsed;
+    if (extra > 0) {
+        // Plus-notatie: half bepaald door de basis-minuut
+        if (min === hd)  return 1;
+        if (min === fd)  return 2;
+        if (min === fd + 15) return 3;
+    }
+    // Gewone minuut
     if (min <= hd)       return 1;
     if (min <= fd)       return 2;
     if (min <= fd + 15)  return 3;
     return 4;
 }
 
-function retroVvsSide() {
-    const t = (retroMatch?.thuisploeg || '').toLowerCase();
-    return t.includes('rotselaar') ? 'home' : 'away';
+/** Effectieve minuut voor sortering (45+2 → 47) */
+function effectiveMin(parsed) {
+    return parsed.min + parsed.extra;
 }
 
-// ── Modal: eenmalig aanmaken ──────────────────────────────────────────────────
+function halvesLabel(half) {
+    return ['', '1e helft', '2e helft', 'VT 1e helft', 'VT 2e helft'][half] || `Half ${half}`;
+}
+
+// ── Modal aanmaken ────────────────────────────────────────────────────────────
 
 function getRetroModal() {
     let m = document.getElementById('retroModal');
@@ -2940,17 +3026,17 @@ function getRetroModal() {
     m.id        = 'retroModal';
     m.className = 'modal';
     m.innerHTML = `
-        <div class="modal-content large retro-modal-content">
+        <div class="modal-content retro-modal-content">
             <button class="modal-close-x" id="retroClose">&times;</button>
-            <h3 id="retroTitle">Wedstrijd Achteraf Invoeren</h3>
+            <h3 id="retroTitle">Wedstrijd Tijdslijn Invoeren</h3>
             <div class="retro-steps-bar" id="retroStepsBar">
-                <div class="retro-step-dot active" data-s="1"><span class="retro-dot-num">1</span>Aanwezigen</div>
-                <div class="retro-step-dot" data-s="2"><span class="retro-dot-num">2</span>Opstelling</div>
-                <div class="retro-step-dot" data-s="3"><span class="retro-dot-num">3</span>Tijdslijn</div>
+                <div class="retro-step-dot active" data-s="1"><span class="retro-dot-num">1</span><span class="retro-step-label">Aanwezigen</span></div>
+                <div class="retro-step-dot" data-s="2"><span class="retro-dot-num">2</span><span class="retro-step-label">Opstelling</span></div>
+                <div class="retro-step-dot" data-s="3"><span class="retro-dot-num">3</span><span class="retro-step-label">Tijdslijn</span></div>
             </div>
             <div id="retroContent" class="retro-content"></div>
             <div class="retro-footer">
-                <button class="modal-btn cancel"  id="retroBack" style="display:none">← Vorige</button>
+                <button class="modal-btn cancel" id="retroBack" style="display:none">← Vorige</button>
                 <button class="modal-btn confirm" id="retroNext">Volgende →</button>
             </div>
         </div>`;
@@ -2975,7 +3061,7 @@ async function openRetroWizard(match) {
 
     const modal = getRetroModal();
     modal.querySelector('#retroTitle').textContent =
-        `Achteraf invoeren — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`;
+        `Tijdslijn invoeren — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`;
     modal.classList.add('active');
     await renderRetroStep(1);
 }
@@ -3006,38 +3092,39 @@ async function renderRetroStep(step) {
     if (step === 3) renderRetroStep3(content);
 }
 
+// ── Navigatie ─────────────────────────────────────────────────────────────────
+
+async function retroNav(dir) {
+    const next = retroCurrentStep + dir;
+    if (next < 1 || next > 3) return;
+    if (retroCurrentStep === 1 && dir === 1) {
+        const modal   = document.getElementById('retroModal');
+        const checked = modal.querySelectorAll('.retro-avail-cb:checked');
+        retroSelectedUids = new Set(Array.from(checked).map(cb => cb.value));
+    }
+    await renderRetroStep(next);
+}
+
 // ── Stap 1: Aanwezigen ────────────────────────────────────────────────────────
-// FIX bug 1: enkel spelers met available:true — niemand als de lijst leeg is
-// FIX bug 2: displayName gebruiken voor manuele/externe spelers
 
 async function renderRetroStep1(content) {
     try {
-        const snap = await getDocs(
-            collection(db, 'matches', retroMatch.id, 'availability')
-        );
+        const snap = await getDocs(collection(db, 'matches', retroMatch.id, 'availability'));
         retroAvailable = [];
         snap.forEach(d => {
             const data = d.data();
-            // BUG FIX 1: skip spelers die NIET beschikbaar zijn
             if (!data.available) return;
-            // BUG FIX 2: gebruik displayName voor manuel/externe spelers
             const name = data.displayName || data.naam || d.id;
-            retroAvailable.push({
-                uid:        d.id,
-                name:       name,
-                isExternal: !!data.isExternalPlayer
-            });
+            retroAvailable.push({ uid: d.id, name, isExternal: !!data.isExternalPlayer });
         });
         retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
-    } catch (e) {
-        console.error('Error loading availability:', e);
-    }
+    } catch (e) { console.error('Error loading availability:', e); }
 
     content.innerHTML = `
         <div class="retro-step-body">
             <p class="retro-step-desc">
                 ${retroAvailable.length === 0
-                    ? '<strong>Geen beschikbaarheidslijst gevonden.</strong> Je kunt spelers handmatig toevoegen.'
+                    ? '<strong>Geen beschikbaarheidslijst gevonden.</strong> Voeg spelers handmatig toe.'
                     : `<strong>${retroAvailable.length} beschikbare speler(s)</strong> geladen uit de beschikbaarheidslijst.`}
             </p>
             <div id="retroAvailList" class="retro-avail-list">
@@ -3046,14 +3133,12 @@ async function renderRetroStep1(content) {
                         <input type="checkbox" class="retro-avail-cb" value="${p.uid}" checked>
                         <span>${p.name}${p.isExternal ? ' <em class="retro-extern-badge">extern</em>' : ''}</span>
                     </label>`).join('')}
-                ${retroAvailable.length === 0
-                    ? '<p class="retro-empty">Geen spelers. Voeg ze hieronder handmatig toe.</p>'
-                    : ''}
+                ${retroAvailable.length === 0 ? '<p class="retro-empty">Geen spelers. Voeg ze hieronder handmatig toe.</p>' : ''}
             </div>
             <div class="retro-manual-add-row">
                 <button class="action-btn" id="retroToggleManualAdd">+ Speler handmatig toevoegen</button>
-                <div id="retroManualAddForm" style="display:none;">
-                    <input type="text" id="retroManualName" class="modal-input-manual" placeholder="Naam speler">
+                <div id="retroManualAddForm" style="display:none;gap:0.5rem;flex-wrap:wrap;">
+                    <input type="text" id="retroManualName" class="modal-input-manual" placeholder="Naam speler" style="flex:1;min-width:160px;">
                     <button class="action-btn edit" id="retroManualAddBtn">Toevoegen</button>
                 </div>
             </div>
@@ -3063,36 +3148,28 @@ async function renderRetroStep1(content) {
         const f = content.querySelector('#retroManualAddForm');
         f.style.display = f.style.display === 'none' ? 'flex' : 'none';
     });
-
     content.querySelector('#retroManualAddBtn').addEventListener('click', () => {
         const input = content.querySelector('#retroManualName');
         const name  = input.value.trim();
         if (!name) return;
-        const safeName = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-        const ts       = Date.now();
-        const uid      = `manual_${safeName}_${ts}`;
+        const safe = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
+        const uid  = `manual_${safe}_${Date.now()}`;
         retroAvailable.push({ uid, name, isExternal: true });
-
         const list = content.querySelector('#retroAvailList');
-        const row  = document.createElement('label');
+        list.querySelector('.retro-empty')?.remove();
+        const row = document.createElement('label');
         row.className = 'retro-player-row';
-        row.innerHTML = `
-            <input type="checkbox" class="retro-avail-cb" value="${uid}" checked>
+        row.innerHTML = `<input type="checkbox" class="retro-avail-cb" value="${uid}" checked>
             <span>${name} <em class="retro-extern-badge">handmatig</em></span>`;
         list.appendChild(row);
         input.value = '';
-        // Lege-state-tekst verwijderen
-        list.querySelector('.retro-empty')?.remove();
     });
 }
 
 // ── Stap 2: Opstelling ────────────────────────────────────────────────────────
-// FIX bug 5: sla op in exact hetzelfde formaat als app.js (lineupDraft + lineup)
 
 function renderRetroStep2(content) {
     const players = retroAvailable.filter(p => retroSelectedUids.has(p.uid));
-
-    // Pre-fill vanuit bestaande lineupDraft
     if (retroStarters.size === 0 && retroBench.size === 0 && retroMatch.lineupDraft) {
         Object.entries(retroMatch.lineupDraft).forEach(([uid, info]) => {
             if (players.find(p => p.uid === uid)) {
@@ -3101,24 +3178,18 @@ function renderRetroStep2(content) {
             }
         });
     }
-
     const MAX_START = 11, MAX_BENCH = 5;
 
     content.innerHTML = `
         <div class="retro-step-body">
-            <p class="retro-step-desc">
-                Klik een speler om hem van <em>Aanwezig</em> naar <strong>Basis</strong> of <strong>Bank</strong> te sturen.
-                Klik opnieuw om terug te plaatsen. Basis = exact 11 spelers.
-            </p>
-
-            <div style="margin-bottom:0.4rem;">
-                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
-                    <span style="font-size:0.8rem;font-weight:700;color:#555;">👥 AANWEZIG</span>
+            <p class="retro-step-desc">Klik een speler om hem van <em>Aanwezig</em> naar <strong>Basis</strong> of <strong>Bank</strong> te sturen. Klik opnieuw om terug te plaatsen. Basis = exact 11 spelers.</p>
+            <div style="margin-bottom:0.5rem;">
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
+                    <span style="font-size:0.8rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.04em;">👥 Aanwezig</span>
                     <span class="retro-lineup-badge retro-badge--gray" id="retroAvailCount">0</span>
                 </div>
                 <div id="retroAvailChips" class="retro-avail-chips"></div>
             </div>
-
             <div class="retro-2col-grid">
                 <div class="retro-lineup-col retro-col--start">
                     <div class="retro-lineup-col-hdr">
@@ -3127,7 +3198,7 @@ function renderRetroStep2(content) {
                         <span class="retro-lineup-max">/11</span>
                     </div>
                     <div id="retroStartColList" class="retro-lineup-list"></div>
-                    <p class="retro-lineup-sub">Klik speler om terug of naar bank</p>
+                    <p class="retro-lineup-sub">Klik speler om te verplaatsen</p>
                 </div>
                 <div class="retro-lineup-col retro-col--bench">
                     <div class="retro-lineup-col-hdr">
@@ -3139,7 +3210,6 @@ function renderRetroStep2(content) {
                     <p class="retro-lineup-sub">Klik speler om terug te plaatsen</p>
                 </div>
             </div>
-
             <div class="retro-lineup-hint" id="retroLineupHint"></div>
         </div>`;
 
@@ -3150,107 +3220,53 @@ function renderRetroStep2(content) {
         const hintEl    = document.getElementById('retroLineupHint');
         const nextBtn   = document.getElementById('retroNext');
         if (!chipsEl) return;
-
         [chipsEl, startList, benchList].forEach(l => l.innerHTML = '');
-
-        const sc    = retroStarters.size;
-        const bc    = retroBench.size;
+        const sc = retroStarters.size, bc = retroBench.size;
         const valid = sc === MAX_START;
-
         document.getElementById('retroAvailCount').textContent = players.length - sc - bc;
         document.getElementById('retroStartCount').textContent = sc;
         document.getElementById('retroBenchCount').textContent = bc;
-
-        if (nextBtn) {
-            nextBtn.disabled    = !valid;
-            nextBtn.textContent = valid ? 'Volgende →' : `Volgende (${sc}/11 basis)`;
-        }
-
+        if (nextBtn) { nextBtn.disabled = !valid; nextBtn.textContent = valid ? 'Volgende →' : `Volgende (${sc}/11 basis)`; }
         if (hintEl) {
-            if      (sc < MAX_START) hintEl.textContent = `Nog ${MAX_START - sc} basisspeler${MAX_START - sc !== 1 ? 's' : ''} nodig.`;
-            else if (bc === 0)       hintEl.textContent = `✓ Basis volledig. Voeg optioneel wisselspelers toe.`;
-            else                     hintEl.textContent = `✓ Klaar — ${sc} basis, ${bc} wissel${bc !== 1 ? 's' : ''}.`;
+            hintEl.textContent = valid
+                ? (bc === 0 ? '✓ Basis volledig. Voeg optioneel wisselspelers toe.' : `✓ Klaar — ${sc} basis, ${bc} wissel${bc!==1?'s':''}. `)
+                : `Nog ${MAX_START - sc} basisspeler${MAX_START-sc!==1?'s':''} nodig.`;
             hintEl.style.color = valid ? '#28a745' : '#e65100';
         }
-
-        // Toon lege-kolom placeholder
-        if (sc === 0) {
-            const em = document.createElement('p');
-            em.className = 'retro-empty'; em.textContent = 'Nog geen basisspelers';
-            startList.appendChild(em);
-        }
-        if (bc === 0) {
-            const em = document.createElement('p');
-            em.className = 'retro-empty'; em.textContent = 'Nog geen wisselspelers';
-            benchList.appendChild(em);
-        }
-
+        if (sc === 0) { const e=document.createElement('p'); e.className='retro-empty'; e.textContent='Nog geen basisspelers'; startList.appendChild(e); }
+        if (bc === 0) { const e=document.createElement('p'); e.className='retro-empty'; e.textContent='Nog geen wisselspelers'; benchList.appendChild(e); }
         players.forEach(p => {
-            const isStart = retroStarters.has(p.uid);
-            const isBench = retroBench.has(p.uid);
-            const btn     = document.createElement('button');
+            const isStart = retroStarters.has(p.uid), isBench = retroBench.has(p.uid);
+            const btn = document.createElement('button');
             btn.textContent = p.name;
-            btn.className   = 'retro-player-pill ' +
-                (isStart ? 'pill--start' : isBench ? 'pill--bench' : 'pill--avail');
-            btn.title = isStart ? 'Klik: naar bank'
-                      : isBench ? 'Klik: terug naar aanwezig'
-                      : sc < MAX_START ? 'Klik: naar basis' : 'Klik: naar bank';
-
-            if      (isStart) startList.appendChild(btn);
+            btn.className = 'retro-player-pill ' + (isStart ? 'pill--start' : isBench ? 'pill--bench' : 'pill--avail');
+            btn.title = isStart ? 'Klik: naar bank of terug' : isBench ? 'Klik: terug naar aanwezig' : sc < MAX_START ? 'Klik: naar basis' : 'Klik: naar bank';
+            if (isStart) startList.appendChild(btn);
             else if (isBench) benchList.appendChild(btn);
-            else              chipsEl.appendChild(btn);
-
+            else chipsEl.appendChild(btn);
             btn.addEventListener('click', () => {
-                if (isStart) {
-                    retroStarters.delete(p.uid);
-                    if (retroBench.size < MAX_BENCH) retroBench.add(p.uid);
-                } else if (isBench) {
-                    retroBench.delete(p.uid);
-                } else {
-                    if      (retroStarters.size < MAX_START) retroStarters.add(p.uid);
-                    else if (retroBench.size   < MAX_BENCH)  retroBench.add(p.uid);
-                }
+                if (isStart)      { retroStarters.delete(p.uid); if (retroBench.size < MAX_BENCH) retroBench.add(p.uid); }
+                else if (isBench) { retroBench.delete(p.uid); }
+                else              { if (retroStarters.size < MAX_START) retroStarters.add(p.uid); else if (retroBench.size < MAX_BENCH) retroBench.add(p.uid); }
                 refresh();
             });
         });
-
-        if (players.filter(p => !retroStarters.has(p.uid) && !retroBench.has(p.uid)).length === 0) {
-            const em = document.createElement('p');
-            em.className = 'retro-empty'; em.style.fontSize = '0.8rem';
-            em.textContent = 'Alle spelers zijn ingedeeld';
-            chipsEl.appendChild(em);
-        }
+        const noAvail = players.filter(p => !retroStarters.has(p.uid) && !retroBench.has(p.uid)).length === 0;
+        if (noAvail && players.length > 0) { const e=document.createElement('p'); e.className='retro-empty'; e.style.fontSize='0.8rem'; e.textContent='Alle spelers zijn ingedeeld'; chipsEl.appendChild(e); }
     }
-
     refresh();
 }
 
-
 // ── Stap 3: Tijdslijn ─────────────────────────────────────────────────────────
-// FIX bug 3: events opgeslagen in exact hetzelfde formaat als live.js
-// FIX bug 4: correcte half berekening voor extra tijd
 
 function renderRetroStep3(content) {
-    const hd  = retroHalfDur();
-    const fd  = retroFullDur();
-    const vvs = retroVvsSide();
-    const oppSide = vvs === 'home' ? 'away' : 'home';
-
-    const allLineuped = retroAvailable.filter(p =>
-        retroStarters.has(p.uid) || retroBench.has(p.uid)
-    );
+    const hd  = retroHalfDur(), fd = retroFullDur();
+    const vvs = retroVvsSide(), oppSide = vvs === 'home' ? 'away' : 'home';
+    const allLineuped = retroAvailable.filter(p => retroStarters.has(p.uid) || retroBench.has(p.uid));
 
     function playerOpts(empty = '— Selecteer speler —') {
         return `<option value="">${empty}</option>` +
             allLineuped.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-    }
-
-    function halvesLabel(min) {
-        const h = retroCalcHalf(min);
-        if (h === 1) return `1e helft`;
-        if (h === 2) return `2e helft`;
-        if (h === 3) return `VT 1e helft`;
-        return `VT 2e helft`;
     }
 
     function refreshEventsList() {
@@ -3260,55 +3276,83 @@ function renderRetroStep3(content) {
             list.innerHTML = '<p class="retro-empty">Nog geen events. Gebruik het formulier hierboven.</p>';
             return;
         }
-        const sorted = [...retroEvents]
-            .map((ev, origIdx) => ({ ...ev, origIdx }))
-            .sort((a, b) => (a.minuut || 0) - (b.minuut || 0) || a.half - b.half);
-
         const TYPE_LABELS = {
-            goal: '⚽ Goal', penalty: '⚽ Penalty', 'penalty-missed': '❌ Penalty gemist',
-            'own-goal': '↩️ Eigen doelpunt', yellow: '🟡 Gele kaart',
-            yellow2red: '🟥 2e Gele/Rood', red: '🔴 Rode kaart', substitution: '🔄 Wissel'
+            goal:'⚽ Goal', penalty:'⚽ Penalty', 'penalty-missed':'❌ Penalty gemist',
+            'own-goal':'↩️ Eigen doel', yellow:'🟡 Gele kaart',
+            yellow2red:'🟥 2e Gele/Rood', red:'🔴 Rode kaart', substitution:'🔄 Wissel'
         };
-
+        const sorted = [...retroEvents].map((ev,i) => ({...ev,i}))
+            .sort((a,b) => effectiveMin(a.parsed) - effectiveMin(b.parsed));
         list.innerHTML = sorted.map(ev => {
             let detail = ev.speler || '';
-            if (ev.assist)          detail += ` (assist: ${ev.assist})`;
-            if (ev.spelersUit?.length) detail = `Uit: ${ev.spelersUit.join(', ')} → In: ${ev.spelersIn?.join(', ') || '—'}`;
+            if (ev.assist) detail += ` (assist: ${ev.assist})`;
+            if (ev.spelersUit?.length) detail = `Uit: ${ev.spelersUit.join(', ')} → In: ${ev.spelersIn?.join(', ')||'—'}`;
             const sideLabel = ev.ploeg === vvs
                 ? `<span class="retro-ev-vvs">VVS</span>`
                 : `<span class="retro-ev-opp">Teg.</span>`;
+            const minLabel = ev.parsed.extra > 0
+                ? `${ev.parsed.min}+${ev.parsed.extra}'`
+                : `${ev.parsed.min}'`;
             return `<div class="retro-event-row">
-                <span class="retro-event-min">${ev.minuut}' <small>(${halvesLabel(ev.minuut)})</small></span>
+                <span class="retro-event-min">${minLabel} <small>(${halvesLabel(ev.half)})</small></span>
                 ${sideLabel}
-                <span class="retro-event-type">${TYPE_LABELS[ev.type] || ev.type}</span>
+                <span class="retro-event-type">${TYPE_LABELS[ev.type]||ev.type}</span>
                 <span class="retro-event-detail">${detail}</span>
-                <button class="retro-delete-event" data-idx="${ev.origIdx}">✕</button>
+                <button class="retro-delete-event" data-idx="${ev.i}">✕</button>
             </div>`;
         }).join('');
-
         list.querySelectorAll('.retro-delete-event').forEach(btn => {
             btn.addEventListener('click', () => {
                 retroEvents.splice(parseInt(btn.dataset.idx), 1);
                 refreshEventsList();
-                updateRetroCount();
+                document.getElementById('retroEventsCount').textContent = retroEvents.length;
             });
         });
     }
 
-    function updateRetroCount() {
-        const el = document.getElementById('retroEventsCount');
-        if (el) el.textContent = retroEvents.length;
-    }
-
     content.innerHTML = `
         <div class="retro-step-body retro-timeline-body">
-            <p class="retro-step-desc">
-                Voeg wedstrijdevents toe.
-                <em>Aftrap (0'), rust (${hd}') en einde (${fd}') worden automatisch aangemaakt bij opslaan.</em>
-            </p>
+            <p class="retro-step-desc">Voeg wedstrijdevents toe. <em>Aftrap (0'), rust (${hd}') en einde (${fd}') worden automatisch aangemaakt bij opslaan.</em></p>
+
+            <div class="retro-minuut-info">
+                <div class="rmi-header">
+                    <span class="rmi-icon">📋</span>
+                    <span class="rmi-title">Minuut invoeren</span>
+                </div>
+                <div class="rmi-rows">
+                    <div class="rmi-row rmi-row--normal">
+                        <span class="rmi-badge">1e / 2e helft</span>
+                        <span class="rmi-desc">Gewone minuut, bijv.</span>
+                        <code class="rmi-code">${Math.round(fd * 0.75)}</code>
+                        <span class="rmi-arrow">→</span>
+                        <span class="rmi-result">${Math.round(fd * 0.75)}e minuut, 2e helft</span>
+                    </div>
+                    <div class="rmi-row rmi-row--extra">
+                        <span class="rmi-badge">Extra tijd 1e</span>
+                        <span class="rmi-desc">Plus-notatie, bijv.</span>
+                        <code class="rmi-code">${hd}+2</code>
+                        <span class="rmi-arrow">→</span>
+                        <span class="rmi-result">Nog in de 1e helft</span>
+                    </div>
+                    <div class="rmi-row rmi-row--extra">
+                        <span class="rmi-badge">Extra tijd 2e</span>
+                        <span class="rmi-desc">Plus-notatie, bijv.</span>
+                        <code class="rmi-code">${fd}+3</code>
+                        <span class="rmi-arrow">→</span>
+                        <span class="rmi-result">Nog in de 2e helft</span>
+                    </div>
+                    <div class="rmi-row rmi-row--vt">
+                        <span class="rmi-badge">Verlengingen</span>
+                        <span class="rmi-desc">Gewone minuut, bijv.</span>
+                        <code class="rmi-code">${fd + 3}</code>
+                        <span class="rmi-arrow">→</span>
+                        <span class="rmi-result">Automatisch VT</span>
+                    </div>
+                </div>
+            </div>
 
             <div class="retro-add-event-form">
-                <div class="form-row" style="flex-wrap:wrap;gap:0.5rem;">
+                <div class="retro-form-row">
                     <div class="form-group" style="flex:2;min-width:140px;">
                         <label>Type *</label>
                         <select id="retroEvType">
@@ -3322,9 +3366,9 @@ function renderRetroStep3(content) {
                             <option value="substitution">🔄 Wissel</option>
                         </select>
                     </div>
-                    <div class="form-group" style="flex:0 0 90px;">
+                    <div class="form-group" style="flex:0 0 110px;">
                         <label>Minuut *</label>
-                        <input type="number" id="retroEvMin" min="0" max="999" placeholder="${fd}">
+                        <input type="text" id="retroEvMin" placeholder="bijv. 45+2" autocomplete="off">
                     </div>
                     <div class="form-group" style="flex:2;min-width:140px;">
                         <label>Ploeg *</label>
@@ -3334,35 +3378,32 @@ function renderRetroStep3(content) {
                         </select>
                     </div>
                 </div>
-
                 <div id="retroEvSingle">
                     <div class="form-group">
                         <label>Speler</label>
-                        <select id="retroEvSpeler" style="display:block;">${playerOpts()}</select>
-                        <input type="text" id="retroEvSpelerMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                        <select id="retroEvSpeler">${playerOpts()}</select>
+                        <input type="text" id="retroEvSpelerMan" class="modal-input-manual" placeholder="Of typ naam handmatig…">
                     </div>
                     <div class="form-group" id="retroEvAssistGroup">
                         <label>Assist (optioneel)</label>
                         <select id="retroEvAssist">${playerOpts('— Geen assist —')}</select>
-                        <input type="text" id="retroEvAssistMan" class="modal-input-manual" placeholder="Of typ naam...">
+                        <input type="text" id="retroEvAssistMan" class="modal-input-manual" placeholder="Of typ naam…">
                     </div>
                 </div>
-
                 <div id="retroEvSub" style="display:none;">
                     <div class="form-group">
                         <label>Speler UIT</label>
                         <select id="retroEvSubOut">${playerOpts('— Speler uit —')}</select>
-                        <input type="text" id="retroEvSubOutMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                        <input type="text" id="retroEvSubOutMan" class="modal-input-manual" placeholder="Of typ naam handmatig…">
                     </div>
                     <div class="form-group">
                         <label>Speler IN</label>
                         <select id="retroEvSubIn">${playerOpts('— Speler in —')}</select>
-                        <input type="text" id="retroEvSubInMan" class="modal-input-manual" placeholder="Of typ naam handmatig...">
+                        <input type="text" id="retroEvSubInMan" class="modal-input-manual" placeholder="Of typ naam handmatig…">
                     </div>
                 </div>
-
-                <div id="retroEvMinWarning" class="retro-min-warning" style="display:none;"></div>
-                <button class="action-btn edit" id="retroAddEventBtn">+ Event toevoegen</button>
+                <div id="retroEvMinFeedback" class="retro-min-feedback" style="display:none;"></div>
+                <button class="action-btn edit" id="retroAddEventBtn" style="margin-top:0.5rem;">+ Event toevoegen</button>
             </div>
 
             <hr style="margin:1rem 0;border:none;border-top:1px solid var(--border-color,#e9ecef);">
@@ -3371,247 +3412,194 @@ function renderRetroStep3(content) {
 
             <div class="retro-finalize-section">
                 <p style="color:var(--text-gray);font-size:0.85rem;margin-bottom:0.75rem;">
-                    Dit slaat de <strong>opstelling</strong> (lineupDraft + lineup) en <strong>tijdslijn</strong> (events) op in de database — identiek aan een live wedstrijd.
+                    Slaat de <strong>opstelling</strong> en <strong>tijdslijn</strong> op — identiek aan een live wedstrijd.
                 </p>
                 <button class="modal-btn confirm" id="retroFinalizeBtn">💾 Opslaan in database</button>
             </div>
         </div>`;
 
-    // Form type-toggle logica
     const evType    = content.querySelector('#retroEvType');
     const ploegSel  = content.querySelector('#retroEvPloeg');
     const singleSec = content.querySelector('#retroEvSingle');
     const subSec    = content.querySelector('#retroEvSub');
     const assistGrp = content.querySelector('#retroEvAssistGroup');
     const spelerSel = content.querySelector('#retroEvSpeler');
+    const minInput  = content.querySelector('#retroEvMin');
+    const feedback  = content.querySelector('#retroEvMinFeedback');
 
     function updateFormLayout() {
-        const t      = evType.value;
-        const isVvs  = ploegSel.value === vvs;
-        const isSub  = t === 'substitution';
-        singleSec.style.display    = isSub ? 'none' : '';
-        subSec.style.display       = isSub ? '' : 'none';
-        assistGrp.style.display    = (t === 'goal' || t === 'penalty') ? '' : 'none';
-        spelerSel.style.display    = isVvs ? '' : 'none';
+        const t = evType.value, isVvs = ploegSel.value === vvs, isSub = t === 'substitution';
+        const hasAssist = t === 'goal' || t === 'penalty';
+
+        if (isSub) {
+            singleSec.style.display = 'none';
+            subSec.style.display    = '';
+            // Wissel: VVS = select+handmatig, tegenstander = enkel handmatig
+            const subOutSel = content.querySelector('#retroEvSubOut');
+            const subInSel  = content.querySelector('#retroEvSubIn');
+            const subOutMan = content.querySelector('#retroEvSubOutMan');
+            const subInMan  = content.querySelector('#retroEvSubInMan');
+            if (subOutSel) subOutSel.style.display = isVvs ? '' : 'none';
+            if (subInSel)  subInSel.style.display  = isVvs ? '' : 'none';
+            if (subOutMan) subOutMan.placeholder    = isVvs ? 'Of typ naam handmatig…' : 'Naam speler (handmatig)';
+            if (subInMan)  subInMan.placeholder     = isVvs ? 'Of typ naam handmatig…' : 'Naam speler (handmatig)';
+        } else {
+            singleSec.style.display = '';
+            subSec.style.display    = 'none';
+            // Speler: VVS = select+handmatig, tegenstander = enkel handmatig tekstveld
+            spelerSel.style.display = isVvs ? '' : 'none';
+            // Assist: enkel tonen bij goal/penalty EN enkel VVS (tegenstander heeft nooit assist-select)
+            assistGrp.style.display = hasAssist ? '' : 'none';
+            if (hasAssist) {
+                const assistSel = content.querySelector('#retroEvAssist');
+                const assistMan = content.querySelector('#retroEvAssistMan');
+                if (assistSel) assistSel.style.display = isVvs ? '' : 'none';
+                if (assistMan) assistMan.placeholder    = isVvs ? 'Of typ naam…' : 'Naam speler (handmatig)';
+            }
+        }
     }
     evType.addEventListener('change', updateFormLayout);
     ploegSel.addEventListener('change', updateFormLayout);
     updateFormLayout();
 
-    // Minuut-warning voor extra tijd (geen fout, enkel info)
-    content.querySelector('#retroEvMin').addEventListener('input', () => {
-        const min  = parseInt(content.querySelector('#retroEvMin').value) || 0;
-        const warn = content.querySelector('#retroEvMinWarning');
-        const h    = retroCalcHalf(min);
-        if (h >= 3 && warn) {
-            warn.style.display  = '';
-            warn.textContent    = `ℹ️ Minuut ${min}' valt in verlengingen (${halvesLabel(min)}, half ${h}).`;
-        } else if (warn) {
-            warn.style.display = 'none';
+    // Live minuut-feedback
+    minInput.addEventListener('input', () => {
+        const parsed = parseMinuut(minInput.value);
+        if (!parsed) { feedback.style.display = 'none'; return; }
+        const half = calcHalfFromParsed(parsed);
+        const effMin = effectiveMin(parsed);
+        const halfLabel = halvesLabel(half);
+        let msg, cls;
+        if (parsed.extra > 0) {
+            msg = `→ Extra tijd: minuut ${parsed.min}+${parsed.extra}' valt in de <strong>${halfLabel}</strong> (effectief: ${effMin}')`;
+            cls = 'retro-min-feedback--info';
+        } else if (half >= 3) {
+            msg = `→ Verlengingen: minuut ${parsed.min}' valt in de <strong>${halfLabel}</strong>`;
+            cls = 'retro-min-feedback--vt';
+        } else {
+            msg = `→ Minuut ${parsed.min}' — <strong>${halfLabel}</strong>`;
+            cls = 'retro-min-feedback--ok';
         }
+        feedback.innerHTML = msg;
+        feedback.className = `retro-min-feedback ${cls}`;
+        feedback.style.display = '';
     });
 
-    // Event toevoegen
+    const getVal = (selId, manId) => {
+        const sel = content.querySelector('#'+selId), man = content.querySelector('#'+manId);
+        return (sel?.value) || (man?.value.trim() || '');
+    };
+
     content.querySelector('#retroAddEventBtn').addEventListener('click', () => {
         const type   = evType.value;
-        const minuut = parseInt(content.querySelector('#retroEvMin').value);
-        if (isNaN(minuut) || minuut < 0) {
-            showToast('Voer een geldige minuut in.', 'error');
-            return;
-        }
-        // FIX bug 4: correcte half ook voor extra tijd
-        const half   = retroCalcHalf(minuut);
+        const parsed = parseMinuut(minInput.value);
+        if (!parsed) { showToast('Voer een geldige minuut in (bijv. 67 of 45+2).', 'error'); return; }
+        const half   = calcHalfFromParsed(parsed);
+        const minuut = effectiveMin(parsed);
         const ploeg  = ploegSel.value;
         const isVvs  = ploeg === vvs;
 
-        const getVal = (selId, manId) => {
-            const sel = content.querySelector('#' + selId);
-            const man = content.querySelector('#' + manId);
-            return (sel?.value) || (man?.value.trim() || '');
-        };
-
         if (type === 'substitution') {
-            const spelerUit = getVal('retroEvSubOut', 'retroEvSubOutMan');
-            const spelerIn  = getVal('retroEvSubIn',  'retroEvSubInMan');
-            // Exact formaat van live.js executeMultiSub
-            retroEvents.push({
-                type: 'substitution', minuut, half, ploeg,
-                speler:     '',
-                spelerUit:  spelerUit,
-                spelerIn:   spelerIn,
-                spelersUit: spelerUit ? [spelerUit] : [],
-                spelersIn:  spelerIn  ? [spelerIn]  : [],
-                multiSub:   false,
-            });
+            const spelerUit = getVal('retroEvSubOut','retroEvSubOutMan');
+            const spelerIn  = getVal('retroEvSubIn','retroEvSubInMan');
+            retroEvents.push({ type:'substitution', minuut, half, ploeg, speler:'',
+                spelerUit, spelerIn, spelersUit: spelerUit?[spelerUit]:[], spelersIn: spelerIn?[spelerIn]:[], multiSub:false, parsed });
         } else {
-            const speler = isVvs
-                ? getVal('retroEvSpeler', 'retroEvSpelerMan')
-                : (content.querySelector('#retroEvSpelerMan')?.value.trim() || '');
-            const assist = (type === 'goal' || type === 'penalty')
-                ? (isVvs ? getVal('retroEvAssist', 'retroEvAssistMan') : '')
-                : '';
-            const ev = { type, minuut, half, ploeg, speler };
+            const speler = isVvs ? getVal('retroEvSpeler','retroEvSpelerMan') : (content.querySelector('#retroEvSpelerMan')?.value.trim()||'');
+            const assist = (type==='goal'||type==='penalty') ? (isVvs ? getVal('retroEvAssist','retroEvAssistMan') : '') : '';
+            const ev = { type, minuut, half, ploeg, speler, parsed };
             if (assist) ev.assist = assist;
             retroEvents.push(ev);
         }
 
         refreshEventsList();
-        updateRetroCount();
-
-        // Reset velden
-        ['retroEvMin','retroEvSpelerMan','retroEvAssistMan','retroEvSubOutMan','retroEvSubInMan'].forEach(id => {
-            const el = content.querySelector('#' + id);
-            if (el) el.value = '';
-        });
-        ['retroEvSpeler','retroEvAssist','retroEvSubOut','retroEvSubIn'].forEach(id => {
-            const el = content.querySelector('#' + id);
-            if (el) el.value = '';
-        });
-        const warn = content.querySelector('#retroEvMinWarning');
-        if (warn) warn.style.display = 'none';
+        document.getElementById('retroEventsCount').textContent = retroEvents.length;
+        ['retroEvMin','retroEvSpelerMan','retroEvAssistMan','retroEvSubOutMan','retroEvSubInMan'].forEach(id => { const el=content.querySelector('#'+id); if(el) el.value=''; });
+        ['retroEvSpeler','retroEvAssist','retroEvSubOut','retroEvSubIn'].forEach(id => { const el=content.querySelector('#'+id); if(el) el.value=''; });
+        feedback.style.display = 'none';
     });
 
     refreshEventsList();
-    // Verberg "Volgende" op stap 3
     document.getElementById('retroNext').style.display = 'none';
-
     content.querySelector('#retroFinalizeBtn').addEventListener('click', retroFinalize);
 }
 
-// ── Navigatie ─────────────────────────────────────────────────────────────────
-
-async function retroNav(dir) {
-    const next = retroCurrentStep + dir;
-    if (next < 1 || next > 3) return;
-    // Stap 1 → 2: vang de aangevinkte UIDs op VÓÓR content wordt gecleared
-    if (retroCurrentStep === 1 && dir === 1) {
-        const modal   = document.getElementById('retroModal');
-        const checked = modal.querySelectorAll('.retro-avail-cb:checked');
-        retroSelectedUids = new Set(Array.from(checked).map(cb => cb.value));
-    }
-    await renderRetroStep(next);
-}
-
-// ── Finaliseren: opslaan in Firestore ─────────────────────────────────────────
-// FIX bug 3 + 5: formaat identiek aan app.js (lineup) en live.js (events)
+// ── Finaliseren ───────────────────────────────────────────────────────────────
 
 async function retroFinalize() {
     const btn = document.getElementById('retroFinalizeBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Bezig...'; }
-
+    if (btn) { btn.disabled = true; btn.textContent = 'Bezig…'; }
     try {
         const matchId  = retroMatch.id;
         const matchRef = doc(db, 'matches', matchId);
-        const hd       = retroHalfDur();
-        const fd       = retroFullDur();
+        const hd = retroHalfDur(), fd = retroFullDur();
 
-        // ── 1. lineupDraft — exact app.js formaat ────────────────────────────
+        // lineupDraft
         const lineupDraft = {};
         retroAvailable.forEach(p => {
             let status = 'niet_geselecteerd';
-            if (retroStarters.has(p.uid))  status = 'starter';
+            if (retroStarters.has(p.uid)) status = 'starter';
             else if (retroBench.has(p.uid)) status = 'bench';
             lineupDraft[p.uid] = { name: p.name, status };
         });
+        const lineup = Object.fromEntries(Object.entries(lineupDraft).map(([uid,v]) => [uid,{...v}]));
 
-        // lineup = kopie van lineupDraft (wat finalizeMatchStart ook doet)
-        const lineup = Object.fromEntries(
-            Object.entries(lineupDraft).map(([uid, v]) => [uid, { ...v }])
-        );
-
-        // ── 2. startedAt op wedstrijddatum ────────────────────────────────────
-        const matchDT = new Date(`${retroMatch.datum}T${retroMatch.uur}`);
+        const matchDT   = new Date(`${retroMatch.datum}T${retroMatch.uur}`);
         const startedAt = Timestamp.fromDate(matchDT);
-        const resumeAt  = Timestamp.fromDate(new Date(matchDT.getTime() + hd * 60 * 1000));
+        const resumeAt  = Timestamp.fromDate(new Date(matchDT.getTime() + hd * 60000));
 
-        // ── 3. Bepaal finale fase ─────────────────────────────────────────────
-        const hasET      = retroEvents.some(e => e.half >= 3);
-        const has2ndET   = retroEvents.some(e => e.half === 4);
-        const finalPhase = has2ndET ? 4 : (hasET ? 3 : 2);
+        const hasET    = retroEvents.some(e => e.half >= 3);
+        const has2ndET = retroEvents.some(e => e.half === 4);
 
-        // ── 4. Wedstrijd doc bijwerken ────────────────────────────────────────
         await updateDoc(matchRef, {
-            lineupDraft,
-            lineupDraftConfirmed: true,
-            lineupConfirmed:      true,
-            lineup,
-            startedAt,
-            resumeStartedAt:   resumeAt,
-            phase:             finalPhase,
-            halfTimeReached:   true,
-            extraTimeStarted:  hasET,
-            etHalfTimeReached: has2ndET,
-            pausedAt:          null,
+            lineupDraft, lineupDraftConfirmed: true, lineupConfirmed: true, lineup,
+            startedAt, resumeStartedAt: resumeAt,
+            phase: has2ndET ? 4 : (hasET ? 3 : 2),
+            halfTimeReached: true, extraTimeStarted: hasET, etHalfTimeReached: has2ndET, pausedAt: null,
         });
 
-        // ── 5. playerMinutes voor basisspelers — exact app.js / live.js ──────
-        const pmPromises = [];
-        for (const [uid, info] of Object.entries(lineup)) {
-            if (uid.startsWith('manual_')) continue;
-            if (info.status === 'starter') {
-                pmPromises.push(setDoc(
-                    doc(db, 'matches', matchId, 'playerMinutes', uid),
-                    { uid, name: info.name, minuteOn: 0, minuteOff: null, totalMinutes: fd }
-                ));
-            }
-        }
-        await Promise.all(pmPromises);
+        // playerMinutes voor basisspelers
+        await Promise.all(Object.entries(lineup)
+            .filter(([uid,info]) => !uid.startsWith('manual_') && info.status === 'starter')
+            .map(([uid,info]) => setDoc(doc(db,'matches',matchId,'playerMinutes',uid),
+                { uid, name: info.name, minuteOn: 0, minuteOff: null, totalMinutes: fd })));
 
-        // ── 6. Bestaande events verwijderen (geen duplicaten) ─────────────────
-        const existSnap = await getDocs(
-            query(collection(db, 'events'), where('matchId', '==', matchId))
-        );
+        // Verwijder bestaande events
+        const existSnap = await getDocs(query(collection(db,'events'), where('matchId','==',matchId)));
         await Promise.all(existSnap.docs.map(d => deleteDoc(d.ref)));
 
-        // ── 7. Events aanmaken — exact live.js formaat ────────────────────────
-        const allEvDocs = [];
-
-        // Aftrap (zoals app.js finalizeMatchStart)
-        allEvDocs.push({ matchId, minuut: 0, half: 1, type: 'aftrap', ploeg: 'center', speler: '' });
-
-        // Rust halftime (zoals live.js handlePause)
-        allEvDocs.push({ matchId, minuut: hd, half: 1, type: 'rust', ploeg: 'center', speler: '' });
-
-        // Gebruikersevents
+        // Bouw events array (exact live.js formaat)
+        const allEvDocs = [
+            { matchId, minuut: 0,  half: 1, type: 'aftrap', ploeg: 'center', speler: '' },
+            { matchId, minuut: hd, half: 1, type: 'rust',   ploeg: 'center', speler: '' },
+        ];
         retroEvents.forEach(ev => {
-            // FIX bug 4: half correct berekend via retroCalcHalf (ook voor extra tijd)
-            const evDoc = {
-                matchId,
-                minuut:  ev.minuut,
-                half:    ev.half,          // al correct gezet via retroCalcHalf
-                type:    ev.type,
-                ploeg:   ev.ploeg,
-                speler:  ev.speler || '',
-            };
-            if (ev.assist)      evDoc.assist      = ev.assist;
-            if (ev.spelerUit)   evDoc.spelerUit   = ev.spelerUit;
-            if (ev.spelerIn)    evDoc.spelerIn    = ev.spelerIn;
-            if (ev.spelersUit)  evDoc.spelersUit  = ev.spelersUit;
-            if (ev.spelersIn)   evDoc.spelersIn   = ev.spelersIn;
+            const evDoc = { matchId, minuut: ev.minuut, half: ev.half, type: ev.type, ploeg: ev.ploeg, speler: ev.speler||'' };
+            if (ev.assist)     evDoc.assist     = ev.assist;
+            if (ev.spelerUit)  evDoc.spelerUit  = ev.spelerUit;
+            if (ev.spelerIn)   evDoc.spelerIn   = ev.spelerIn;
+            if (ev.spelersUit) evDoc.spelersUit = ev.spelersUit;
+            if (ev.spelersIn)  evDoc.spelersIn  = ev.spelersIn;
             if (ev.multiSub !== undefined) evDoc.multiSub = ev.multiSub;
             allEvDocs.push(evDoc);
         });
-
-        // Einde reguliere tijd + ET rust indien van toepassing
         if (hasET) {
-            allEvDocs.push({ matchId, minuut: fd, half: 2, type: 'einde-regulier', ploeg: 'center', speler: '' });
-            allEvDocs.push({ matchId, minuut: fd + 15, half: 3, type: 'rust', ploeg: 'center', speler: '' });
+            allEvDocs.push({ matchId, minuut: fd,      half: 2, type: 'einde-regulier', ploeg: 'center', speler: '' });
+            allEvDocs.push({ matchId, minuut: fd + 15, half: 3, type: 'rust',           ploeg: 'center', speler: '' });
         }
+        allEvDocs.push({
+            matchId, ploeg: 'center', speler: '',
+            minuut: has2ndET ? fd+30 : (hasET ? fd+15 : fd),
+            half:   has2ndET ? 4      : (hasET ? 3      : 2),
+            type:  'einde',
+        });
 
-        // Einde wedstrijd
-        const eindeFd   = has2ndET ? fd + 30 : (hasET ? fd + 15 : fd);
-        const eindeHalf = has2ndET ? 4 : (hasET ? 3 : 2);
-        allEvDocs.push({ matchId, minuut: eindeFd, half: eindeHalf, type: 'einde', ploeg: 'center', speler: '' });
-
-        await Promise.all(
-            allEvDocs.map(ev => addDoc(collection(db, 'events'), { ...ev, timestamp: serverTimestamp() }))
-        );
+        await Promise.all(allEvDocs.map(ev => addDoc(collection(db,'events'), {...ev, timestamp: serverTimestamp()})));
 
         showToast('✅ Opstelling en tijdslijn opgeslagen!', 'success');
         document.getElementById('retroModal').classList.remove('active');
         await loadMatches();
-
-    } catch (e) {
+    } catch(e) {
         console.error('retroFinalize error:', e);
         showToast('Fout bij opslaan: ' + e.message, 'error');
         if (btn) { btn.disabled = false; btn.textContent = '💾 Opslaan in database'; }
