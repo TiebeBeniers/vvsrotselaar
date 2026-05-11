@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4B6CB7">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="VVS Rotselaar">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
     <title>V.V.S Rotselaar - Werkplanning</title>
     <link rel="icon" type="image/png" href="assets/logo.png">
     <link rel="stylesheet" href="styles/styles.css">
@@ -39,14 +47,13 @@
                         </ul>
                     </li>
                     <li class="nav-dropdown">
-                        <button class="nav-dropdown-btn" id="evenementenDropdownBtn"
-                                aria-expanded="false" aria-haspopup="true">
+                        <button class="nav-dropdown-btn active" id="evenementenDropdownBtn" aria-expanded="false" aria-haspopup="true">
                             EVENEMENTEN <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
                         <ul class="nav-dropdown-menu" id="evenementenDropdownMenu">
                             <li><a href="evenementen.html">Evenementen</a></li>
                             <li><a href="kalender.html">Kalender</a></li>
-                            <li style="display:none;"><a href="werklijst.html">Werklijst</a></li>
+                            <li style="display:none;"><a href="werklijst.html" class="active">Werklijst</a></li>
                         </ul>
                     </li>
                     <li><a href="sponsors.html">SPONSORS</a></li>
@@ -159,5 +166,6 @@
     <script type="module" src="scripts/werklijst.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>
+    <script src="scripts/pwa.js" defer></script>
 </body>
 </html>

@@ -1664,7 +1664,7 @@ function renderMatchList() {
     }
 
     if (filtered.length === 0) {
-        matchesList.innerHTML = '<p class="text-center">Geen wedstrijden gevonden voor dit filter.</p>';
+        matchesList.innerHTML = '<p class="text-center">Geen wedstrijden gevonden voor deze filter.</p>';
         return;
     }
 
