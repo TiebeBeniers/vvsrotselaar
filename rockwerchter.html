@@ -85,7 +85,11 @@
             </div>
 
             <section class="drankjes-section">
-                <h2>Drankkaart</h2>
+                <div class="drankkaart-header-row">
+                    <h2>Drankkaart</h2>
+                    <button id="rwTourHelpBtn" class="rw-tour-circle-btn" title="Rondleiding tonen"
+                            style="display:none;" onclick="startRwTour && startRwTour()">?</button>
+                </div>
                 <div id="drankContainer" class="drank-grid"></div>
             </section>
 
@@ -326,6 +330,29 @@
         <p>&copy; Tiebe Beniers - Alle rechten voorbehouden. &nbsp;&middot;&nbsp;
         <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
     </footer>
+
+    <!-- ═══════════════════════════════════════════
+         BARMAN TOUR (spotlight) – alleen voor ingelogde leden
+         ═══════════════════════════════════════════ -->
+    <div id="rwTourOverlay"  style="display:none;position:fixed;inset:0;z-index:9998;transition:background 0.3s;"></div>
+    <div id="rwTourSpotlight" style="display:none;position:fixed;z-index:9999;pointer-events:none;border-radius:8px;
+         transition:top 0.32s cubic-bezier(0.4,0,0.2,1),left 0.32s cubic-bezier(0.4,0,0.2,1),
+                     width 0.32s cubic-bezier(0.4,0,0.2,1),height 0.32s cubic-bezier(0.4,0,0.2,1);"></div>
+    <div id="rwTourCard" class="rw-tour-card" style="display:none;"
+         role="dialog" aria-modal="true" aria-label="Barman rondleiding">
+        <div class="tour-progress" id="rwTourProgress"></div>
+        <div class="rw-tour-icon"  id="rwTourIcon"></div>
+        <h3  class="rw-tour-title" id="rwTourTitle"></h3>
+        <p   class="rw-tour-desc"  id="rwTourDesc"></p>
+        <div class="rw-tour-nav">
+            <button class="rw-tour-skip"   id="rwTourSkip">Overslaan</button>
+            <div class="rw-tour-nav-right">
+                <button class="rw-tour-prev"   id="rwTourPrev">← Vorige</button>
+                <button class="rw-tour-next"   id="rwTourNext">Volgende →</button>
+                <button class="rw-tour-finish" id="rwTourFinish" style="display:none;">✓ Klaar!</button>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>

@@ -2594,21 +2594,54 @@ const TOUR_STEPS_P2 = [
     // ── GALERIJ ───────────────────────────────────────────────────────────
     {
         icon: '🖼️', title: 'Galerij',
-        desc: 'Upload foto\'s voor de galerij op de website. Voeg een titel en beschrijving toe.',
+        desc: 'Upload foto\'s voor de galerij op de website. Voeg een titel en beschrijving toe. Foto\'s worden gegroepeerd per album.',
         tab: 'galerij', target: '.tab-btn[data-tab="galerij"]',
     },
 
     // ── MELDINGEN ─────────────────────────────────────────────────────────
     {
         icon: '🔔', title: 'Meldingen',
-        desc: 'Stuur popup-meldingen naar leden — voor iedereen of per ploeg. Anders dan de aankondigingsbanner zijn dit persoonlijke notificaties in het meldingencentrum van de leden.',
+        desc: 'Stuur push-meldingen naar leden — voor iedereen of per ploeg. Anders dan de aankondigingsbanner zijn dit persoonlijke notificaties in het meldingencentrum van de leden.',
         tab: 'meldingen', target: '.tab-btn[data-tab="meldingen"]',
+    },
+
+    // ── ROCK WERCHTER ─────────────────────────────────────────────────────
+    {
+        icon: '🎸', title: 'Rock Werchter',
+        desc: 'Hier beheer je de <strong>drankkaart</strong> die op de Rock Werchter pagina te zien is. Wijzigingen zijn meteen live. Je kan ook alle bestellingen bekijken en filteren per betaalmethode.',
+        tab: 'rockwerchter', target: '.tab-btn[data-tab="rockwerchter"]',
+    },
+    {
+        icon: '📦', title: 'Standaard Items',
+        desc: 'Klik op <strong>"Standaard Items"</strong> om in één klik alle standaard dranken (Primus, Cola, Water, …) met hun vaste prijzen te laden. Handig als startpunt — je kan daarna elk item nog aanpassen of verwijderen.',
+        tab: 'rockwerchter', target: '#seedRwItemsBtn',
+    },
+    {
+        icon: '➕', title: 'Item Toevoegen',
+        desc: 'Voeg een nieuw item toe aan de drankkaart: naam, prijs, afbeelding en volgorde. Hieronder zoomen we in op de <strong>vereiste items</strong> — de krachtigste optie.',
+        tab: 'rockwerchter', target: '#addRwItemBtn',
+    },
+    {
+        icon: '🔗', title: 'Vereiste items',
+        desc: '<strong>Vereiste items</strong> bepalen dat dit artikel pas selecteerbaar is als minstens één van de gelinkte items al in de bestelling zit.<br><br>'
+            + '💡 <em>Voorbeeld:</em> je maakt een item <strong>"Beker"</strong> aan. Als vereist item kies je "Pint" én "Cola". Dan kan een barman pas een Beker toevoegen als er al een Pint óf Cola in de bestelling zit — een Beker alleen bestellen is niet mogelijk.',
+        tab: 'rockwerchter', target: '#rwVereistItemList',
+        delay: 450,
+        onEnter() {
+            // Open de "Item Toevoegen" modal
+            const btn = document.getElementById('addRwItemBtn');
+            if (btn) btn.click();
+        },
+        onLeave() {
+            const modal = document.getElementById('rwItemModal');
+            if (modal) modal.classList.remove('active');
+        },
     },
 
     // ── DATA ──────────────────────────────────────────────────────────────
     {
         icon: '🗄️', title: 'Data beheer',
-        desc: '<strong>Let op:</strong> dit tabblad bevat knoppen om data te resetten of permanent te verwijderen. Gebruik deze enkel als je zeker bent — dit kan niet ongedaan worden gemaakt. Onderaan de pagina kan je de data downloaden in pdf-formaat voor offline archivering.',
+        desc: '<strong>Let op:</strong> dit tabblad bevat knoppen om data te resetten of permanent te verwijderen. Gebruik deze enkel als je zeker bent — dit kan niet ongedaan worden gemaakt.',
         tab: 'data', target: '.tab-btn[data-tab="data"]',
     },
 
