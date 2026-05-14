@@ -939,7 +939,7 @@ const RW_TOUR_STEPS = [
 
     // 1: Drankkaart algemeen
     {
-        icon: '🗂️',
+        icon: '',
         title: 'De drankkaart',
         desc: 'Hier zie je alle beschikbare dranken. Elk item toont een afbeelding, naam en prijs. Klik een item aan om het aan de bestelling toe te voegen — het getal rechtsboven op de kaart toont het aantal.',
         target: '#drankContainer',
@@ -947,7 +947,7 @@ const RW_TOUR_STEPS = [
 
     // 2: Item met vereist item
     {
-        icon: '🔗',
+        icon: '',
         title: 'Vereist item',
         desc: 'Sommige items kunnen niet los aangeklikt worden totdat een vereist item al in de bestelling zit.<br><br>💡 <em>Voorbeeld:</em> Een Cup Refund kan pas aangeklikt worden als er een nieuwe consumtie uit een beker besteld wordt. Extra bekers via QR.',
         target: '#drankContainer .drank-card',
@@ -955,7 +955,7 @@ const RW_TOUR_STEPS = [
 
     // 3: Demo selectie
     {
-        icon: '✅',
+        icon: '',
         title: 'Items selecteren',
         desc: 'We selecteren even twee items als voorbeeld. Het badge-getal op de kaart stijgt bij elke klik. Klik een al geselecteerd item opnieuw aan om de hoeveelheid te verhogen.',
         target: '#drankContainer .drank-card',
@@ -964,7 +964,7 @@ const RW_TOUR_STEPS = [
 
     // 4: Betaalrij algemeen
     {
-        icon: '💳',
+        icon: '',
         title: 'Betaalmogelijkheden',
         desc: 'Zodra er items in de bestelling zitten worden de drie betaalknoppen actief. Kies de methode die de klant verkiest.',
         target: '#paymentButtons',
@@ -972,7 +972,7 @@ const RW_TOUR_STEPS = [
 
     // 5: Bancontact/kaart
     {
-        icon: '💳',
+        icon: '',
         title: 'Betalen met kaart',
         desc: 'Klik op <strong>"Kaart"</strong> om de betaling via bancontact/terminal te verwerken. Je kiest de juiste terminal uit de lijst en bevestigt zodra de klant betaald heeft.',
         target: '#kaartBtn',
@@ -980,7 +980,7 @@ const RW_TOUR_STEPS = [
 
     // 6: Payconiq/QR
     {
-        icon: '📱',
+        icon: '',
         title: 'Betalen met Payconiq',
         desc: 'Klik op <strong>"Payconiq"</strong> om een QR-code te genereren. De klant scant die op zijn telefoon. Bevestig eens de betaling geslaagd is.',
         target: '#qrBtn',
@@ -988,7 +988,7 @@ const RW_TOUR_STEPS = [
 
     // 7: Cash knop
     {
-        icon: '💵',
+        icon: '',
         title: 'Betalen met cash',
         desc: 'Klik op <strong>"Cash"</strong> om het cashbetaalvenster te openen. Hieronder zoomen we in op hoe je het wisselgeld snel berekent.',
         target: '#cashBtn',
@@ -996,7 +996,7 @@ const RW_TOUR_STEPS = [
 
     // 8: Cash modal — snelknoppen
     {
-        icon: '🪙',
+        icon: '',
         title: 'Cashbetaling & wisselgeld',
         desc: 'Gebruik de snelknoppen (€50, €20, €10 …) om het ontvangen bedrag in te geven. Het wisselgeld wordt automatisch berekend en groot weergegeven. Meerdere knoppen klikken telt op — bv. €20 + €5 = €25.',
         target: '.cash-snelknoppen',
@@ -1007,7 +1007,7 @@ const RW_TOUR_STEPS = [
 
     // 9: Exact knop
     {
-        icon: '✔',
+        icon: '',
         title: 'Exact betalen',
         desc: 'Gaat hoofdrekenen nog soepel? — gebruik dan <strong>"✓ Exact"</strong>. Dat vult automatisch het totaalbedrag in als ontvangen bedrag.',
         target: '#cashExact',

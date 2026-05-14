@@ -2541,19 +2541,19 @@ function _tourCloseShiftsEditor() {
 const TOUR_STEPS_P2 = [
     // ── Intro pagina 2 ───────────────────────────────────────────────────
     {
-        icon: '📄', title: 'Pagina 2 – overzicht',
+        icon: '', title: 'Pagina 2 – overzicht',
         desc: 'Welkom op de tweede adminpagina! Hier beheer je werklijsten, trainingen, sponsors, de galerij en push-meldingen. We overlopen ze één voor één.',
         tab: null, target: null,
     },
 
     // ── WERKLIJST ─────────────────────────────────────────────────────────
     {
-        icon: '📋', title: 'Werklijst Beheren',
+        icon: '', title: 'Werklijst Beheren',
         desc: 'Maak werklijsten aan voor evenementen. Slechts één werklijst is tegelijk <strong>actief</strong> — dit is de lijst die leden zien op de werklijstpagina.',
         tab: 'werklijst', target: '.tab-btn[data-tab="werklijst"]',
     },
     {
-        icon: '➕', title: 'Nieuwe werklijst',
+        icon: '', title: 'Nieuwe werklijst',
         desc: 'Maak een nieuwe werklijst aan voor een specifiek evenement. Daarna kan je shifts (taken + tijdslot) toevoegen en leden toewijzen.',
         tab: 'werklijst', target: '#addWerklijstBtn',
     },
@@ -2579,50 +2579,50 @@ const TOUR_STEPS_P2 = [
 
     // ── TRAINING ──────────────────────────────────────────────────────────
     {
-        icon: '🏃', title: 'Training',
+        icon: '', title: 'Training',
         desc: 'Voeg trainingen toe met datum, tijdstip en locatie. Leden kunnen hun aanwezigheid bevestigen en de trainer ziet wie aanwezig is.',
         tab: 'training', target: '.tab-btn[data-tab="training"]',
     },
 
     // ── SPONSORS ──────────────────────────────────────────────────────────
     {
-        icon: '🤝', title: 'Sponsors',
+        icon: '', title: 'Sponsors',
         desc: 'Beheer de sponsorlogo\'s die op de website verschijnen. Voeg een naam, logo en (optionele) link toe. De volgorde pas je aan via de pijlknoppen.',
         tab: 'sponsors', target: '.tab-btn[data-tab="sponsors"]',
     },
 
     // ── GALERIJ ───────────────────────────────────────────────────────────
     {
-        icon: '🖼️', title: 'Galerij',
+        icon: '', title: 'Galerij',
         desc: 'Upload foto\'s voor de galerij op de website. Voeg een titel en beschrijving toe. Foto\'s worden gegroepeerd per album.',
         tab: 'galerij', target: '.tab-btn[data-tab="galerij"]',
     },
 
     // ── MELDINGEN ─────────────────────────────────────────────────────────
     {
-        icon: '🔔', title: 'Meldingen',
+        icon: '', title: 'Meldingen',
         desc: 'Stuur push-meldingen naar leden — voor iedereen of per ploeg. Anders dan de aankondigingsbanner zijn dit persoonlijke notificaties in het meldingencentrum van de leden.',
         tab: 'meldingen', target: '.tab-btn[data-tab="meldingen"]',
     },
 
     // ── ROCK WERCHTER ─────────────────────────────────────────────────────
     {
-        icon: '🎸', title: 'Rock Werchter',
+        icon: '', title: 'Rock Werchter',
         desc: 'Hier beheer je de <strong>drankkaart</strong> die op de Rock Werchter pagina te zien is. Wijzigingen zijn meteen live. Je kan ook alle bestellingen bekijken en filteren per betaalmethode.',
         tab: 'rockwerchter', target: '.tab-btn[data-tab="rockwerchter"]',
     },
     {
-        icon: '📦', title: 'Standaard Items',
+        icon: '', title: 'Standaard Items',
         desc: 'Klik op <strong>"Standaard Items"</strong> om in één klik alle standaard dranken (Primus, Cola, Water, …) met hun vaste prijzen te laden. Handig als startpunt — je kan daarna elk item nog aanpassen of verwijderen.',
         tab: 'rockwerchter', target: '#seedRwItemsBtn',
     },
     {
-        icon: '➕', title: 'Item Toevoegen',
+        icon: '', title: 'Item Toevoegen',
         desc: 'Voeg een nieuw item toe aan de drankkaart: naam, prijs, afbeelding en volgorde. Hieronder zoomen we in op de <strong>vereiste items</strong> — de krachtigste optie.',
         tab: 'rockwerchter', target: '#addRwItemBtn',
     },
     {
-        icon: '🔗', title: 'Vereiste items',
+        icon: '', title: 'Vereiste items',
         desc: '<strong>Vereiste items</strong> bepalen dat dit artikel pas selecteerbaar is als minstens één van de gelinkte items al in de bestelling zit.<br><br>'
             + '💡 <em>Voorbeeld:</em> je maakt een item <strong>"Beker"</strong> aan. Als vereist item kies je "Pint" én "Cola". Dan kan een barman pas een Beker toevoegen als er al een Pint óf Cola in de bestelling zit — een Beker alleen bestellen is niet mogelijk.',
         tab: 'rockwerchter', target: '#rwVereistItemList',
@@ -2640,7 +2640,7 @@ const TOUR_STEPS_P2 = [
 
     // ── DATA ──────────────────────────────────────────────────────────────
     {
-        icon: '🗄️', title: 'Data beheer',
+        icon: '', title: 'Data beheer',
         desc: '<strong>Let op:</strong> dit tabblad bevat knoppen om data te resetten of permanent te verwijderen. Gebruik deze enkel als je zeker bent — dit kan niet ongedaan worden gemaakt.',
         tab: 'data', target: '.tab-btn[data-tab="data"]',
     },

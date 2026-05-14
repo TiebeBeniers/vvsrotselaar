@@ -3642,27 +3642,27 @@ const TOUR_STEPS = [
 
     // ── LEDEN ─────────────────────────────────────────────────────────────
     {
-        icon: '👥', title: 'Leden',
+        icon: '', title: 'Leden',
         desc: 'De Leden-tab is je startpunt voor ledenbeheer. Hier zie je alle clubleden in één overzicht.',
         tab: 'members', target: '.tab-btn[data-tab="members"]',
     },
     {
-        icon: '📋', title: 'Aanvragen behandelen',
+        icon: '', title: 'Aanvragen behandelen',
         desc: 'Nieuwe leden kunnen een account aanvragen via de website. Die aanvragen verschijnen hier. Je kan ze <strong>goedkeuren</strong> (account wordt aangemaakt) of <strong>weigeren</strong>. Het oranje bolletje toont het aantal wachtende aanvragen.',
         tab: 'members', target: '#manageRequestsBtn',
     },
     {
-        icon: '➕', title: 'Nieuw lid toevoegen',
+        icon: '', title: 'Nieuw lid toevoegen',
         desc: 'Maak handmatig een nieuw account aan. Handig voor leden die geen accountaanvraag via de website kunnen indienen.',
         tab: 'members', target: '#addMemberBtn',
     },
     {
-        icon: '⏱️', title: 'Tijdelijk account',
+        icon: '', title: 'Tijdelijk account',
         desc: 'Maak een account aan met een specifieke geldigheidsperiode. Het account vervalt automatisch na de ingestelde einddatum — ideaal voor evenementen of tijdelijke helpers.',
         tab: 'members', target: '#addTempAccountBtn',
     },
     {
-        icon: '🔍', title: 'Ledenzoekbalk',
+        icon: '', title: 'Ledenzoekbalk',
         desc: 'Zoek snel op naam, e-mailadres of ploeg. De lijst filtert live terwijl je typt. Klik het kruisje om de zoekterm te wissen.',
         tab: 'members', target: '.member-search-wrap',
     },
@@ -3674,12 +3674,12 @@ const TOUR_STEPS = [
 
     // ── WEDSTRIJDEN ───────────────────────────────────────────────────────
     {
-        icon: '⚽', title: 'Wedstrijden',
+        icon: '', title: 'Wedstrijden',
         desc: 'Beheer alle wedstrijden van de club. Voeg nieuwe wedstrijden toe, werk resultaten bij of registreer de opstelling.',
         tab: 'matches', target: '.tab-btn[data-tab="matches"]',
     },
     {
-        icon: '➕', title: 'Nieuwe wedstrijd toevoegen',
+        icon: '', title: 'Nieuwe wedstrijd toevoegen',
         desc: 'Maak een nieuwe wedstrijd aan met datum, tegenstander, thuis/uit en ploeg. Wanneer een wedstrijd niet live gevolgd werd kan je het resultaat, de opstelling en tijdslijn handmatig invoeren.',
         tab: 'matches', target: '#addMatchBtn',
     },
@@ -3691,36 +3691,36 @@ const TOUR_STEPS = [
 
     // ── RANGSCHIKKING ─────────────────────────────────────────────────────
     {
-        icon: '🏆', title: 'Rangschikking',
+        icon: '', title: 'Rangschikking',
         desc: 'Werk het klassement bij via drie methodes: plak de volledige tabel van de RBFA-website, voer een matchresultaat manueel in, of bekijk het huidig opgeslagen klassement.',
         tab: 'ranking', target: '.tab-btn[data-tab="ranking"]',
     },
     {
-        icon: '📑', title: 'Subtabs rangschikking',
+        icon: '', title: 'Subtabs rangschikking',
         desc: '<strong>Volledig plakken:</strong> kopieer de tabel van de RBFA-website en plak ze hier. <strong>Matchresultaat:</strong> voer één resultaat in om de stand te herberekenen. <strong>Huidig klassement:</strong> bekijk de opgeslagen stand.',
         tab: 'ranking', target: '.ranking-subtabs',
     },
 
     // ── EVENEMENTEN ───────────────────────────────────────────────────────
     {
-        icon: '🎉', title: 'Evenementen',
+        icon: '', title: 'Evenementen',
         desc: 'Maak clubevenementen aan met datum, locatie en omschrijving. Evenementen verschijnen op de publieke evenementenpagina en in de clubkalender.',
         tab: 'evenementen', target: '.tab-btn[data-tab="evenementen"]',
     },
     {
-        icon: '➕', title: 'Nieuw evenement aanmaken',
+        icon: '', title: 'Nieuw evenement aanmaken',
         desc: 'Klik hier om een nieuw evenement aan te maken. Je vult naam, datum, locatie en beschrijving in. Hieronder zoomen we in op de inschrijvingsopties onderaan het formulier.',
         tab: 'evenementen', target: '#addEvenementBtn',
     },
     {
-        icon: '🔔', title: 'Inschrijvingen inschakelen',
+        icon: '', title: 'Inschrijvingen inschakelen',
         desc: 'Met de toggle laat je ingelogde leden zich inschrijven voor het evenement. Eenmaal ingeschakeld verschijnen extra opties: een maximum aantal deelnemers (leeg = onbeperkt) en een beschrijving die getoond wordt in het inschrijfvenster van de spelers.',
         tab: 'evenementen', target: '#evenementInschrijvingen',
         onEnter() { _tourOpenEvenementModal(); },
         onLeave() { /* modal blijft open voor volgende stap */ },
     },
     {
-        icon: '📝', title: 'Extra velden',
+        icon: '', title: 'Extra velden',
         desc: 'Via <strong>"+ Veld toevoegen"</strong> voeg je extra vragen toe aan het inschrijfformulier. Ideaal voor bijhorende vragen, zoals: "Neem je vrienden/familie mee?".',
         tab: 'evenementen', target: '#addExtraVeldBtn',
         onEnter() { _tourEnableInschrijvingen(); },
@@ -3729,14 +3729,14 @@ const TOUR_STEPS = [
 
     // ── CONTACTBERICHTEN ──────────────────────────────────────────────────
     {
-        icon: '✉️', title: 'Contactberichten',
+        icon: '', title: 'Contactberichten',
         desc: 'Alle berichten ingediend via het contactformulier op de website komen hier binnen. Markeer berichten als gelezen of verwijder ze. Het bolletje toont het aantal ongelezen berichten.',
         tab: 'contactberichten', target: '.tab-btn[data-tab="contactberichten"]',
     },
 
     // ── AANKONDIGINGEN ────────────────────────────────────────────────────
     {
-        icon: '📢', title: 'Aankondigingsbanner',
+        icon: '', title: 'Aankondigingsbanner',
         desc: 'Hier pas je de <strong>horizontale tekstbalk bovenaan de homepagina</strong> aan. Kies een icoon en typ een korte boodschap — bv. "Bier van de maand: ...". De preview toont meteen hoe de banner er op de website uitziet.',
         tab: 'announcements', target: '.tab-btn[data-tab="announcements"]',
     },

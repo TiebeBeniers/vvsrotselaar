@@ -795,53 +795,53 @@ const TOUR_KEY = 'vvs_admin_tour_v2';
 const TOUR_STEPS_P3 = [
     // ── Intro pagina 3 ────────────────────────────────────────────────────
     {
-        icon: '📄', title: 'Pagina 3 – overzicht',
+        icon: '', title: 'Pagina 3 – overzicht',
         desc: 'De laatste adminpagina bevat de juridische teksten van de website en een ingebouwde mailfunctie. We overlopen elk onderdeel.',
         tab: null, target: null,
     },
 
     // ── ALGEMENE VOORWAARDEN ──────────────────────────────────────────────
     {
-        icon: '📜', title: 'Algemene Voorwaarden',
+        icon: '', title: 'Algemene Voorwaarden',
         desc: 'Dit zijn de voorwaarden die nieuwe leden moeten accepteren bij het aanmaken van een account. Pas de tekst hier aan via de sectie-editor.',
         tab: 'terms', target: '.tab-btn[data-tab="terms"]',
     },
     {
-        icon: '✏️', title: 'Secties bewerken',
+        icon: '', title: 'Secties bewerken',
         desc: 'De voorwaarden zijn opgebouwd uit secties. Klik op een sectie om de titel en inhoud te bewerken. Voeg nieuwe secties toe onderaan via <strong>"+ Nieuwe sectie toevoegen"</strong>.',
         tab: 'terms', target: '#termsSectionList',
     },
     {
-        icon: '👁️', title: 'Voorvertoning & opslaan',
+        icon: '', title: 'Voorvertoning & opslaan',
         desc: 'Schakel tussen <strong>Bewerken</strong> en <strong>Voorvertoning</strong> om te zien hoe de tekst er voor leden uitziet. Vergeet niet <strong>"💾 Opslaan"</strong> te klikken om de wijzigingen op te slaan in de database.',
         tab: 'terms', target: '.save-bar',
     },
 
     // ── PRIVACYVERKLARING ─────────────────────────────────────────────────
     {
-        icon: '🔒', title: 'Privacyverklaring',
+        icon: '', title: 'Privacyverklaring',
         desc: 'De privacyverklaring is zichtbaar op de website voor alle bezoekers. Werkt identiek aan de Algemene Voorwaarden: sectie-editor, voorvertoning en opslaan.',
         tab: 'privacy', target: '.tab-btn[data-tab="privacy"]',
     },
     {
-        icon: '✏️', title: 'Privacysecties',
+        icon: '', title: 'Privacysecties',
         desc: 'Bewerk elke sectie afzonderlijk. Denk aan: welke gegevens worden verzameld, hoe worden ze gebruikt, en hoe kunnen leden hun gegevens laten verwijderen.',
         tab: 'privacy', target: '#privacySectionList',
     },
 
     // ── MAILEN ────────────────────────────────────────────────────────────
     {
-        icon: '✉️', title: 'Mailen',
+        icon: '', title: 'Mailen',
         desc: 'Stuur een e-mail rechtstreeks vanuit het beheerpaneel naar één of meerdere groepen leden.',
         tab: 'mail', target: '.tab-btn[data-tab="mail"]',
     },
     {
-        icon: '👥', title: 'Ontvangers kiezen',
+        icon: '', title: 'Ontvangers kiezen',
         desc: 'Selecteer wie de mail ontvangt: <strong>Iedereen</strong>, een specifieke ploeg (Veteranen, Zaterdag, Zondag) of <strong>Specifieke leden</strong> die je handmatig aanvinkt in de lijst die verschijnt.',
         tab: 'mail', target: '.mail-recipient-grid',
     },
     {
-        icon: '📝', title: 'Onderwerp & bericht',
+        icon: '', title: 'Onderwerp & bericht',
         desc: 'Vul een duidelijk onderwerp in en schrijf je bericht in de tekstverwerker. Je kan tekst <strong>vetgedrukt</strong>, <em>cursief</em> of onderlijnd opmaken via de werkbalk. Klik <strong>"📩 Versturen"</strong> om de mail te verzenden.',
         tab: 'mail', target: '#mailBodyEditor',
     },
