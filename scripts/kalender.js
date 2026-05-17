@@ -246,7 +246,12 @@ function openPopup(item) {
 
     const isSigned    = item.type === 'training' && (item.aanwezigen||[]).some(p => p.uid === currentUser?.uid);
     const aanwezigen  = item.aanwezigen || [];
-    const dateFmt     = item.datum ? new Date(item.datum + 'T12:00').toLocaleDateString('nl-BE', { weekday:'long', day:'numeric', month:'long' }) : '';
+    const startDate    = item.datum ? new Date(item.datum + 'T12:00') : null;
+    const startFmtOpts = { weekday:'long', day:'numeric', month:'long' };
+    const startStr     = startDate ? startDate.toLocaleDateString('nl-BE', startFmtOpts) : '';
+    const dateFmt      = item.eindDatum
+        ? startStr + ' — ' + new Date(item.eindDatum + 'T12:00').toLocaleDateString('nl-BE', startFmtOpts)
+        : startStr;
     const tijdFmt     = [item.startTijd, item.eindTijd].filter(Boolean).join(' – ');
 
     const scoreStr = item.type === 'match' && item.status === 'finished'

@@ -77,9 +77,7 @@ function buildFeaturedCard(ev, isGrid = false) {
     // isGrid: compact card in multi-uitgelicht grid; else: full-width split layout
     wrap.className = isGrid ? 'featured-evenement featured-evenement--grid' : 'featured-evenement';
 
-    const dateFmt = ev.dateTime.toLocaleDateString('nl-BE', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    });
+    const dateFmt = formatDateRangeLong(ev);
 
     const imgHtml  = ev.afbeeldingNaam
         ? '<div class="evenement-image"><img src="assets/' + ev.afbeeldingNaam + '" alt="' + htmlEsc(ev.titel) + '"></div>'
@@ -99,7 +97,9 @@ function buildFeaturedCard(ev, isGrid = false) {
             '</div>' +
             '<div class="meta-item">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
-                htmlEsc(ev.tijd) +
+                (ev.eindDatum
+                    ? (htmlEsc(ev.tijd) + (ev.eindTijd ? ' — ' + htmlEsc(ev.eindTijd) : '') + ' <span class="period-badge">Meerdaags</span>')
+                    : htmlEsc(ev.tijd)) +
             '</div>' +
             '<div class="meta-item">' +
                 '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
@@ -132,7 +132,7 @@ function buildSmallCard(ev) {
     content.className = 'evenement-card-content';
     content.innerHTML =
         '<h3>' + htmlEsc(ev.titel) + '</h3>' +
-        '<p class="evenement-date">' + dateFmt + ' om ' + htmlEsc(ev.tijd) + '</p>' +
+        '<p class="evenement-date">' + formatDateRange(ev) + (ev.eindDatum ? '' : (' om ' + htmlEsc(ev.tijd))) + (ev.eindDatum ? ' <span class="period-badge">Meerdaags</span>' : '') + '</p>' +
         '<p class="evenement-location">' + htmlEsc(ev.locatie) + '</p>' +
         '<p class="evenement-preview">' + htmlEsc(preview) + '</p>';
 
@@ -158,6 +158,29 @@ function buildInschrijfWrap(ev) {
     wrap.appendChild(btn);
     return wrap;
 }
+
+// Format a date range: "di 18 mei" or "di 18 mei – vr 21 mei 2025"
+function formatDateRange(ev) {
+    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
+    if (!ev.eindDatum) return startFmt;
+    const eindDt = new Date(ev.eindDatum + 'T12:00');
+    const eindFmt = eindDt.toLocaleDateString('nl-BE', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
+    return startFmt + ' — ' + eindFmt;
+}
+
+function formatDateRangeLong(ev) {
+    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', opts);
+    if (!ev.eindDatum) return startFmt;
+    const eindDt = new Date(ev.eindDatum + 'T12:00');
+    const eindFmt = eindDt.toLocaleDateString('nl-BE', opts);
+    return startFmt + ' — ' + eindFmt;
+}
+
 
 function htmlEsc(str) {
     if (!str) return '';
