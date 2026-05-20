@@ -374,7 +374,7 @@
 .team-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(to top, rgba(8,18,38,0.78) 0%, rgba(8,18,38,0.15) 55%, transparent 100%);
+    background: linear-gradient(to top, rgba(8,18,38,0.78) 0%, rgba(8,18,38,0.15) 25%, transparent 100%);
     display: flex;
     align-items: flex-end;
     padding: 1.75rem;

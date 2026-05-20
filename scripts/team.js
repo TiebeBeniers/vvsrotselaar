@@ -21,10 +21,10 @@ console.log('Team.js loaded');
 // Availability wordt NIET gecached — dat is real-time via onSnapshot.
 //
 const CACHE_TTL = {
-    recentMatches: 30 * 60 * 1000,
-    nextMatch:     10 * 60 * 1000,
-    teamStats:     60 * 60 * 1000,
-    timeline:      7 * 24 * 60 * 60 * 1000,   // 1 week — afgelopen wedstrijden veranderen niet
+    recentMatches: 30 * 60 * 1000,           // 30 min — verandert na wedstrijden
+    nextMatch:     15 * 60 * 1000,           // 15 min — volgende wedstrijd
+    teamStats:     60 * 60 * 1000,           // 60 min — statistieken
+    timeline:      7 * 24 * 60 * 60 * 1000, // 7 dagen — afgelopen tijdlijnen (immutable)
 };
 
 // Hoe lang (minuten) na aftrap een geplande match nog als "bezig" getoond wordt

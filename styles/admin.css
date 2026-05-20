@@ -1087,18 +1087,14 @@ a.message-email:hover {
 
 /* Small icon-style button (edit/delete in header) */
 .icon-btn {
-    width: 30px;
-    height: 30px;
-    padding: 0;
+    padding: 0.3rem 0.7rem;
     border: none;
-    border-radius: var(--radius-sm, 6px);
+    border-radius: 5px;
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
     font-family: inherit;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
 }
 
 .icon-btn.edit   { background: rgba(255,255,255,0.2); color: var(--white); }

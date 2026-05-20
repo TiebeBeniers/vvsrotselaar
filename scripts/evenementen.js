@@ -1,4 +1,5 @@
 import { auth, db } from './firebase-config.js';
+import { tcGet, tcSet, CACHE_TTL, PAGE_REFRESHED } from './vvs-cache.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, getDocs, doc, setDoc, deleteDoc, getDoc
@@ -21,15 +22,29 @@ async function loadEvenementen() {
     const noEvents   = document.getElementById('noEvenementen');
 
     try {
-        const snap = await getDocs(collection(db, 'evenementen'));
-        if (snap.empty) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
+        // Cache: 6 uur (evenementen veranderen hoogstens een paar keer per maand)
+        const _cacheKey = 'evenementen_list';
+        const _cachedDocs = tcGet(_cacheKey, CACHE_TTL.event);
+
+        let rawDocs;
+        if (_cachedDocs && !PAGE_REFRESHED) {
+            // Verse cache — geen Firestore read nodig
+            rawDocs = _cachedDocs;
+        } else {
+            // Cache miss of refresh — laad van Firestore
+            const snap = await getDocs(collection(db, 'evenementen'));
+            rawDocs = [];
+            snap.forEach(d => rawDocs.push({ id: d.id, ...d.data() }));
+            tcSet(_cacheKey, rawDocs);
+        }
+
+        if (!rawDocs.length) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
 
         const now  = new Date();
         const list = [];
-        snap.forEach(d => {
-            const data = d.data();
-            const dt   = new Date(data.datum + 'T' + data.tijd);
-            if (dt > now) list.push({ id: d.id, ...data, dateTime: dt });
+        rawDocs.forEach(data => {
+            const dt = new Date(data.datum + 'T' + data.tijd);
+            if (dt > now) list.push({ ...data, dateTime: dt });
         });
 
         if (list.length === 0) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }

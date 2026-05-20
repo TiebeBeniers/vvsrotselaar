@@ -97,7 +97,15 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         try {
-            const userDoc = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
+            // Cache user role: 10 min (rol verandert zelden midden in een sessie)
+            const _rKey = `user_role_${user.uid}`;
+            let _rData   = tcGet(_rKey, CACHE_TTL.profile);
+            if (!_rData) {
+                const _uSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
+                _rData = _uSnap.empty ? null : _uSnap.docs[0].data();
+                if (_rData) tcSet(_rKey, _rData);
+            }
+            const userDoc = { empty: !_rData, docs: _rData ? [{ data: () => _rData }] : [] };
             if (!userDoc.empty) {
                 currentUserData = userDoc.docs[0].data();
                 if (loginLink) loginLink.textContent = 'PROFIEL';
