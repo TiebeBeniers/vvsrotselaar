@@ -9,6 +9,45 @@ import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, 
 
 console.log('App.js loaded (with live overlay)');
 
+// ── Tijdelijke cache helpers (localStorage + TTL) ────────────────────────────
+const CACHE_TTL = {
+    profile: 10 * 60 * 1000,   // 10 min
+};
+
+const _PAGE_REFRESHED = (() => {
+    try {
+        const nav = performance.getEntriesByType?.('navigation')?.[0];
+        if (nav?.type === 'reload') {
+            if (!sessionStorage.getItem('vvs_app_refreshed')) {
+                sessionStorage.setItem('vvs_app_refreshed', '1');
+                return true;
+            }
+        } else {
+            sessionStorage.removeItem('vvs_app_refreshed');
+        }
+    } catch (_) {}
+    return false;
+})();
+
+function tcGet(key, ttl) {
+    if (_PAGE_REFRESHED) return null;
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (Date.now() - ts > ttl) { localStorage.removeItem(key); return null; }
+        return data;
+    } catch (_) { return null; }
+}
+
+function tcSet(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
+    } catch (_) { /* quota / privé-modus */ }
+}
+
+
+
 // ── Config ────────────────────────────────────────────────────────────────────
 // How many minutes after the scheduled kick-off does a planned match stay visible
 // as "bezig" even without live tracking.

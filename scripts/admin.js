@@ -3691,7 +3691,7 @@ const TOUR_STEPS = [
     },
     {
         icon: '', title: 'Wedstrijdkaart',
-        desc: 'Elke wedstrijd toont ploegen, datum, locatie en score. Geplande wedstrijden hebben een <strong>Bewerken</strong>-knop. Afgelopen wedstrijden (die niet gevolgd werden) tonen een <strong>Tijdslijn invoeren</strong>-knop om opstelling en gebeurtenissen in te geven.',
+        desc: 'Elke wedstrijd toont ploegen, datum, locatie en score. Geplande wedstrijden hebben een <strong>Bewerken</strong>-knop. Afgelopen wedstrijden (die niet live gevolgd werden) tonen een <strong>Tijdslijn invoeren</strong>-knop om opstelling en gebeurtenissen in te geven.',
         tab: 'matches', target: '#matchesList .match-card',
     },
 
@@ -3720,7 +3720,7 @@ const TOUR_STEPS = [
     },
     {
         icon: '', title: 'Inschrijvingen inschakelen',
-        desc: 'Met de toggle laat je ingelogde leden zich inschrijven voor het evenement. Eenmaal ingeschakeld verschijnen extra opties: een maximum aantal deelnemers (leeg = onbeperkt) en een beschrijving die getoond wordt in het inschrijfvenster van de spelers.',
+        desc: 'Met de toggle geef je ingelogde leden de optie zich inschrijven voor het evenement. Eenmaal ingeschakeld verschijnen extra opties: een maximum aantal deelnemers (leeg = onbeperkt) en een beschrijving die getoond wordt in het inschrijfvenster van de spelers.',
         tab: 'evenementen', target: '#evenementInschrijvingen',
         onEnter() { _tourOpenEvenementModal(); },
         onLeave() { /* modal blijft open voor volgende stap */ },
