@@ -6,6 +6,14 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { checkAndShowWrapped } from './vvs-wrapped.js';
+import { applyLogoFromCache }  from './vvs-logo.js';
+
+// ── Logo: laad snel vanuit cache, async Firestore-check via vvs-logo.js ───────
+if (!applyLogoFromCache()) {
+    // Eerste keer op deze sessie: vvs-logo.js doet de Firestore-check via zijn
+    // eigen IIFE — niets extra nodig hier.
+}
 
 console.log('App.js loaded (with live overlay)');
 
@@ -148,6 +156,8 @@ onAuthStateChanged(auth, async (user) => {
             if (!userDoc.empty) {
                 currentUserData = userDoc.docs[0].data();
                 if (loginLink) loginLink.textContent = 'PROFIEL';
+                // VVS Wrapped: toon als admin het heeft ingeschakeld
+                checkAndShowWrapped(user, currentUserData);
             }
         } catch (error) {
             console.error('Error loading user data:', error);

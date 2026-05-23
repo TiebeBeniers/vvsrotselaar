@@ -9,8 +9,9 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp }
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { LOGO_OPTIONS } from './vvs-logo.js';
 
 // ── Standaardinhoud ───────────────────────────────────────────────────────────
 
@@ -747,6 +748,10 @@ async function initMailTab() {
             sendBtn.textContent = '&#9993; Versturen';
         }
     });
+
+    // Nieuwe tabbladen
+    initWrappedTab();
+    initLogoTab();
 }
 
 // ── Mail-tab koppelen ────────────────────────────────────────────────────────
@@ -1040,3 +1045,105 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(_p3Open, 700);
     }
 });
+
+// ── VVS Wrapped Tab ───────────────────────────────────────────────────────────
+async function initWrappedTab() {
+    const toggle   = document.getElementById('wrappedToggle');
+    const saveBtn  = document.getElementById('wrappedSaveBtn');
+    const saveStatus = document.getElementById('wrappedSaveStatus');
+    const statusEl = document.getElementById('wrappedStatus');
+    if (!toggle || !saveBtn) return;
+
+    // Laad huidige waarde
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'siteSettings'));
+        if (snap.exists()) {
+            toggle.checked = !!snap.data().wrappedEnabled;
+        }
+    } catch (e) { console.warn('Wrapped: kon instellingen niet laden', e); }
+
+    // Live status label
+    function updateStatus() {
+        statusEl.textContent = toggle.checked
+            ? '✅ Wrapped is momenteel INGESCHAKELD — spelers zien hun seizoensamenvatting.'
+            : '⏸️ Wrapped is momenteel UITGESCHAKELD.';
+        statusEl.style.color = toggle.checked ? 'var(--success)' : 'var(--text-gray)';
+    }
+    updateStatus();
+    toggle.addEventListener('change', updateStatus);
+
+    // Opslaan
+    saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        try {
+            await setDoc(doc(db, 'settings', 'siteSettings'),
+                { wrappedEnabled: toggle.checked }, { merge: true });
+            saveStatus.style.display = 'inline';
+            setTimeout(() => saveStatus.style.display = 'none', 2500);
+        } catch (e) {
+            alert('Fout bij opslaan: ' + e.message);
+        }
+        saveBtn.disabled = false;
+    });
+}
+
+// ── Logo Tab ─────────────────────────────────────────────────────────────────
+async function initLogoTab() {
+    const grid       = document.getElementById('logoGrid');
+    const customInput = document.getElementById('customLogoUrl');
+    const saveBtn    = document.getElementById('logoSaveBtn');
+    const saveStatus = document.getElementById('logoSaveStatus');
+    if (!grid || !saveBtn) return;
+
+    let selectedId = 'default';
+
+    // Laad huidige waarde
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'siteSettings'));
+        if (snap.exists()) {
+            selectedId = snap.data().activeLogo || 'default';
+            if (customInput) customInput.value = snap.data().customLogoUrl || '';
+        }
+    } catch (e) { console.warn('Logo: kon instellingen niet laden', e); }
+
+    // Render logo-opties
+    grid.innerHTML = '';
+    LOGO_OPTIONS.forEach(opt => {
+        const card = document.createElement('div');
+        card.className = 'admin-logo-option' + (opt.id === selectedId ? ' selected' : '');
+        card.dataset.id = opt.id;
+        card.innerHTML = `
+            <img src="${opt.src}" alt="${opt.label}" loading="lazy">
+            <span class="logo-opt-label">${opt.label}</span>`;
+        card.addEventListener('click', () => {
+            selectedId = opt.id;
+            grid.querySelectorAll('.admin-logo-option').forEach(c =>
+                c.classList.toggle('selected', c.dataset.id === selectedId));
+            if (customInput) customInput.value = ''; // wis custom URL bij keuze
+        });
+        grid.appendChild(card);
+    });
+
+    // Opslaan
+    saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        const customUrl = customInput?.value?.trim() || '';
+        try {
+            await setDoc(doc(db, 'settings', 'siteSettings'),
+                {
+                    activeLogo:    customUrl ? 'custom' : selectedId,
+                    customLogoUrl: customUrl,
+                }, { merge: true });
+
+            // Pas logo direct toe in de huidige admin-pagina
+            const { applyLogo } = await import('./vvs-logo.js');
+            applyLogo(customUrl ? 'custom' : selectedId, customUrl || null);
+
+            saveStatus.style.display = 'inline';
+            setTimeout(() => saveStatus.style.display = 'none', 2500);
+        } catch (e) {
+            alert('Fout bij opslaan: ' + e.message);
+        }
+        saveBtn.disabled = false;
+    });
+}
