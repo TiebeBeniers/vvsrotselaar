@@ -673,6 +673,26 @@
                     <div class="admin-setting-status" id="wrappedStatus"></div>
                 </div>
 
+                <div class="admin-setting-card" style="margin-top:1.25rem;">
+                    <div class="admin-setting-row" style="flex-direction:column;gap:0.75rem;">
+                        <strong>Seizoenssleutel</strong>
+                        <span class="admin-setting-desc">
+                            Spelers die op "Niet meer tonen" klikken, worden gekoppeld aan deze sleutel.
+                            Klik op <em>Reset seizoen</em> om iedereen de Wrapped opnieuw te laten zien
+                            (bv. bij een nieuw seizoen of na een grote update).
+                        </span>
+                        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+                            <input type="text" id="wrappedSeasonKey" class="mail-input"
+                                style="max-width:260px;font-size:0.85rem;"
+                                placeholder="Automatisch gegenereerd" readonly>
+                            <button class="add-btn" id="wrappedResetBtn"
+                                style="background:#e74c3c;white-space:nowrap;">
+                                &#128260; Reset seizoen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="save-bar">
                     <button class="add-btn" id="wrappedSaveBtn">&#128190; Opslaan</button>
                     <span class="save-status" id="wrappedSaveStatus">&#10003; Opgeslagen</span>

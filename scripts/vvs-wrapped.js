@@ -30,8 +30,11 @@ export async function checkAndShowWrapped(user, userData) {
         if (userSnap.empty) return;
         const stats = userSnap.docs[0].data();
 
-        // 3. Al permanent afgewezen door deze speler?
-        const dismissedKey = `vvs_wrapped_dismissed_${user.uid}`;
+        // 3. Al permanent afgewezen voor dit seizoen?
+        // De seasonKey staat in Firestore — als admin een nieuw seizoen start,
+        // verandert de key en ziet elke speler de Wrapped opnieuw.
+        const seasonKey    = settingsSnap.data().wrappedSeasonKey || 'default';
+        const dismissedKey = `vvs_wrapped_dismissed_${user.uid}_${seasonKey}`;
         if (localStorage.getItem(dismissedKey) === '1') return;
 
         // 4. Bouw slides op
@@ -39,7 +42,7 @@ export async function checkAndShowWrapped(user, userData) {
         if (slides.length === 0) return;
 
         // 5. Toon de Wrapped UI
-        showWrappedModal(slides, stats.naam || stats.name || 'Speler', user);
+        showWrappedModal(slides, stats.naam || stats.name || 'Speler', user, dismissedKey);
 
     } catch (e) {
         console.warn('[Wrapped] Kon niet laden:', e);
@@ -69,7 +72,7 @@ function buildSlides(s) {
     if (!allZero) {
         slides.push({
             type: 'intro',
-            emoji: pick(['⚽','🏟️','💙','🌟']),
+            icon: 'assets/logo.png', iconInvert: false,
             title: `${voornaam}'s`,
             subtitle: 'VVS WRAPPED',
             desc: pick([
@@ -85,7 +88,7 @@ function buildSlides(s) {
 
     // ── Matchen ─────────────────────────────────────────────────────────────
     if (matchen > 0) {
-        const desc = matchen >= 24
+        const desc = matchen >= 20
             ? pick([
                 `Bijna elke wedstrijd stond jij op het veld. Dat noemen ze toewijding!`,
                 `${matchen} matchen — de ploeg kon blindelings op jou rekenen. Respect!`,
@@ -97,13 +100,19 @@ function buildSlides(s) {
                 `${matchen} matchen — dat is bijna elke speeldag aanwezig. Top!`,
                 `Meer dan de helft van het seizoen actief. Dat is pas inzet!`,
               ])
+            : matchen >= 6
+            ? pick([
+                `De helft van het seizoen meegespeeld — en élke keer vol gegeven.`,
+                `${matchen} matchen — goed voor een mooie bijdrage aan het team.`,
+                `Niet elke match, maar als jij er was, voelde de ploeg het verschil.`,
+              ])
             : pick([
                 `Minder matchen dit seizoen, maar kwaliteit boven kwantiteit telt ook!`,
                 `${matchen} keer het shirt van VVS gedragen — elk moment was er eentje waard.`,
                 `Weinig matchen, maar wie weet wat volgend seizoen brengt!`,
               ]);
         slides.push({
-            type: 'stat', emoji: '📅',
+            type: 'stat', icon: 'assets/calender.png', iconInvert: true,
             label: 'MATCHEN GESPEELD',
             value: matchen, rawValue: matchen,
             desc,
@@ -140,7 +149,7 @@ function buildSlides(s) {
                 `Elke minuut op het veld telt. En jij had er ${minuten.toLocaleString('nl-BE')} van!`,
               ]);
         slides.push({
-            type: 'stat', emoji: '⏱️',
+            type: 'stat', icon: 'assets/stopwatch.png', iconInvert: true,
             label: 'MINUTEN OP HET VELD',
             value: minuten.toLocaleString('nl-BE'), rawValue: minuten,
             desc,
@@ -181,7 +190,7 @@ function buildSlides(s) {
                 `${goals} goals — niet slecht, maar volgend seizoen mikken we hoger!`,
               ]);
         slides.push({
-            type: 'stat', emoji: '🥅',
+            type: 'stat', icon: 'assets/goal.png', iconInvert: true,
             label: 'GOALS GESCOORD',
             value: goals, rawValue: goals,
             desc,
@@ -216,7 +225,7 @@ function buildSlides(s) {
                 `${assists} assists — jij ziet het spel zoals weinigen dat doen.`,
               ]);
         slides.push({
-            type: 'stat', emoji: '🤝',
+            type: 'stat', icon: 'assets/assist.png', iconInvert: true,
             label: 'ASSISTS GEGEVEN',
             value: assists, rawValue: assists,
             desc,
@@ -229,7 +238,7 @@ function buildSlides(s) {
     if (goals > 0 && assists > 0) {
         const totaal = goals + assists;
         slides.push({
-            type: 'double', emoji: '🌟',
+            type: 'double', icon: 'assets/goal.png', iconInvert: true,
             label: 'TOTALE BIJDRAGE',
             value1: goals, label1: 'Goals',
             value2: assists, label2: 'Assists',
@@ -245,13 +254,13 @@ function buildSlides(s) {
 
     // ── MOTM-punten ─────────────────────────────────────────────────────────
     if (motm > 0) {
-        const desc = motm >= 50
+        const desc = motm >= 10
             ? pick([
                 `${motm} MOTM-punten! De ploeg kiest keer op keer voor jou. Wat een seizoen!`,
                 `${motm} punten als Man van de Match — jij bent de publiekslieveling.`,
-                `Keer op keer de beste op het veld? ${motm} MOTM-punten spreekt voor zich!`,
+                `Keer op keer de beste op het veld. ${motm} MOTM-punten spreekt voor zich!`,
               ])
-            : motm >= 25
+            : motm >= 5
             ? pick([
                 `${motm} MOTM-punten — meerdere keren de sterspeler van de dag. Knap!`,
                 `${motm} punten — de ploeg weet wie er uitblinkt. Blijf zo presteren!`,
@@ -260,10 +269,10 @@ function buildSlides(s) {
             : pick([
                 `${motm} MOTM-punt${motm > 1 ? 'en' : ''} — de ploeg erkent jouw bijdrage. Ga zo door!`,
                 `Man van de Match zijn is bijzonder. Jij weet hoe dat voelt!`,
-                `${motm} punten verdiend — je maakte indruk op je ploeg.`,
+                `${motm} punten verdiend — je maakte indruk op je ploegmaats.`,
               ]);
         slides.push({
-            type: 'stat', emoji: '🏆',
+            type: 'stat', icon: 'assets/assist.png', iconInvert: true,
             label: 'MOTM-PUNTEN',
             value: motm, rawValue: motm,
             desc,
@@ -295,8 +304,8 @@ function buildSlides(s) {
             ]);
         } else if (geel > 0) {
             desc = pick([
-                `${geel} gele kaart${geel > 1 ? 'en' : ''} — geen probleem in een verder goed seizoen.`,
-                `${geel}x geel. Kan er mee door, hoort bij het spel. Ga zo door!`,
+                `${geel} gele kaart${geel > 1 ? 'en' : ''} — een klein dipje in een verder goed seizoen.`,
+                `${geel}x geel. Niet ideaal, maar het hoort bij het spel. Ga zo door!`,
                 `${geel} keer de naam genoteerd door de scheidsrechter. Kan beter, maar je komt er!`,
             ]);
         } else {
@@ -307,7 +316,7 @@ function buildSlides(s) {
             ]);
         }
         slides.push({
-            type: 'cards', emoji: rood > 0 ? '🟥' : '🟨',
+            type: 'cards', icon: rood > 0 ? 'assets/red.png' : 'assets/yellow.png', iconInvert: false,
             label: 'KAARTEN DIT SEIZOEN',
             geel, rood,
             desc,
@@ -321,7 +330,7 @@ function buildSlides(s) {
     // ── Eindslide ────────────────────────────────────────────────────────────
     slides.push({
         type: 'outro',
-        emoji: pick(['💙','⚽','🏟️','👏','🤝']),
+        icon: 'assets/firework.png', iconInvert: false,
         title: pick([
             'Bedankt voor dit seizoen!',
             'Wat een jaar, ' + voornaam + '!',
@@ -342,7 +351,7 @@ function buildSlides(s) {
 }
 
 // ── Modal renderer ─────────────────────────────────────────────────────────────
-function showWrappedModal(slides, naam, user) {
+function showWrappedModal(slides, naam, user, dismissedKey) {
     // Verwijder eventuele bestaande modal
     document.getElementById('vvsWrappedModal')?.remove();
 
@@ -399,8 +408,10 @@ function showWrappedModal(slides, naam, user) {
 #vvsWrappedCard .vw-prog-seg.active { background:rgba(255,255,255,0.7); }
 
 .vw-slide { animation:vwSlideUp 0.38s cubic-bezier(0.34,1.56,0.64,1); width:100%; }
-.vw-emoji { font-size:3.5rem; margin-bottom:0.75rem; display:block;
-            animation:vwPulse 2s ease-in-out infinite; }
+.vw-icon { width:72px; height:72px; object-fit:contain;
+           margin-bottom:0.75rem; display:block; margin-left:auto; margin-right:auto;
+           animation:vwPulse 2s ease-in-out infinite; }
+.vw-icon.invert { filter:invert(1); }
 .vw-label { font-size:0.8rem; font-weight:800; letter-spacing:0.14em;
             color:rgba(255,255,255,0.88); text-transform:uppercase; margin-bottom:0.3rem; }
 .vw-big   { font-size:5rem; font-weight:900; line-height:1;
@@ -440,6 +451,14 @@ function showWrappedModal(slides, naam, user) {
 }
 .vw-nav-btn:hover { background:rgba(255,255,255,0.36); border-color:rgba(255,255,255,0.8); }
 .vw-nav-btn:disabled { opacity:0.25; cursor:default; }
+.vw-share-top {
+    position:absolute; top:1rem; right:3.5rem;
+    background:rgba(255,255,255,0.18); border:none; color:#fff;
+    width:32px; height:32px; border-radius:50%; font-size:1rem;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:background 0.2s; z-index:2;
+}
+.vw-share-top:hover { background:rgba(255,255,255,0.32); }
 .vw-dismiss-btn {
     background:transparent; border:none; color:rgba(255,255,255,0.55);
     font-size:0.78rem; font-weight:600; font-family:'Barlow Condensed',sans-serif;
@@ -454,13 +473,14 @@ function showWrappedModal(slides, naam, user) {
 @media (max-width:480px) {
     #vvsWrappedCard { min-height:80svh; border-radius:20px; padding:2rem 1.25rem 5rem; }
     .vw-big  { font-size:4rem; }
-    .vw-emoji { font-size:2.8rem; }
+    .vw-icon { width:56px; height:56px; }
     .vw-title { font-size:1.9rem; }
     .vw-desc  { font-size:0.97rem; }
 }
 </style>
 
 <div id="vvsWrappedCard">
+    <button class="vw-share-btn vw-share-top" id="vwShare" title="Deel deze slide"><img src="assets/share.png" alt="Deel" style="width:16px;height:16px;object-fit:contain;filter:invert(1);display:block;"></button>
     <button class="vw-close" id="vwClose" aria-label="Sluiten">✕</button>
     <div class="vw-progress" id="vwProgress"></div>
     <div id="vwSlideContent"></div>
@@ -511,19 +531,19 @@ function showWrappedModal(slides, naam, user) {
 
         switch (s.type) {
             case 'intro':
-                html += `<span class="vw-emoji">${s.emoji}</span>
+                html += `<img class="vw-icon${ s.iconInvert ? ' invert' : '' }" src="${ s.icon }" alt="">
                     <div class="vw-title" style="color:${ac}">${s.title}</div>
                     <div class="vw-subtitle" style="color:#fff">${s.subtitle}</div>
                     <div class="vw-desc">${s.desc}</div>`;
                 break;
             case 'stat':
-                html += `<span class="vw-emoji">${s.emoji}</span>
+                html += `<img class="vw-icon${ s.iconInvert ? ' invert' : '' }" src="${ s.icon }" alt="">
                     <div class="vw-label">${s.label}</div>
                     <div class="vw-big" style="color:${ac}">${s.value}</div>
                     <div class="vw-desc">${s.desc}</div>`;
                 break;
             case 'double':
-                html += `<span class="vw-emoji">${s.emoji}</span>
+                html += `<img class="vw-icon${ s.iconInvert ? ' invert' : '' }" src="${ s.icon }" alt="">
                     <div class="vw-label" style="color:${ac};margin-bottom:0.9rem;">${s.label}</div>
                     <div class="vw-double">
                         <div class="vw-double-item">
@@ -538,7 +558,7 @@ function showWrappedModal(slides, naam, user) {
                     <div class="vw-desc">${s.desc}</div>`;
                 break;
             case 'cards':
-                html += `<span class="vw-emoji">${s.emoji}</span>
+                html += `<img class="vw-icon${ s.iconInvert ? ' invert' : '' }" src="${ s.icon }" alt="">
                     <div class="vw-label" style="color:${ac}">${s.label}</div>
                     <div class="vw-cards-row">
                         <div class="vw-card-item">
@@ -553,7 +573,7 @@ function showWrappedModal(slides, naam, user) {
                     <div class="vw-desc">${s.desc}</div>`;
                 break;
             case 'outro':
-                html += `<span class="vw-emoji">${s.emoji}</span>
+                html += `<img class="vw-icon${ s.iconInvert ? ' invert' : '' }" src="${ s.icon }" alt="">
                     <div class="vw-title" style="color:#fff;font-size:1.8rem;">${s.title}</div>
                     <div class="vw-desc" style="margin-top:0.75rem;">${s.desc}</div>`;
                 // Confetti on outro!
@@ -618,8 +638,12 @@ function showWrappedModal(slides, naam, user) {
     btnPrev.addEventListener('click', () => goTo(idx - 1));
     btnClose.addEventListener('click', closeModal);
     btnDismiss?.addEventListener('click', () => {
-        try { localStorage.setItem(`vvs_wrapped_dismissed_${user.uid}`, '1'); } catch (_) {}
+        try { localStorage.setItem(dismissedKey, '1'); } catch (_) {}
         closeModal();
+    });
+
+    document.getElementById('vwShare')?.addEventListener('click', () => {
+        shareSlide(slides[idx], naam);
     });
 
     // Swipe support
@@ -648,4 +672,265 @@ function showWrappedModal(slides, naam, user) {
 
     // Render first slide
     render(0);
+}
+
+// ── Deel-functie via Canvas API ───────────────────────────────────────────────
+async function shareSlide(slide, naam) {
+    const btn = document.getElementById('vwShare');
+    if (btn) { btn.innerHTML = '<img src="assets/share.png" alt="" style="width:16px;height:16px;object-fit:contain;filter:invert(1);display:block;opacity:0.4;">'; btn.disabled = true; }
+
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width  = 1080;
+        canvas.height = 1920;  // 9:16 portret (Instagram Story formaat)
+        const ctx = canvas.getContext('2d');
+
+        // Achtergrond gradient
+        const gradColors = parseGradient(slide.bg);
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grad.addColorStop(0,   gradColors[0]);
+        grad.addColorStop(1,   gradColors[1]);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Subtiele overlay voor diepte
+        const overlay = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        overlay.addColorStop(0,   'rgba(0,0,0,0.08)');
+        overlay.addColorStop(1,   'rgba(0,0,0,0.28)');
+        ctx.fillStyle = overlay;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const cx     = canvas.width / 2;
+        const cy     = canvas.height / 2;
+        const accent = slide.accent || '#ffffff';
+
+        // ── Vaste zones: header=top 160px, footer=bottom 130px, content=rest ──
+        const H        = canvas.height;  // 1920
+        const W        = canvas.width;   // 1080
+        const headerH  = 160;
+        const footerH  = 130;
+        const contentY = headerH;
+        const contentH = H - headerH - footerH;
+        const midY     = contentY + contentH / 2;  // verticaal midden van content
+
+        // ── Header: VVS label ─────────────────────────────────────────────────
+        ctx.font         = 'bold 42px "Barlow Condensed", Arial, sans-serif';
+        ctx.fillStyle    = 'rgba(255,255,255,0.5)';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('V.V.S ROTSELAAR', cx, headerH / 2);
+
+        // ── Footer: naam ──────────────────────────────────────────────────────
+        ctx.font      = 'bold 46px "Barlow Condensed", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(naam + ' · VVS Wrapped', cx, H - footerH / 2);
+
+        // ── Content: type-afhankelijk, verticaal gecentreerd ─────────────────
+        ctx.textBaseline = 'middle';
+
+        if (slide.type === 'stat') {
+            // Blok: icoon (200) + gap(40) + label(60) + gap(20) + getal(280) + gap(50) + desc(~130)
+            const iconH    = 200;
+            const labelH   = 60;
+            const valueH   = 280;
+            const descH    = 140;   // schatting 2-3 regels
+            const gaps     = 40 + 20 + 50 + 50;
+            const totalH   = iconH + labelH + valueH + descH + gaps;
+            let   y        = midY - totalH / 2;
+
+            await drawIcon(ctx, slide.icon, cx, y + iconH / 2, iconH, slide.iconInvert);
+            y += iconH + 40;
+
+            ctx.font = 'bold 56px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.fillText(slide.label, cx, y + labelH / 2);
+            y += labelH + 20;
+
+            ctx.font        = 'bold 280px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle   = accent;
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur  = 28;
+            ctx.fillText(String(slide.value), cx, y + valueH / 2);
+            ctx.shadowBlur  = 0;
+            y += valueH + 50;
+
+            wrapText(ctx, slide.desc, cx, y, 920, 62, 'rgba(255,255,255,0.92)', 'bold 52px "Barlow Condensed", Arial, sans-serif');
+
+        } else if (slide.type === 'double') {
+            const iconH  = 180;
+            const labelH = 60;
+            const valueH = 240;
+            const subH   = 60;
+            const descH  = 140;
+            const gaps   = 36 + 20 + 24 + 50;
+            const totalH = iconH + labelH + valueH + subH + descH + gaps;
+            let   y      = midY - totalH / 2;
+
+            await drawIcon(ctx, slide.icon, cx, y + iconH / 2, iconH, slide.iconInvert);
+            y += iconH + 36;
+
+            ctx.font = 'bold 56px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.fillText(slide.label, cx, y + labelH / 2);
+            y += labelH + 20;
+
+            ctx.font      = 'bold 240px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = accent;
+            ctx.fillText(String(slide.value1), cx - 250, y + valueH / 2);
+            ctx.fillText(String(slide.value2), cx + 250, y + valueH / 2);
+            y += valueH + 24;
+
+            ctx.font      = 'bold 56px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.72)';
+            ctx.fillText(slide.label1, cx - 250, y + subH / 2);
+            ctx.fillText(slide.label2, cx + 250, y + subH / 2);
+            y += subH + 50;
+
+            wrapText(ctx, slide.desc, cx, y, 920, 62, 'rgba(255,255,255,0.92)', 'bold 52px "Barlow Condensed", Arial, sans-serif');
+
+        } else if (slide.type === 'cards') {
+            // Layout: icoon, label, [geel getal | rood getal], [geel icon | rood icon], [Geel | Rood], desc
+            const iconH    = 180;
+            const labelH   = 60;
+            const numH     = 200;
+            const cardIconH= 180;
+            const cardLblH = 60;
+            const descH    = 140;
+            const gaps     = 36 + 20 + 20 + 16 + 50;
+            const totalH   = iconH + labelH + numH + cardIconH + cardLblH + descH + gaps;
+            let   y        = midY - totalH / 2;
+
+            // Hoofd-icoon (yellow of red afhankelijk van welke hoger is)
+            await drawIcon(ctx, slide.icon, cx, y + iconH / 2, iconH, false);
+            y += iconH + 36;
+
+            ctx.font = 'bold 56px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.82)';
+            ctx.fillText(slide.label, cx, y + labelH / 2);
+            y += labelH + 20;
+
+            // Grote getallen naast elkaar
+            ctx.font      = 'bold 200px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = '#FFD600';
+            ctx.fillText(String(slide.geel), cx - 240, y + numH / 2);
+            ctx.fillStyle = '#FF3D00';
+            ctx.fillText(String(slide.rood), cx + 240, y + numH / 2);
+            y += numH + 20;
+
+            // Kaart-iconen onder de getallen
+            await drawIcon(ctx, 'assets/yellow.png', cx - 240, y + cardIconH / 2, cardIconH, false);
+            await drawIcon(ctx, 'assets/red.png',    cx + 240, y + cardIconH / 2, cardIconH, false);
+            y += cardIconH + 16;
+
+            // Labels Geel / Rood
+            ctx.font      = 'bold 56px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.72)';
+            ctx.fillText('Geel', cx - 240, y + cardLblH / 2);
+            ctx.fillText('Rood', cx + 240, y + cardLblH / 2);
+            y += cardLblH + 50;
+
+            wrapText(ctx, slide.desc, cx, y, 920, 62, 'rgba(255,255,255,0.92)', 'bold 52px "Barlow Condensed", Arial, sans-serif');
+
+        } else {
+            // intro / outro — icoon groot, titel, desc
+            const iconH  = 240;
+            const titleH = 100;
+            const descH  = 160;
+            const gaps   = 50 + 40;
+            const totalH = iconH + titleH + descH + gaps;
+            let   y      = midY - totalH / 2;
+
+            await drawIcon(ctx, slide.icon, cx, y + iconH / 2, iconH, slide.iconInvert || false);
+            y += iconH + 50;
+
+            ctx.font      = 'bold 100px "Barlow Condensed", Arial, sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(slide.title || slide.subtitle || 'VVS Wrapped', cx, y + titleH / 2);
+            y += titleH + 40;
+
+            wrapText(ctx, slide.desc, cx, y, 920, 66, 'rgba(255,255,255,0.88)', 'bold 56px "Barlow Condensed", Arial, sans-serif');
+        }
+
+        // Probeer Web Share API (mobiel)
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+        const file = new File([blob], 'vvs-wrapped.png', { type: 'image/png' });
+
+        if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({
+                title: 'VVS Wrapped',
+                text:  `${naam}'s VVS-seizoen in cijfers 💙`,
+                files: [file],
+            });
+        } else {
+            // Fallback: download
+            const url = URL.createObjectURL(blob);
+            const a   = document.createElement('a');
+            a.href     = url;
+            a.download = 'vvs-wrapped.png';
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        }
+
+    } catch (e) {
+        if (e.name !== 'AbortError') console.warn('[Wrapped] Delen mislukt:', e);
+    } finally {
+        if (btn) {
+            btn.innerHTML = '<img src="assets/share.png" alt="Deel" style="width:16px;height:16px;object-fit:contain;filter:invert(1);display:block;">';
+            btn.disabled = false;
+        }
+    }
+}
+
+// Laadt en tekent een PNG-icoon op canvas, met optionele invert via compositing
+async function drawIcon(ctx, src, cx, cy, size, invert) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+            const half = size / 2;
+            ctx.save();
+            if (invert) {
+                // Teken op offscreen canvas met invert filter
+                const off = document.createElement('canvas');
+                off.width  = size;
+                off.height = size;
+                const octx = off.getContext('2d');
+                octx.filter = 'invert(1)';
+                octx.drawImage(img, 0, 0, size, size);
+                ctx.drawImage(off, cx - half, cy - half, size, size);
+            } else {
+                ctx.drawImage(img, cx - half, cy - half, size, size);
+            }
+            ctx.restore();
+            resolve();
+        };
+        img.onerror = resolve; // stil falen
+        img.src = src;
+    });
+}
+
+function parseGradient(bg) {
+    const matches = bg.match(/#[0-9a-fA-F]{3,6}/g) || ['#0B1D3A', '#0047AB'];
+    return [matches[0], matches[matches.length - 1]];
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight, color, font) {
+    if (!text) return;
+    ctx.font      = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    const words = text.split(' ');
+    let line  = '';
+    let curY  = y;
+    for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+            ctx.fillText(line, x, curY);
+            line = word;
+            curY += lineHeight;
+        } else {
+            line = test;
+        }
+    }
+    if (line) ctx.fillText(line, x, curY);
 }

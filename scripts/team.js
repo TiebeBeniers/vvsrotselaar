@@ -625,7 +625,34 @@ async function loadRanking() {
 
         if (!snap.exists() || !snap.data().teams?.length) {
             console.warn('No ranking in Firestore for', TEAM_TYPE);
-            tbody.innerHTML = '<tr><td colspan="10">Geen ranking beschikbaar.</td></tr>';
+            // Mooie lege staat in plaats van kale tekst
+            const container = tbody.closest('.ranking-table-container');
+            if (container) {
+                container.innerHTML = `
+                    <div style="
+                        display:flex; flex-direction:column; align-items:center;
+                        justify-content:center; padding:3rem 1.5rem; gap:0.75rem;
+                        color:var(--text-gray,#6b7280); text-align:center;
+                    ">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.5" opacity="0.45">
+                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                            <line x1="3" y1="9" x2="21" y2="9"/>
+                            <line x1="3" y1="15" x2="21" y2="15"/>
+                            <line x1="9" y1="9" x2="9" y2="21"/>
+                        </svg>
+                        <p style="font-size:1.05rem;font-weight:700;margin:0;
+                                  color:var(--text-dark,#1a202c);">
+                            Nog geen klassement beschikbaar
+                        </p>
+                        <p style="font-size:0.88rem;margin:0;max-width:300px;line-height:1.5;">
+                            Het klassement wordt toegevoegd zodra de competitie van start gaat.
+                            Kom later terug!
+                        </p>
+                    </div>`;
+            } else {
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-gray);">Nog geen klassement beschikbaar.</td></tr>';
+            }
             return;
         }
 
@@ -2138,7 +2165,7 @@ async function computeTally(matchId) {
         if (!Array.isArray(votes)) return;
         votes.forEach(v => {
             const pts = v.rank === 1 ? 3 : v.rank === 2 ? 2 : 1;
-            if (!tally[v.uid]) tally[v.uid] = { uid: v.uid, name: v.name, points: 0 };
+            if (!tally[v.uid]) tally[v.uid] = { name: v.name, points: 0 };
             tally[v.uid].points += pts;
         });
     });
@@ -2202,39 +2229,26 @@ async function revealMotm(match, tallyArg = null) {
             { motmResults: top3, motmRevealedAt: revealedAt }, { merge: true });
 
         // ── Sla MOTM-punten op per speler (1e: 3pnt, 2e: 2pnt, 3e: 1pnt) ──
-        // Zoek eerst het echte Firestore-document via het uid-veld (doc-ID ≠ uid)
         const MOTM_PTS = [3, 2, 1];
         for (let i = 0; i < top3.length; i++) {
             const r   = top3[i];
             const pts = MOTM_PTS[i] ?? 1;
             // Sla enkel op voor echte Firebase-accounts (niet manual_...)
-            if (!r.uid || String(r.uid).startsWith('manual_')) continue;
-            try {
-                // Zoek het users-document via het uid-veld
-                const userSnap = await getDocs(
-                    query(collection(db, 'users'), where('uid', '==', r.uid))
-                );
-                if (userSnap.empty) {
-                    console.warn('Geen users-doc gevonden voor uid:', r.uid);
-                    continue;
+            if (r.uid && !String(r.uid).startsWith('manual_')) {
+                try {
+                    await updateDoc(doc(db, 'users', r.uid), {
+                        motmPunten: increment(pts),
+                        motmHistory: arrayUnion({
+                            matchId:  match.id,
+                            datum:    match.datum,
+                            positie:  i + 1,
+                            punten:   pts,
+                            team:     TEAM_TYPE,
+                        })
+                    });
+                } catch (e) {
+                    console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
                 }
-                const userDocRef = userSnap.docs[0].ref;
-                await updateDoc(userDocRef, {
-                    motmPunten:  increment(pts),
-                    motmHistory: arrayUnion({
-                        matchId:  match.id,
-                        datum:    match.datum,
-                        positie:  i + 1,
-                        punten:   pts,
-                        team:     TEAM_TYPE,
-                        opponent: match.thuisploeg && match.uitploeg
-                                    ? `${match.thuisploeg} – ${match.uitploeg}`
-                                    : '',
-                    })
-                });
-                console.log(`✅ MOTM opgeslagen voor ${r.name}: +${pts}pnt (positie ${i+1})`);
-            } catch (e) {
-                console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
             }
         }
 
@@ -2248,7 +2262,6 @@ async function revealMotm(match, tallyArg = null) {
         localStorage.removeItem(`vvs_recent_matches_${TEAM_TYPE}`);
 
         showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
-        launchMotmConfetti();
 
         // Re-render kaarten en sectie direct
         const container = document.getElementById('recentMatchesList');
@@ -2257,33 +2270,6 @@ async function revealMotm(match, tallyArg = null) {
     } catch (e) {
         showToast('Fout: ' + e.message, 'error');
     }
-}
-
-
-// ── MOTM CONFETTI ─────────────────────────────────────────────────────────────
-function launchMotmConfetti() {
-    if (typeof confetti !== 'function') return;
-
-    const end    = Date.now() + 2 * 1000;
-    const colors = ['#0047AB', '#ffffff'];
-
-    (function frame() {
-        confetti({
-            particleCount: 2,
-            angle:  60,
-            spread: 55,
-            origin: { x: 0 },
-            colors
-        });
-        confetti({
-            particleCount: 2,
-            angle:  120,
-            spread: 55,
-            origin: { x: 1 },
-            colors
-        });
-        if (Date.now() < end) requestAnimationFrame(frame);
-    })();
 }
 
 console.log('Team.js initialization complete');

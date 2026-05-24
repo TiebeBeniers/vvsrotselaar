@@ -1072,12 +1072,33 @@ async function initWrappedTab() {
     updateStatus();
     toggle.addEventListener('change', updateStatus);
 
+    // Seizoenssleutel ophalen/tonen
+    const seasonInput = document.getElementById('wrappedSeasonKey');
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'siteSettings'));
+        if (snap.exists() && seasonInput) {
+            seasonInput.value = snap.data().wrappedSeasonKey || '';
+        }
+    } catch (_) {}
+
+    // Reset: genereer nieuwe seizoenssleutel (invalideert alle "Niet meer tonen")
+    document.getElementById('wrappedResetBtn')?.addEventListener('click', async () => {
+        const newKey = 'seizoen_' + Date.now();
+        if (seasonInput) seasonInput.value = newKey;
+        try {
+            await setDoc(doc(db, 'settings', 'siteSettings'),
+                { wrappedSeasonKey: newKey }, { merge: true });
+            showAdminToast('✅ Seizoenssleutel gereset — alle spelers zien de Wrapped opnieuw.');
+        } catch (e) { alert('Fout: ' + e.message); }
+    });
+
     // Opslaan
     saveBtn.addEventListener('click', async () => {
         saveBtn.disabled = true;
         try {
-            await setDoc(doc(db, 'settings', 'siteSettings'),
-                { wrappedEnabled: toggle.checked }, { merge: true });
+            const payload = { wrappedEnabled: toggle.checked };
+            if (seasonInput?.value) payload.wrappedSeasonKey = seasonInput.value;
+            await setDoc(doc(db, 'settings', 'siteSettings'), payload, { merge: true });
             saveStatus.style.display = 'inline';
             setTimeout(() => saveStatus.style.display = 'none', 2500);
         } catch (e) {
@@ -1146,4 +1167,18 @@ async function initLogoTab() {
         }
         saveBtn.disabled = false;
     });
+}
+
+function showAdminToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = [
+        'position:fixed','bottom:2rem','left:50%',
+        'transform:translateX(-50%)','background:#0047AB','color:#fff',
+        'padding:0.7rem 1.5rem','border-radius:24px','font-size:0.95rem',
+        'font-weight:700','z-index:99999','box-shadow:0 4px 16px rgba(0,0,0,0.25)',
+        'transition:opacity 0.4s','pointer-events:none',
+    ].join(';');
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
 }
