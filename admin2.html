@@ -279,7 +279,7 @@
                     <div class="data-reset-card-header">
                         <div>
                             <h4>Spelersstatistieken</h4>
-                            <p>Verwijdert goals, assists, matchen, minuten, kaarten van alle leden.</p>
+                            <p>Zet goals, assists, matchen, minuten, gele/rode kaarten, MOTM-punten en MOTM-geschiedenis op 0.</p>
                         </div>
                     </div>
                     <div class="data-reset-team-row">
@@ -320,6 +320,41 @@
                         <button class="data-reset-btn" data-action="ranking" data-team="zaterdag">Zaterdag</button>
                         <button class="data-reset-btn" data-action="ranking" data-team="zondag">Zondag</button>
                     </div>
+                </div>
+
+                <!-- Trainingen -->
+                <div class="data-reset-card">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4>Trainingen</h4>
+                            <p>Verwijdert alle geplande trainingen inclusief aanwezigheidsdata per ploeg.</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row">
+                        <button class="data-reset-btn" data-action="training" data-team="all">Alle ploegen</button>
+                        <button class="data-reset-btn" data-action="training" data-team="veteranen">Veteranen</button>
+                        <button class="data-reset-btn" data-action="training" data-team="zaterdag">Zaterdag</button>
+                        <button class="data-reset-btn" data-action="training" data-team="zondag">Zondag</button>
+                    </div>
+                </div>
+
+                <!-- Rock Werchter bestellingen -->
+                <div class="data-reset-card" style="border-left-color:#e67e22;">
+                    <div class="data-reset-card-header">
+                        <div>
+                            <h4>&#127867; Rock Werchter Bestellingen</h4>
+                            <p>Exporteer alle bestellingen naar Excel, of verwijder ze definitief uit de database.</p>
+                        </div>
+                    </div>
+                    <div class="data-reset-team-row" style="gap:0.65rem;">
+                        <button class="add-btn" id="rwExportBtn" style="background:#0047AB;">
+                            Exporteer naar Excel
+                        </button>
+                        <button class="data-reset-btn" id="rwDeleteBtn" style="background:var(--danger,#dc2626);color:#fff;border:none;">
+                            Verwijder alle bestellingen
+                        </button>
+                    </div>
+                    <div id="rwExportStatus" style="margin-top:0.6rem;font-size:0.85rem;min-height:1.2rem;"></div>
                 </div>
 
                 <!-- ── Export sectie ── -->

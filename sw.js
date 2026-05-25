@@ -3,8 +3,8 @@
 // ============================================================
 
 const BASE        = '/vvsrotselaar';
-const CACHE_NAME  = 'vvs-static-v17'; //Last updated 25/05/2026 - 00:45
-const PAGES_CACHE = 'vvs-pages-v17';
+const CACHE_NAME  = 'vvs-static-v18'; //Last updated 25/05/2026 - 13:30
+const PAGES_CACHE = 'vvs-pages-v18';
 const OFFLINE_URL = BASE + '/offline.html';
 
 const STATIC_ASSETS = [
