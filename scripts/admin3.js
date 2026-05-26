@@ -837,7 +837,7 @@ const TOUR_STEPS_P3 = [
     // ── MAILEN ────────────────────────────────────────────────────────────
     {
         icon: '', title: 'Mailen',
-        desc: 'Stuur een e-mail rechtstreeks vanuit het beheerpaneel naar één of meerdere groepen leden.',
+        desc: 'Stuur een e-mail rechtstreeks vanuit het beheerpaneel naar één of meerdere groepen leden. <u><strong>WERKT NOG NIET!</strong></u> Neem contact op met Tiebe Beniers als je deze functie wil gebruiken of testen.',
         tab: 'mail', target: '.tab-btn[data-tab="mail"]',
     },
     {
@@ -849,6 +849,25 @@ const TOUR_STEPS_P3 = [
         icon: '', title: 'Onderwerp & bericht',
         desc: 'Vul een duidelijk onderwerp in en schrijf je bericht in de tekstverwerker. Je kan tekst <strong>vetgedrukt</strong>, <em>cursief</em> of onderlijnd opmaken via de werkbalk. Klik <strong>"📩 Versturen"</strong> om de mail te verzenden.',
         tab: 'mail', target: '#mailBodyEditor',
+    },
+
+    // ── VVS WRAPPED ───────────────────────────────────────────────────────
+    {
+        icon: '', title: 'VVS Wrapped',
+        desc: 'Schakel op het einde van een seizoen de <strong>"VVS Wrapped"</strong> tab in om automatisch een gepersonaliseerde terugblik te genereren voor elk lid. Weergegeven op de startpagina.',
+        tab: 'wrapped', target: '.tab-btn[data-tab="wrapped"]',
+    },
+
+    // ── LOGO ───────────────────────────────────────────────────────
+    {
+        icon: '', title: 'Logo aanpassen',
+        desc: 'Pas het logo van de hoofdbalk aan door een nieuwe afbeelding te uploaden. Zorg dat het logo een transparante achtergrond heeft en bij voorkeur in PNG-formaat is voor de beste weergave.',
+        tab: 'logo', target: '.tab-btn[data-tab="logo"]',
+    },
+    {
+        icon: '', title: 'Standaard logo\'s',
+        desc: 'Het standaard- & feestlogo zijn al geüpload, maak een selectie.',
+        tab: 'logo', target: '#logoGrid',
     },
 
     // ── AFSLUITING ────────────────────────────────────────────────────────
