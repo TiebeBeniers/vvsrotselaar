@@ -518,9 +518,14 @@
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="sponsorAfbeelding">Afbeeldingsnaam (in assets/)</label>
-                    <input type="text" id="sponsorAfbeelding" placeholder="bv. sponsor1_logo.png">
-                    <small style="color:var(--text-gray);font-size:0.85rem;">Zorg dat het bestand in de assets-map staat.</small>
+                    <label>Afbeelding</label>
+                    <div id="sponsorImgPreview" style="display:none;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                        <img id="sponsorImgPreviewImg" style="max-height:70px;max-width:140px;border-radius:6px;border:1px solid var(--border-color);" alt="Preview">
+                        <button type="button" id="sponsorImgDeleteBtn" class="modal-btn cancel" style="padding:0.3rem 0.75rem;font-size:0.82rem;">🗑 Verwijder</button>
+                    </div>
+                    <input type="file" id="sponsorAfbeeldingFile" accept="image/*">
+                    <div id="sponsorUploadProgress" style="display:none;font-size:0.82rem;color:var(--text-gray);margin-top:0.3rem;">Uploaden…</div>
+                    <input type="hidden" id="sponsorAfbeeldingUrl">
                 </div>
                 <input type="hidden" id="sponsorId">
                 <div class="modal-actions">
@@ -536,55 +541,47 @@
          Modal: Foto toevoegen / bewerken
     ════════════════════════════════════════════ -->
     <div class="modal" id="fotoModal">
-        <div class="modal-content">
-            <h3 id="fotoModalTitle">Foto Toevoegen</h3>
-            <form id="fotoForm" class="admin-form">
-                <div class="form-group">
-                    <label for="fotoBestandsnaam">Bestandsnaam *</label>
-                    <input type="text" id="fotoBestandsnaam" required placeholder="bv. photo1.jpg">
-                    <small style="color:var(--text-gray);font-size:0.82rem;">Bestand moet staan in <code>assets/galerij/</code></small>
+    <div class="modal-content">
+        <h3 id="fotoModalTitle">Foto Toevoegen</h3>
+        <form id="fotoForm" class="admin-form">
+            <div class="form-group">
+                <label for="fotoBestandsnaam">Bestandsnaam *</label>
+                <input type="text" id="fotoBestandsnaam" required placeholder="bv. photo1.jpg">
+                <small style="color:var(--text-gray);font-size:0.82rem;">Bestand moet staan in <code>assets/galerij/</code></small>
+            </div>
+            <div class="form-group">
+                <label>Weergavegrootte</label>
+                <div class="size-picker">
+                    <label class="size-option">
+                        <input type="radio" name="fotoGrootte" value="normal" checked>
+                        <div class="size-preview size-normal"><div class="size-block"></div></div>
+                        <span>Normaal</span>
+                    </label>
+                    <label class="size-option">
+                        <input type="radio" name="fotoGrootte" value="wide">
+                        <div class="size-preview size-wide"><div class="size-block"></div></div>
+                        <span>Breed</span>
+                    </label>
+                    <label class="size-option">
+                        <input type="radio" name="fotoGrootte" value="tall">
+                        <div class="size-preview size-tall"><div class="size-block"></div></div>
+                        <span>Hoog</span>
+                    </label>
+                    <label class="size-option">
+                        <input type="radio" name="fotoGrootte" value="large">
+                        <div class="size-preview size-large"><div class="size-block"></div></div>
+                        <span>Groot</span>
+                    </label>
                 </div>
-                <div class="form-group">
-                    <label>Weergavegrootte</label>
-                    <div class="size-picker">
-                        <label class="size-option">
-                            <input type="radio" name="fotoGrootte" value="normal" checked>
-                            <div class="size-preview size-normal">
-                                <div class="size-block"></div>
-                            </div>
-                            <span>Normaal</span>
-                        </label>
-                        <label class="size-option">
-                            <input type="radio" name="fotoGrootte" value="wide">
-                            <div class="size-preview size-wide">
-                                <div class="size-block"></div>
-                            </div>
-                            <span>Breed</span>
-                        </label>
-                        <label class="size-option">
-                            <input type="radio" name="fotoGrootte" value="tall">
-                            <div class="size-preview size-tall">
-                                <div class="size-block"></div>
-                            </div>
-                            <span>Hoog</span>
-                        </label>
-                        <label class="size-option">
-                            <input type="radio" name="fotoGrootte" value="large">
-                            <div class="size-preview size-large">
-                                <div class="size-block"></div>
-                            </div>
-                            <span>Groot</span>
-                        </label>
-                    </div>
-                </div>
-                <input type="hidden" id="fotoId">
-                <div class="modal-actions">
-                    <button type="button" class="modal-btn cancel" id="fotoModalCancel">Annuleren</button>
-                    <button type="submit" class="modal-btn confirm">Opslaan</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <input type="hidden" id="fotoId">
+            <div class="modal-actions">
+                <button type="button" class="modal-btn cancel" id="fotoModalCancel">Annuleren</button>
+                <button type="submit" class="modal-btn confirm">Opslaan</button>
+            </div>
+        </form>
     </div>
+</div>
 
 
     <!-- ═══════════════════════════════════════════

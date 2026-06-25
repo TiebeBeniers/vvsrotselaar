@@ -51,22 +51,23 @@ function buildSponsorCard(sponsor) {
 
     const logoDiv = document.createElement('div');
     logoDiv.className = 'sponsor-logo';
-    if (sponsor.website) {
-        const a = document.createElement('a');
-        a.href = sponsor.website; a.target = '_blank'; a.rel = 'noopener noreferrer';
-        if (sponsor.afbeeldingNaam) {
-            const img = document.createElement('img');
-            img.src = 'assets/' + sponsor.afbeeldingNaam;
-            img.alt = (sponsor.naam || '') + ' Logo';
-            a.appendChild(img);
-        }
-        logoDiv.appendChild(a);
-    } else if (sponsor.afbeeldingNaam) {
+    const imgUrl = sponsor.afbeeldingUrl || (sponsor.afbeeldingNaam ? 'assets/' + sponsor.afbeeldingNaam : null);
+if (sponsor.website) {
+    const a = document.createElement('a');
+    a.href = sponsor.website; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    if (imgUrl) {
         const img = document.createElement('img');
-        img.src = 'assets/' + sponsor.afbeeldingNaam;
+        img.src = imgUrl;
         img.alt = (sponsor.naam || '') + ' Logo';
-        logoDiv.appendChild(img);
+        a.appendChild(img);
     }
+    logoDiv.appendChild(a);
+} else if (imgUrl) {
+    const img = document.createElement('img');
+    img.src = imgUrl;
+    img.alt = (sponsor.naam || '') + ' Logo';
+    logoDiv.appendChild(img);
+}
 
     const infoDiv = document.createElement('div');
     infoDiv.className = 'sponsor-info';

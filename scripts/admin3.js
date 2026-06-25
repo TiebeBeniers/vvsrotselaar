@@ -837,7 +837,7 @@ const TOUR_STEPS_P3 = [
     // ── MAILEN ────────────────────────────────────────────────────────────
     {
         icon: '', title: 'Mailen',
-        desc: 'Stuur een e-mail rechtstreeks vanuit het beheerpaneel naar één of meerdere groepen leden. <u><strong>WERKT NOG NIET!</strong></u> Neem contact op met Tiebe Beniers als je deze functie wil gebruiken of testen.',
+        desc: 'Stuur een e-mail rechtstreeks vanuit het beheerpaneel naar één of meerdere groepen leden.',
         tab: 'mail', target: '.tab-btn[data-tab="mail"]',
     },
     {

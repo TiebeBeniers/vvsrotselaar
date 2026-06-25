@@ -94,8 +94,11 @@ function buildFeaturedCard(ev, isGrid = false) {
 
     const dateFmt = formatDateRangeLong(ev);
 
-    const imgHtml  = ev.afbeeldingNaam
-        ? '<div class="evenement-image"><img src="assets/' + ev.afbeeldingNaam + '" alt="' + htmlEsc(ev.titel) + '"></div>'
+    const imgSrc = ev.afbeeldingNaam
+        ? (ev.afbeeldingNaam.startsWith('http') ? ev.afbeeldingNaam : 'assets/' + ev.afbeeldingNaam)
+        : null;
+    const imgHtml = imgSrc
+        ? '<div class="evenement-image"><img src="' + imgSrc + '" alt="' + htmlEsc(ev.titel) + '"></div>'
         : '';
     const linkHtml = ev.link
         ? '<a href="' + ev.link + '" target="_blank" rel="noopener noreferrer" class="evenement-link">Meer info &rarr;</a>'
@@ -136,8 +139,11 @@ function buildSmallCard(ev) {
     card.className = 'evenement-card disabled';
 
     const dateFmt  = ev.dateTime.toLocaleDateString('nl-BE');
-    const imgHtml  = ev.afbeeldingNaam
-        ? '<img src="assets/' + ev.afbeeldingNaam + '" alt="' + htmlEsc(ev.titel) + '">'
+    const imgSrc = ev.afbeeldingNaam
+        ? (ev.afbeeldingNaam.startsWith('http') ? ev.afbeeldingNaam : 'assets/' + ev.afbeeldingNaam)
+        : null;
+    const imgHtml = imgSrc
+        ? '<img src="' + imgSrc + '" alt="' + htmlEsc(ev.titel) + '">'
         : '<div class="evenement-placeholder"></div>';
     const preview  = ev.beschrijving
         ? (ev.beschrijving.length > 100 ? ev.beschrijving.substring(0, 100) + '...' : ev.beschrijving)

@@ -11,6 +11,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
+    from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+const storage = getStorage();
 
 console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
 
@@ -1843,6 +1846,40 @@ async function deleteMatch(match) {
 
 const addEvenementBtn = document.getElementById('addEvenementBtn');
 const evenementModal = document.getElementById('evenementModal');
+document.getElementById('evenementAfbeeldingFile')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const progressEl = document.getElementById('evImgProgress');
+    progressEl.style.display = 'block';
+    progressEl.textContent = 'Uploaden… 0%';
+    const filename = `evenementen/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const storageRef = ref(storage, filename);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+    uploadTask.on('state_changed',
+        (snap) => {
+            const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+            progressEl.textContent = `Uploaden… ${pct}%`;
+        },
+        (err) => { progressEl.textContent = '❌ Upload mislukt: ' + err.message; },
+        async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            document.getElementById('evenementAfbeelding').value = url;
+            document.getElementById('evImgPreviewImg').src = url;
+            document.getElementById('evImgPreview').style.display = 'flex';
+            progressEl.style.display = 'none';
+            showToast('✅ Afbeelding geüpload!', 'success');
+        }
+    );
+});
+
+document.getElementById('evImgDeleteBtn')?.addEventListener('click', async () => {
+    const url = document.getElementById('evenementAfbeelding').value;
+    if (!url || !confirm('Afbeelding verwijderen uit Storage?')) return;
+    try { await deleteObject(ref(storage, url)); } catch (e) { console.warn(e.message); }
+    document.getElementById('evenementAfbeelding').value = '';
+    document.getElementById('evImgPreview').style.display = 'none';
+    showToast('↩️ Afbeelding verwijderd.', 'success');
+});
 const evenementForm = document.getElementById('evenementForm');
 const evenementModalCancel = document.getElementById('evenementModalCancel');
 
@@ -2126,7 +2163,18 @@ function editEvenement(evenement) {
     document.getElementById('evenementTitel').value = evenement.titel;
     document.getElementById('evenementLocatie').value = evenement.locatie;
     document.getElementById('evenementBeschrijving').value = evenement.beschrijving;
-    document.getElementById('evenementAfbeelding').value = evenement.afbeeldingNaam || '';
+    const evUrl = evenement.afbeeldingNaam || '';
+document.getElementById('evenementAfbeelding').value = evUrl;
+document.getElementById('evenementAfbeeldingFile').value = '';
+document.getElementById('evImgProgress').style.display = 'none';
+const evPreview = document.getElementById('evImgPreview');
+const evPreviewImg = document.getElementById('evImgPreviewImg');
+if (evUrl) {
+    evPreviewImg.src = evUrl;
+    evPreview.style.display = 'flex';
+} else {
+    evPreview.style.display = 'none';
+}
     
     const linkField = document.getElementById('evenementLink');
     if (linkField) linkField.value = evenement.link || '';

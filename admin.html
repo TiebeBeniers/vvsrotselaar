@@ -839,9 +839,14 @@
                     <textarea id="evenementBeschrijving" rows="4" required></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="evenementAfbeelding">Afbeelding Naam</label>
-                    <input type="text" id="evenementAfbeelding" placeholder="bv. event1.jpg">
-                    <small>Plaats de afbeelding in de /assets map</small>
+                <label>Afbeelding</label>
+                <div id="evImgPreview" style="display:none;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                    <img id="evImgPreviewImg" style="max-height:80px;max-width:150px;border-radius:6px;border:1px solid var(--border-color);object-fit:cover;" alt="Preview">
+                    <button type="button" id="evImgDeleteBtn" class="modal-btn cancel" style="padding:0.3rem 0.75rem;font-size:0.82rem;">🗑 Verwijder</button>
+                </div>
+                <input type="file" id="evenementAfbeeldingFile" accept="image/*">
+                <div id="evImgProgress" style="display:none;font-size:0.82rem;color:var(--text-gray);margin-top:0.3rem;">Uploaden…</div>
+                    <input type="hidden" id="evenementAfbeelding">
                 </div>
                 <div class="form-group">
                     <label for="evenementLink">Link (optioneel)</label>
