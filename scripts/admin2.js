@@ -14,11 +14,15 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import { isAdmin, emptyStats, getStats } from './vvs-user-helpers.js';
+ 
 const storage = getStorage();
 
+
 // ── State ──────────────────────────────────────────────────────────────────────
-let werklijstenCache   = {};   // id → { id, naam, active, createdAt }
-let shiftsCache        = {};   // shiftId → shift data (for current editing werklijst)
+let werklijstenCache   = {};
+let shiftsCache        = {};
+let _memberCache       = null; // cache van alle leden voor zoekfunctie
 let editingWerklijstId = null;
 let unsubWerklijsten   = null;
 let unsubShifts        = null;
@@ -26,19 +30,13 @@ let unsubShifts        = null;
 // ── Auth guard ─────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
-
     try {
-        const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        if (snap.empty) { window.location.href = 'index.html'; return; }
-        const data = snap.docs[0].data();
-        if (data.rol !== 'admin') { window.location.href = 'index.html'; return; }
-    } catch (e) {
-        console.error('Auth check error:', e);
-        return;
-    }
-
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (!snap.exists() || !isAdmin(snap.data())) { window.location.href = 'index.html'; return; }
+    } catch (e) { console.error('Auth check error:', e); return; }
     listenToWerklijsten();
 });
+
 
 // ── Werklijsten listener ────────────────────────────────────────────────────────
 function listenToWerklijsten() {
@@ -554,10 +552,16 @@ function createShiftCard(shift) {
             <div class="shift-person-list" id="plist-${shift.id}">
                 ${persons.length === 0
                     ? '<p class="no-persons-msg">Nog niemand ingeschreven.</p>'
-                    : persons.map(p => personRow(p)).join('')}
+                    : persons.map(p => personRow(p, shift.id)).join('')}
             </div>
             <div class="shift-add-person">
-                <input type="text" class="add-name-input" placeholder="Naam toevoegen…" autocomplete="off">
+                <div class="add-person-search-wrap">
+                    <input type="text" class="add-name-input" placeholder="Zoek lid of typ naam…" autocomplete="off" spellcheck="false">
+                    <ul class="member-suggestions" style="display:none;"></ul>
+                </div>
+                <label class="add-resp-label">
+                    <input type="checkbox" class="add-resp-cb"> Verantwoordelijke
+                </label>
                 <button class="add-person-btn" type="button">+ Toevoegen</button>
             </div>
         </div>
@@ -566,40 +570,126 @@ function createShiftCard(shift) {
     card.querySelector('.sac-edit').addEventListener('click', () => openShiftModal(shift));
     card.querySelector('.sac-delete').addEventListener('click', () => confirmDeleteShift(shift));
 
-    card.querySelectorAll('.remove-person-btn').forEach(btn => {
-        btn.addEventListener('click', () => removePerson(shift.id, btn.dataset.uid, btn.dataset.naam));
-    });
-
-    const input = card.querySelector('.add-name-input');
-    const btn   = card.querySelector('.add-person-btn');
-
-    btn.addEventListener('click', () => {
-        addPersonByName(shift.id, input.value.trim());
-        input.value = '';
-    });
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addPersonByName(shift.id, input.value.trim());
-            input.value = '';
-        }
-    });
+    bindPersonListEvents(card, shift.id);
+    bindAddPersonEvents(card, shift.id);
 
     return card;
 }
 
-function personRow(p) {
-    const respLabel = p.responsible ? ' <span class="person-role">(verantw.)</span>' : '';
-    const nameClass = p.responsible ? 'person-name is-responsible' : 'person-name';
+function bindPersonListEvents(card, shiftId) {
+    card.querySelectorAll('.remove-person-btn').forEach(btn => {
+        btn.addEventListener('click', () => removePerson(shiftId, btn.dataset.uid, btn.dataset.naam));
+    });
+    card.querySelectorAll('.toggle-resp-btn').forEach(btn => {
+        btn.addEventListener('click', () => toggleResponsible(shiftId, btn.dataset.uid, btn.dataset.naam));
+    });
+}
+
+function bindAddPersonEvents(card, shiftId) {
+    const input    = card.querySelector('.add-name-input');
+    const suggList = card.querySelector('.member-suggestions');
+    const respCb   = card.querySelector('.add-resp-cb');
+    const addBtn   = card.querySelector('.add-person-btn');
+
+    let selectedMember = null; // { uid, name } als gekozen uit lijst, anders null
+
+    // Zoeken in leden
+    input.addEventListener('input', async () => {
+        const q = input.value.trim().toLowerCase();
+        selectedMember = null;
+        if (q.length < 1) { hideSuggestions(); return; }
+        const members = await loadMemberCache();
+        const shift   = shiftsCache[shiftId];
+        const existing = (shift?.persons || []).map(p => (p.naam || '').toLowerCase());
+        const matches  = members.filter(m =>
+            m.name.toLowerCase().includes(q) && !existing.includes(m.name.toLowerCase())
+        ).slice(0, 6);
+        showSuggestions(matches, q);
+    });
+
+    function showSuggestions(matches, q) {
+        suggList.innerHTML = '';
+        if (matches.length === 0) { hideSuggestions(); return; }
+        matches.forEach(m => {
+            const li = document.createElement('li');
+            li.className = 'member-suggestion-item';
+            // Highlight matching deel
+            const idx = m.name.toLowerCase().indexOf(q);
+            li.innerHTML = idx >= 0
+                ? `${htmlEsc(m.name.slice(0, idx))}<mark>${htmlEsc(m.name.slice(idx, idx + q.length))}</mark>${htmlEsc(m.name.slice(idx + q.length))}`
+                : htmlEsc(m.name);
+            li.addEventListener('mousedown', e => {
+                e.preventDefault(); // voorkom blur voor click
+                selectedMember = m;
+                input.value = m.name;
+                hideSuggestions();
+            });
+            suggList.appendChild(li);
+        });
+        suggList.style.display = '';
+    }
+
+    function hideSuggestions() { suggList.style.display = 'none'; suggList.innerHTML = ''; }
+
+    input.addEventListener('blur', () => setTimeout(hideSuggestions, 150));
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { hideSuggestions(); return; }
+        if (e.key === 'ArrowDown') {
+            const first = suggList.querySelector('li');
+            if (first) { first.focus(); e.preventDefault(); }
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            doAdd();
+        }
+    });
+
+    // Keyboard navigatie in suggestielijst
+    suggList.addEventListener('keydown', e => {
+        const items = [...suggList.querySelectorAll('li')];
+        const idx   = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown' && idx < items.length - 1) { items[idx+1].focus(); e.preventDefault(); }
+        if (e.key === 'ArrowUp')  { if (idx > 0) items[idx-1].focus(); else input.focus(); e.preventDefault(); }
+        if (e.key === 'Enter' && idx >= 0) { items[idx].dispatchEvent(new MouseEvent('mousedown')); }
+        if (e.key === 'Escape') { hideSuggestions(); input.focus(); }
+    });
+
+    addBtn.addEventListener('click', doAdd);
+
+    function doAdd() {
+        const naam = input.value.trim();
+        if (!naam) return;
+        const uid  = selectedMember?.uid || '';
+        addPerson(shiftId, naam, uid, respCb.checked);
+        input.value    = '';
+        respCb.checked = false;
+        selectedMember = null;
+        hideSuggestions();
+    }
+}
+
+function htmlEsc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function personRow(p, shiftId = '') {
+    const isResp    = !!p.responsible;
+    const nameClass = isResp ? 'person-name is-responsible' : 'person-name';
+    const respLabel = isResp ? '<span class="person-role">(verantw.)</span>' : '';
+    const respTitle = isResp ? 'Verwijder verantwoordelijke' : 'Maak verantwoordelijke';
+    const respClass = isResp ? 'toggle-resp-btn is-resp' : 'toggle-resp-btn';
     return `
         <div class="shift-person-row">
-            <span class="${nameClass}">${p.naam}${respLabel}</span>
-            <button class="remove-person-btn" data-uid="${p.uid || ''}" data-naam="${p.naam}" title="Verwijder ${p.naam}">✕</button>
+            <span class="${nameClass}">${htmlEsc(p.naam)} ${respLabel}</span>
+            <div class="person-row-actions">
+                <button class="${respClass}" data-uid="${p.uid || ''}" data-naam="${htmlEsc(p.naam)}" title="${respTitle}">★</button>
+                <button class="remove-person-btn" data-uid="${p.uid || ''}" data-naam="${htmlEsc(p.naam)}" title="Verwijder ${htmlEsc(p.naam)}">✕</button>
+            </div>
         </div>`;
 }
 
-// ── Add / Remove person ─────────────────────────────────────────────────────────
-async function addPersonByName(shiftId, naam) {
+// ── Add / Remove / Toggle person ────────────────────────────────────────────────
+async function addPerson(shiftId, naam, uid = '', responsible = false) {
     if (!naam || !editingWerklijstId) return;
     const shift = shiftsCache[shiftId];
     if (!shift) return;
@@ -608,15 +698,47 @@ async function addPersonByName(shiftId, naam) {
         showToast('Deze naam staat er al in.', 'error');
         return;
     }
+    // Als nieuwe persoon verantwoordelijke is, verwijder die rol bij anderen
+    let updated = responsible
+        ? existing.map(p => ({ ...p, responsible: false }))
+        : [...existing];
+    updated = [...updated, { uid, naam, responsible }];
     try {
         await setDoc(
             doc(db, 'werklijsten', editingWerklijstId, 'shifts', shiftId),
-            { persons: [...existing, { uid: '', naam, responsible: false }] },
+            { persons: updated },
             { merge: true }
         );
-        showToast(`✅ ${naam} toegevoegd.`, 'success');
+        showToast(`✅ ${naam} toegevoegd${responsible ? ' als verantwoordelijke' : ''}.`, 'success');
     } catch (e) {
-        console.error('addPersonByName error:', e);
+        console.error('addPerson error:', e);
+        showToast('❌ ' + e.message, 'error');
+    }
+}
+
+async function toggleResponsible(shiftId, uid, naam) {
+    const shift = shiftsCache[shiftId];
+    if (!shift || !editingWerklijstId) return;
+    const persons = shift.persons || [];
+    const target  = persons.find(p => uid ? p.uid === uid : p.naam === naam);
+    if (!target) return;
+    const isNowResp = !target.responsible;
+    // Als we iemand verantwoordelijke maken, verwijder de rol bij alle anderen
+    const updated = persons.map(p => ({
+        ...p,
+        responsible: (uid ? p.uid === uid : p.naam === naam)
+            ? isNowResp
+            : isNowResp ? false : p.responsible
+    }));
+    try {
+        await setDoc(
+            doc(db, 'werklijsten', editingWerklijstId, 'shifts', shiftId),
+            { persons: updated },
+            { merge: true }
+        );
+        showToast(isNowResp ? `⭐ ${naam} is nu verantwoordelijke.` : `★ ${naam} is geen verantwoordelijke meer.`, 'success');
+    } catch (e) {
+        console.error('toggleResponsible error:', e);
         showToast('❌ ' + e.message, 'error');
     }
 }
@@ -637,6 +759,26 @@ async function removePerson(shiftId, uid, naam) {
         console.error('removePerson error:', e);
         showToast('❌ ' + e.message, 'error');
     }
+}
+
+// ── Member cache voor zoekfunctie ──────────────────────────────────────────────
+async function loadMemberCache() {
+    if (_memberCache) return _memberCache;
+    try {
+        const snap = await getDocs(collection(db, 'users'));
+        _memberCache = [];
+        snap.forEach(d => {
+            const data = d.data();
+            // Sla tijdelijke/externe accounts over
+            if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+            if (data.name) _memberCache.push({ uid: data.uid || d.id, name: data.name });
+        });
+        _memberCache.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) {
+        console.error('loadMemberCache error:', e);
+        _memberCache = [];
+    }
+    return _memberCache;
 }
 
 // ── Werklijst modal (nieuw / hernoemen) ────────────────────────────────────────
@@ -697,8 +839,14 @@ function openShiftModal(shift = null) {
     // Toggles – requireResponsible standaard AAN, showLabel standaard UIT
     const rrEl = document.getElementById('shiftRequireResponsible');
     const slEl = document.getElementById('shiftShowLabel');
+    const hlEl = document.getElementById('shiftHardLimit');
     if (rrEl) rrEl.checked = shift ? (shift.requireResponsible ?? true)  : true;
     if (slEl) slEl.checked = shift ? (shift.showLabel          ?? false) : false;
+    if (hlEl) hlEl.checked = shift ? (shift.hardLimit ?? true) : true;
+
+    // Toon/verberg harde-limiet toggle op basis van of er een max is
+    const hlRow = document.getElementById('hardLimitRow');
+    if (hlRow) hlRow.style.display = '';
 
     // Vul de datalist met bestaande categorieën voor autocomplete
     const categories = [...new Set(
@@ -728,6 +876,7 @@ shiftForm?.addEventListener('submit', async (e) => {
     const category = document.getElementById('shiftCategory').value.trim();
     const requireResponsible = document.getElementById('shiftRequireResponsible')?.checked ?? true;
     const showLabel          = document.getElementById('shiftShowLabel')?.checked ?? false;
+    const hardLimit          = max !== null && (document.getElementById('shiftHardLimit')?.checked ?? false);
 
     const shiftId = id || slugify(`${label}_${date}`);
 
@@ -738,7 +887,7 @@ shiftForm?.addEventListener('submit', async (e) => {
         const existing = shiftsCache[shiftId] || {};
         await setDoc(
             doc(db, 'werklijsten', editingWerklijstId, 'shifts', shiftId),
-            { label, date, time, max, note, category, requireResponsible, showLabel, persons: existing.persons || [] }
+            { label, date, time, max, hardLimit, note, category, requireResponsible, showLabel, persons: existing.persons || [] }
         );
         showToast('✅ Shift opgeslagen!', 'success');
         shiftModal.classList.remove('active');
@@ -891,21 +1040,17 @@ let toastTimer;
 function showToast(msg, type = '') {
     let t = document.getElementById('adminToast');
     if (!t) {
-        t = document.createElement('div');
-        t.id = 'adminToast';
-        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);
-            padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;
-            transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);
-            box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
+        t = document.createElement('div'); t.id = 'adminToast';
+        t.style.cssText = `position:fixed;bottom:1.75rem;right:1.75rem;background:var(--text-dark);color:var(--white);padding:0.75rem 1.3rem;border-radius:9px;font-size:0.88rem;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 4px 16px rgba(0,0,0,0.18);pointer-events:none;max-width:320px;`;
         document.body.appendChild(t);
     }
     t.textContent = msg;
     t.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--danger)' : 'var(--text-dark)';
-    t.style.transform  = 'translateY(0)';
-    t.style.opacity    = '1';
+    t.style.transform = 'translateY(0)'; t.style.opacity = '1';
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.style.transform = 'translateY(80px)'; t.style.opacity = '0'; }, 3500);
 }
+
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 
@@ -916,6 +1061,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
         const target = document.getElementById(btn.dataset.tab + 'Tab');
         if (target) target.classList.add('active');
+        if (btn.dataset.tab === 'data') loadDataCounts();
     });
 });
 
@@ -951,15 +1097,12 @@ async function resetStats(team) {
     snap.forEach(d => {
         const data = d.data();
         if (team !== 'all') {
-            const userPloegen = Array.isArray(data.ploegen) && data.ploegen.length > 0
-                ? data.ploegen : (data.categorie ? [data.categorie] : []);
-            if (!userPloegen.includes(team)) return;
+            const userTeams = Array.isArray(data.team) ? data.team : [];
+            if (!userTeams.includes(team)) return;
         }
-        batch.update(d.ref, {
-            goals: 0, assists: 0, matchen: 0,
-            minuten: 0, geelKaarten: 0, roodKaarten: 0,
-            motmPunten: 0, motmHistory: []
-        });
+        // Sla tijdelijke/externe accounts over
+        if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+        batch.update(d.ref, { stats: emptyStats() });
         count++;
     });
     if (count === 0) return 0;
@@ -967,47 +1110,34 @@ async function resetStats(team) {
     return count;
 }
 
+
 async function resetMatches(team) {
     const matchSnap = await getDocs(collection(db, 'matches'));
-    const toDelete = [];
+    const toDelete  = [];
     matchSnap.forEach(d => {
         const data = d.data();
-        if (team === 'all' || data.categorie === team || data.ploeg === team) {
-            toDelete.push(d);
-        }
+        if (team === 'all' || data.team === team) toDelete.push(d);
     });
-
     if (toDelete.length === 0) return 0;
-
-    // Firestore batches are limited to 500 ops — chunk if needed
+ 
     const MAX_BATCH = 400;
     let ops = [];
-
     for (const matchDoc of toDelete) {
         const mid = matchDoc.id;
-        // Collect all sub-doc refs
         for (const sub of SUBCOLLECTIONS) {
             const subSnap = await getDocs(collection(db, 'matches', mid, sub));
             subSnap.forEach(d => ops.push(d.ref));
         }
-        // Global events collection
-        const evSnap = await getDocs(
-            query(collection(db, 'events'), where('matchId', '==', mid))
-        );
-        evSnap.forEach(d => ops.push(d.ref));
-        // The match doc itself (last so subcollections go first)
         ops.push(matchDoc.ref);
     }
-
-    // Commit in chunks of MAX_BATCH
     for (let i = 0; i < ops.length; i += MAX_BATCH) {
         const batch = writeBatch(db);
         ops.slice(i, i + MAX_BATCH).forEach(ref => batch.delete(ref));
         await batch.commit();
     }
-
     return toDelete.length;
 }
+
 
 
 // ── Rock Werchter — hulpfuncties vanuit data-tab ─────────────────────────────
@@ -1212,16 +1342,9 @@ async function resetTrainingen(team) {
     const ops  = [];
     snap.forEach(d => {
         const data = d.data();
-        if (team === 'all'
-            || data.team === team
-            || data.categorie === team
-            || data.ploeg === team) {
-            ops.push(d.ref);
-        }
+        if (team === 'all' || data.team === team || data.categorie === team) ops.push(d.ref);
     });
     if (ops.length === 0) return 0;
-    // Verwijder ook availability-subcollecties van trainingen
-    const MAX = 400;
     let allRefs = [];
     for (const ref of ops) {
         try {
@@ -1230,6 +1353,7 @@ async function resetTrainingen(team) {
         } catch (_) {}
         allRefs.push(ref);
     }
+    const MAX = 400;
     for (let i = 0; i < allRefs.length; i += MAX) {
         const batch = writeBatch(db);
         allRefs.slice(i, i + MAX).forEach(r => batch.delete(r));
@@ -1238,13 +1362,13 @@ async function resetTrainingen(team) {
     return ops.length;
 }
 
+
 async function resetRanking(team) {
-    const snap = await getDocs(collection(db, 'ranking'));
+    const snap  = await getDocs(collection(db, 'ranking'));
     const batch = writeBatch(db);
-    let count = 0;
+    let count   = 0;
     snap.forEach(d => {
-        const data = d.data();
-        if (team !== 'all' && data.categorie !== team && data.ploeg !== team) return;
+        if (team !== 'all' && d.id !== team) return;
         batch.delete(d.ref);
         count++;
     });
@@ -1253,27 +1377,97 @@ async function resetRanking(team) {
     return count;
 }
 
+
 // Wire up RW export knop
 document.getElementById('rwExportBtn')?.addEventListener('click', exportRwExcel);
 
 // Wire up RW verwijder knop
 document.getElementById('rwDeleteBtn')?.addEventListener('click', verwijderRwBestellingen);
 
+
+// ── Data tellers ─────────────────────────────────────────────────────────────
+// Laadt tellingen per actie+team en toont ze op de reset-knoppen.
+
+async function loadDataCounts() {
+    // Zet alle knoppen op laad-staat
+    document.querySelectorAll('.data-reset-btn[data-action]').forEach(btn => {
+        btn.dataset.baseLabel = btn.dataset.baseLabel || btn.textContent.trim();
+        btn.textContent = btn.dataset.baseLabel + ' (…)';
+        btn.disabled = true;
+    });
+
+    try {
+        // Haal data parallel op
+        const [usersSnap, matchesSnap, rankingSnap, trainingsSnap] = await Promise.all([
+            getDocs(collection(db, 'users')),
+            getDocs(collection(db, 'matches')),
+            getDocs(collection(db, 'ranking')),
+            getDocs(collection(db, 'trainingen')),
+        ]);
+
+        // Stats per team
+        const statCounts = { all: 0, veteranen: 0, zaterdag: 0, zondag: 0 };
+        usersSnap.forEach(d => {
+            const data = d.data();
+            if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+            statCounts.all++;
+            (data.team || []).forEach(t => { if (statCounts[t] !== undefined) statCounts[t]++; });
+        });
+
+        // Matches per team
+        const matchCounts = { all: 0, veteranen: 0, zaterdag: 0, zondag: 0 };
+        matchesSnap.forEach(d => {
+            const team = d.data().team || '';
+            matchCounts.all++;
+            if (matchCounts[team] !== undefined) matchCounts[team]++;
+        });
+
+        // Ranking per team
+        const rankCounts = { all: 0, veteranen: 0, zaterdag: 0, zondag: 0 };
+        rankingSnap.forEach(d => {
+            rankCounts.all++;
+            const t = d.id;
+            if (rankCounts[t] !== undefined) rankCounts[t]++;
+        });
+
+        // Trainingen per team
+        const trainCounts = { all: 0, veteranen: 0, zaterdag: 0, zondag: 0 };
+        trainingsSnap.forEach(d => {
+            const data = d.data();
+            const t    = data.team || data.categorie || '';
+            trainCounts.all++;
+            if (trainCounts[t] !== undefined) trainCounts[t]++;
+        });
+
+        const countMap = { stats: statCounts, matches: matchCounts, ranking: rankCounts, training: trainCounts };
+
+        document.querySelectorAll('.data-reset-btn[data-action]').forEach(btn => {
+            const action = btn.dataset.action;
+            const team   = btn.dataset.team;
+            const base   = btn.dataset.baseLabel || btn.textContent.replace(/\s*\(.*\)$/, '').trim();
+            btn.dataset.baseLabel = base;
+            const count  = countMap[action]?.[team] ?? 0;
+            btn.textContent = `${base} (${count})`;
+            btn.disabled = false;
+        });
+    } catch (e) {
+        console.error('loadDataCounts error:', e);
+        document.querySelectorAll('.data-reset-btn[data-action]').forEach(btn => {
+            btn.textContent = btn.dataset.baseLabel || btn.textContent.replace(/\s*\(.*\)$/, '').trim();
+            btn.disabled = false;
+        });
+    }
+}
+
 // Wire up reset buttons
 document.querySelectorAll('.data-reset-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
-        const action = btn.dataset.action;
-        const team   = btn.dataset.team;
+        const action    = btn.dataset.action;
+        const team      = btn.dataset.team;
         const teamLabel = team === 'all' ? 'alle ploegen' : team;
-
-        const actionLabels = {
-            stats:   'spelersstatistieken',
-            matches: 'wedstrijden & events',
-            ranking: 'rangschikking'
-        };
-
+        const actionLabels = { stats:'spelersstatistieken', matches:'wedstrijden & events', ranking:'rangschikking', training:'trainingen' };
         showDataResetConfirm({
-            label:      actionLabels[action],
+            label: actionLabels[action],
             teamLabel,
             onConfirmed: async () => {
                 const statusEl = document.getElementById('dataResetStatus');
@@ -1284,11 +1478,11 @@ document.querySelectorAll('.data-reset-btn').forEach(btn => {
                     if (action === 'stats')    count = await resetStats(team);
                     if (action === 'matches')  count = await resetMatches(team);
                     if (action === 'training') count = await resetTrainingen(team);
-                    if (action === 'ranking') count = await resetRanking(team);
-                    statusEl.innerHTML = `<p style="color:var(--success);font-weight:600;">✓ Klaar — ${count} record(s) verwijderd/gereset.</p>`;
+                    if (action === 'ranking')  count = await resetRanking(team);
+                    statusEl.innerHTML = `<p style="color:var(--success);font-weight:600;">✓ Klaar — ${count} record(s) verwerkt.</p>`;
                     showToast('Reset geslaagd', 'success');
+                    loadDataCounts();
                 } catch (e) {
-                    console.error('Reset error:', e);
                     statusEl.innerHTML = `<p style="color:var(--danger);font-weight:600;">Fout: ${e.message}</p>`;
                     showToast('Fout bij reset', 'error');
                 } finally {
@@ -1298,6 +1492,240 @@ document.querySelectorAll('.data-reset-btn').forEach(btn => {
         });
     });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NIEUW: SEIZOEN ARCHIVEREN
+// Archiveert matches, events, stats, ranking naar archief/{seizoen}/
+// Reset daarna: matches, users.stats, ranking
+// ══════════════════════════════════════════════════════════════════════════════
+ 
+/**
+ * Archiveer het huidige seizoen naar archief/{seizoen}/.
+ * Voert vervolgens een volledige reset uit van matches, stats en ranking.
+ */
+async function archiveSeizoen(seizoenLabel, archivedByUid) {
+    const archRef = doc(db, 'archief', seizoenLabel);
+ 
+    // 1. Check of archief al bestaat
+    const archSnap = await getDoc(archRef);
+    if (archSnap.exists()) throw new Error(`Archief "${seizoenLabel}" bestaat al.`);
+ 
+    showArchiveProgress('Wedstrijden ophalen…', 5);
+ 
+    // 2. Matches ophalen
+    const matchSnap = await getDocs(collection(db, 'matches'));
+    const matches   = matchSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+ 
+    showArchiveProgress('Events ophalen…', 15);
+ 
+    // 3. Events ophalen (uit subcollection per match)
+    const allEvents = [];
+    for (const match of matches) {
+        const evSnap = await getDocs(collection(db, 'matches', match.id, 'events'));
+        evSnap.forEach(d => allEvents.push({ id: d.id, matchId: match.id, ...d.data() }));
+    }
+ 
+    showArchiveProgress('Spelersstats ophalen…', 30);
+ 
+    // 4. User stats ophalen
+    const userSnap = await getDocs(collection(db, 'users'));
+    const userStats = [];
+    userSnap.forEach(d => {
+        const data = d.data();
+        if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+        userStats.push({ uid: data.uid, name: data.name, team: data.team || [], stats: data.stats || emptyStats() });
+    });
+ 
+    showArchiveProgress('Rangschikking ophalen…', 45);
+ 
+    // 5. Ranking ophalen
+    const rankSnap = await getDocs(collection(db, 'ranking'));
+    const ranking  = rankSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+ 
+    showArchiveProgress('Archief wegschrijven…', 55);
+ 
+    // 6. Archief wegschrijven in batches
+    const MAX_BATCH = 400;
+ 
+    // Metadata
+    await setDoc(archRef, {
+        seizoen:    seizoenLabel,
+        archivedAt: serverTimestamp(),
+        archivedBy: archivedByUid,
+        matchCount: matches.length,
+        eventCount: allEvents.length,
+        userCount:  userStats.length,
+    });
+ 
+    // Matches
+    for (let i = 0; i < matches.length; i += MAX_BATCH) {
+        const batch = writeBatch(db);
+        matches.slice(i, i + MAX_BATCH).forEach(m => {
+            const { id, ...data } = m;
+            batch.set(doc(db, 'archief', seizoenLabel, 'matches', id), data);
+        });
+        await batch.commit();
+    }
+ 
+    showArchiveProgress('Events archiveren…', 65);
+ 
+    // Events (gedenormaliseerd met matchId)
+    for (let i = 0; i < allEvents.length; i += MAX_BATCH) {
+        const batch = writeBatch(db);
+        allEvents.slice(i, i + MAX_BATCH).forEach(ev => {
+            const { id, ...data } = ev;
+            batch.set(doc(db, 'archief', seizoenLabel, 'events', id), data);
+        });
+        await batch.commit();
+    }
+ 
+    // User stats
+    for (let i = 0; i < userStats.length; i += MAX_BATCH) {
+        const batch = writeBatch(db);
+        userStats.slice(i, i + MAX_BATCH).forEach(us => {
+            batch.set(doc(db, 'archief', seizoenLabel, 'users_stats', us.uid), us);
+        });
+        await batch.commit();
+    }
+ 
+    // Ranking
+    for (const r of ranking) {
+        const { id, ...data } = r;
+        await setDoc(doc(db, 'archief', seizoenLabel, 'ranking', id), data);
+    }
+ 
+    showArchiveProgress('Huidig seizoen resetten…', 80);
+ 
+    // 7. Reset huidige data
+    await resetMatches('all');
+    await resetStats('all');
+    await resetRanking('all');
+ 
+    showArchiveProgress('Klaar!', 100);
+}
+ 
+function showArchiveProgress(message, pct) {
+    const statusEl = document.getElementById('archiveStatus');
+    const barEl    = document.getElementById('archiveProgressBar');
+    if (statusEl) statusEl.textContent = message;
+    if (barEl)    barEl.style.width = pct + '%';
+    console.log(`[ARCHIEF] ${pct}% — ${message}`);
+}
+ 
+// ── Seizoen archiveren modal ──────────────────────────────────────────────────
+ 
+function openArchiveModal() {
+    let modal = document.getElementById('archiveSeizoenModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'archiveSeizoenModal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3 style="color:var(--danger);">📦 Seizoen Archiveren</h3>
+                <p style="color:var(--text-gray);line-height:1.6;margin-bottom:1rem;">
+                    Dit archiveert <strong>alle wedstrijden, events, spelersstats en de rangschikking</strong>
+                    naar <code>archief/{seizoen}/</code> en reset daarna de actieve data.<br>
+                    <strong>Dit kan niet ongedaan worden gemaakt.</strong>
+                </p>
+                <div class="form-group">
+                    <label>Seizoen-label <small>(bv. 2024-2025)</small></label>
+                    <input type="text" id="archiveSeizoenLabel" placeholder="2024-2025" autocomplete="off"
+                        style="font-size:1.1rem;font-weight:700;letter-spacing:0.05em;">
+                </div>
+                <div class="data-reset-code-box">
+                    <span>Typ deze code om te bevestigen:</span>
+                    <strong id="archiveCode" class="data-reset-code"></strong>
+                </div>
+                <div class="form-group" style="margin-top:0.75rem;">
+                    <input type="text" id="archiveCodeInput" autocomplete="off" autocorrect="off"
+                        spellcheck="false" placeholder="Typ de code hier"
+                        style="letter-spacing:0.15em;font-weight:700;font-size:1.05rem;">
+                </div>
+                <p id="archiveCodeError" style="color:var(--danger);font-size:0.88rem;min-height:1.2rem;margin-bottom:0.5rem;"></p>
+                <div id="archiveProgressWrap" style="display:none;margin:0.75rem 0;">
+                    <div style="height:8px;background:#e9ecef;border-radius:4px;overflow:hidden;">
+                        <div id="archiveProgressBar" style="height:100%;background:var(--primary-blue);width:0%;transition:width 0.4s ease;"></div>
+                    </div>
+                    <p id="archiveStatus" style="font-size:0.85rem;color:var(--text-gray);margin-top:0.4rem;"></p>
+                </div>
+                <div class="modal-actions">
+                    <button class="modal-btn cancel" id="archiveCancelBtn">Annuleren</button>
+                    <button class="modal-btn danger" id="archiveConfirmBtn" disabled>📦 Archiveren & Resetten</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+    }
+ 
+    // Genereer code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+ 
+    const codeEl      = modal.querySelector('#archiveCode');
+    const codeInput   = modal.querySelector('#archiveCodeInput');
+    const codeError   = modal.querySelector('#archiveCodeError');
+    const confirmBtn  = modal.querySelector('#archiveConfirmBtn');
+    const cancelBtn   = modal.querySelector('#archiveCancelBtn');
+    const seizoenEl   = modal.querySelector('#archiveSeizoenLabel');
+    const progressEl  = modal.querySelector('#archiveProgressWrap');
+ 
+    // Stel huidig seizoen als default in
+    const now = new Date();
+    const defaultSeizoen = `${now.getMonth() < 7 ? now.getFullYear()-1 : now.getFullYear()}-${now.getMonth() < 7 ? now.getFullYear() : now.getFullYear()+1}`;
+    seizoenEl.value    = defaultSeizoen;
+    codeEl.textContent = code;
+    codeInput.value    = '';
+    codeError.textContent = '';
+    confirmBtn.disabled   = true;
+    progressEl.style.display = 'none';
+ 
+    codeInput.oninput = () => {
+        const match = codeInput.value.trim().toUpperCase() === code;
+        confirmBtn.disabled = !match || !seizoenEl.value.trim();
+        if (codeError.textContent && match) codeError.textContent = '';
+    };
+    seizoenEl.oninput = () => {
+        confirmBtn.disabled = codeInput.value.trim().toUpperCase() !== code || !seizoenEl.value.trim();
+    };
+ 
+    cancelBtn.onclick = () => modal.classList.remove('active');
+ 
+    confirmBtn.onclick = async () => {
+        const seizoen = seizoenEl.value.trim();
+        if (!seizoen) { codeError.textContent = 'Geef een seizoen-label op.'; return; }
+        if (codeInput.value.trim().toUpperCase() !== code) { codeError.textContent = 'Code klopt niet.'; return; }
+ 
+        confirmBtn.disabled = true;
+        cancelBtn.disabled  = true;
+        progressEl.style.display = 'block';
+ 
+        try {
+            // Haal uid van ingelogde admin op
+            const { auth } = await import('./firebase-config.js');
+            const uid = auth.currentUser?.uid || 'unknown';
+            await archiveSeizoen(seizoen, uid);
+            showToast(`✅ Seizoen ${seizoen} gearchiveerd!`, 'success');
+            setTimeout(() => modal.classList.remove('active'), 1500);
+        } catch (e) {
+            codeError.textContent = '❌ Fout: ' + e.message;
+            console.error('[ARCHIEF] Error:', e);
+            showToast('Fout bij archiveren: ' + e.message, 'error');
+        } finally {
+            confirmBtn.disabled = false;
+            cancelBtn.disabled  = false;
+        }
+    };
+ 
+    modal.classList.add('active');
+    setTimeout(() => seizoenEl.focus(), 50);
+}
+
+// Wire up archiveer-knop (voeg toe aan data-tab HTML)
+document.getElementById('archiveSeizoenBtn')?.addEventListener('click', openArchiveModal);
+
+
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1524,7 +1952,7 @@ sponsorForm?.addEventListener('submit', async (e) => {
                 naam, beschrijving, website, websiteLabel, afbeeldingUrl
             }, { merge: true });
             showToast('✅ Sponsor bijgewerkt!', 'success');
-        // Cache op sponsors.html ongeldig maken
+        // Cache op partners.html ongeldig maken
         localStorage.removeItem('vvs_sponsors_cache');
         } else {
             // Nieuwe sponsor — volgorde = einde van de lijst
@@ -1536,7 +1964,7 @@ sponsorForm?.addEventListener('submit', async (e) => {
                 createdAt: serverTimestamp()
             });
             showToast('✅ Sponsor toegevoegd!', 'success');
-        // Cache op sponsors.html ongeldig maken
+        // Cache op partners.html ongeldig maken
         localStorage.removeItem('vvs_sponsors_cache');
         }
         sponsorModal.classList.remove('active');
@@ -2219,48 +2647,41 @@ async function exportMatchesPdf() {
 }
 
 async function exportStatsPdf() {
-    const JsPDF = await loadJsPdf();
-    const snap  = await getDocs(collection(db, 'users'));
-    const users = [];
-    snap.forEach(d => users.push({ id: d.id, ...d.data() }));
-    users.sort((a, b) => (a.naam || '').localeCompare(b.naam || ''));
-
-    const doc = new JsPDF({ orientation: 'landscape' });
+    const JsPDF  = await loadJsPdf();
+    const snap   = await getDocs(collection(db, 'users'));
+    const users  = [];
+    snap.forEach(d => {
+        const data = d.data();
+        if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+        users.push({ id: d.id, ...data });
+    });
+    users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+ 
+    const doc   = new JsPDF({ orientation: 'landscape' });
     const teams = ['veteranen', 'zaterdag', 'zondag'];
-
+ 
     for (let ti = 0; ti < teams.length; ti++) {
-        const team   = teams[ti];
-        const spelers = users.filter(u => {
-            const userPloegen = Array.isArray(u.ploegen) && u.ploegen.length > 0
-                ? u.ploegen : (u.categorie ? [u.categorie] : []);
-            return userPloegen.includes(team);
-        });
+        const team    = teams[ti];
+        const spelers = users.filter(u => (u.team || []).includes(team));
         if (spelers.length === 0) continue;
         if (ti > 0) doc.addPage();
-
-        const startY = pdfHeader(doc, `Spelersstatistieken — ${team.charAt(0).toUpperCase() + team.slice(1)}`);
-
-        const rows = spelers.map(u => [
-            u.naam   || '—',
-            u.matchen    ?? 0,
-            u.minuten    ?? 0,
-            u.goals      ?? 0,
-            u.assists    ?? 0,
-            u.geelKaarten ?? 0,
-            u.roodKaarten ?? 0
-        ]);
-
+        const startY = pdfHeader(doc, `Spelersstatistieken — ${team.charAt(0).toUpperCase()+team.slice(1)}`);
+        const rows = spelers.map(u => {
+            const s = getStats(u);
+            return [u.name||'—', s.matches, s.minutes, s.goals, s.assists, s.yellowCard, s.redCard];
+        });
         doc.autoTable({
             startY,
             head: [['Naam','Matchen','Minuten','Goals','Assists','Gele K.','Rode K.']],
             body: rows,
             theme: 'striped',
-            headStyles: { fillColor: [0, 71, 171], textColor: 255 },
+            headStyles: { fillColor: [0,71,171], textColor: 255 },
             styles: { fontSize: 8 }
         });
     }
     doc.save('vvs-statistieken.pdf');
 }
+
 
 async function exportRwPdf() {
     const JsPDF = await loadJsPdf();

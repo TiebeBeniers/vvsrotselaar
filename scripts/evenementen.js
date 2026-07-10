@@ -38,45 +38,71 @@ async function loadEvenementen() {
             tcSet(_cacheKey, rawDocs);
         }
 
-        if (!rawDocs.length) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
+        if (!rawDocs.length) {
+            featuredEl.style.display = 'none';
+            noEvents.style.display = 'block';
+            renderPastEvenementen([]);
+            return;
+        }
 
-        const now  = new Date();
-        const list = [];
+        const now = new Date();
+        const upcoming = [];
+        const past = [];
+
         rawDocs.forEach(data => {
-            const dt = new Date(data.datum + 'T' + data.tijd);
-            if (dt > now) list.push({ ...data, dateTime: dt });
+            const startDt = new Date(data.datum + 'T' + data.tijd);
+            // Einde van het evenement: bij meerdaagse events de eindDatum (+ eindTijd of einde van de dag),
+            // anders blijft een evenement gewoon lopen tot het einde van de startdag.
+            const endDt = data.eindDatum
+                ? new Date(data.eindDatum + 'T' + (data.eindTijd || '23:59'))
+                : new Date(data.datum + 'T23:59:59');
+
+            if (endDt > now) {
+                upcoming.push({ ...data, dateTime: startDt, isOngoing: startDt <= now });
+            } else {
+                past.push({ ...data, dateTime: startDt });
+            }
         });
 
-        if (list.length === 0) { featuredEl.style.display = 'none'; noEvents.style.display = 'block'; return; }
-
-        // Altijd chronologisch sorteren
-        list.sort((a, b) => a.dateTime - b.dateTime);
-
-        // Split: uitgelicht (pinned) vs gewoon
-        const pinned  = list.filter(e => e.pinned === true);
-        const regular = list.filter(e => !e.pinned);
-
-        // Geen uitgelicht: toon het eerstvolgende als enkel featured card
-        if (pinned.length === 0 && regular.length > 0) {
-            pinned.push(regular.shift());
-        }
-
-        featuredEl.innerHTML = '';
-        featuredEl.classList.remove('loading');
-
-        if (pinned.length === 1) {
-            // Enkel: groot split-layout
-            featuredEl.appendChild(buildFeaturedCard(pinned[0], false));
+        if (upcoming.length === 0) {
+            featuredEl.style.display = 'none';
+            upcomingEl.innerHTML = '';
+            noEvents.style.display = 'block';
         } else {
-            // Meerdere: responsive grid
-            const grid = document.createElement('div');
-            grid.className = 'uitgelicht-grid';
-            pinned.forEach(ev => grid.appendChild(buildFeaturedCard(ev, true)));
-            featuredEl.appendChild(grid);
+            noEvents.style.display = 'none';
+
+            // Altijd chronologisch sorteren
+            upcoming.sort((a, b) => a.dateTime - b.dateTime);
+
+            // Split: uitgelicht (pinned) vs gewoon
+            const pinned  = upcoming.filter(e => e.pinned === true);
+            const regular = upcoming.filter(e => !e.pinned);
+
+            // Geen uitgelicht: toon het eerstvolgende als enkel featured card
+            if (pinned.length === 0 && regular.length > 0) {
+                pinned.push(regular.shift());
+            }
+
+            featuredEl.innerHTML = '';
+            featuredEl.classList.remove('loading');
+            featuredEl.style.display = '';
+
+            if (pinned.length === 1) {
+                // Enkel: groot split-layout
+                featuredEl.appendChild(buildFeaturedCard(pinned[0], false));
+            } else {
+                // Meerdere: responsive grid
+                const grid = document.createElement('div');
+                grid.className = 'uitgelicht-grid';
+                pinned.forEach(ev => grid.appendChild(buildFeaturedCard(ev, true)));
+                featuredEl.appendChild(grid);
+            }
+
+            upcomingEl.innerHTML = '';
+            regular.forEach(ev => upcomingEl.appendChild(buildSmallCard(ev)));
         }
 
-        upcomingEl.innerHTML = '';
-        regular.forEach(ev => upcomingEl.appendChild(buildSmallCard(ev)));
+        renderPastEvenementen(past);
 
         document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
 
@@ -84,6 +110,53 @@ async function loadEvenementen() {
         console.error(err);
         featuredEl.innerHTML = '<p class="error">Fout bij laden van evenementen.</p>';
     }
+}
+
+// ── Afgelopen evenementen ──────────────────────────────────────────────
+function renderPastEvenementen(past) {
+    const sectionEl = document.getElementById('pastEvenementenSection');
+    const pastEl    = document.getElementById('pastEvenementen');
+    if (!sectionEl || !pastEl) return;
+
+    if (!past.length) {
+        sectionEl.style.display = 'none';
+        pastEl.innerHTML = '';
+        return;
+    }
+
+    // Meest recent afgelopen eerst
+    past.sort((a, b) => b.dateTime - a.dateTime);
+
+    pastEl.innerHTML = '';
+    past.forEach(ev => pastEl.appendChild(buildPastCard(ev)));
+    sectionEl.style.display = '';
+}
+
+function buildPastCard(ev) {
+    const card = document.createElement('div');
+    card.className = 'evenement-card afgelopen';
+
+    const imgSrc = ev.afbeeldingNaam
+        ? (ev.afbeeldingNaam.startsWith('http') ? ev.afbeeldingNaam : 'assets/' + ev.afbeeldingNaam)
+        : null;
+    const imgHtml = imgSrc
+        ? '<img src="' + imgSrc + '" alt="' + htmlEsc(ev.titel) + '">'
+        : '<div class="evenement-placeholder"></div>';
+    const preview  = ev.beschrijving
+        ? (ev.beschrijving.length > 100 ? ev.beschrijving.substring(0, 100) + '...' : ev.beschrijving)
+        : '';
+
+    const content = document.createElement('div');
+    content.className = 'evenement-card-content';
+    content.innerHTML =
+        '<h3>' + htmlEsc(ev.titel) + '</h3>' +
+        '<p class="evenement-date">' + formatDateRange(ev) + (ev.eindDatum ? '' : (' om ' + htmlEsc(ev.tijd))) + '</p>' +
+        '<p class="evenement-location">' + htmlEsc(ev.locatie) + '</p>' +
+        '<p class="evenement-preview">' + htmlEsc(preview) + '</p>';
+
+    card.innerHTML = '<div class="evenement-card-image">' + imgHtml + '</div>';
+    card.appendChild(content);
+    return card;
 }
 
 // ── Card builders ─────────────────────────────────────────────────────
@@ -136,7 +209,7 @@ function buildFeaturedCard(ev, isGrid = false) {
 
 function buildSmallCard(ev) {
     const card = document.createElement('div');
-    card.className = 'evenement-card disabled';
+    card.className = 'evenement-card ' + (ev.isOngoing ? 'ongoing' : 'disabled');
 
     const dateFmt  = ev.dateTime.toLocaleDateString('nl-BE');
     const imgSrc = ev.afbeeldingNaam

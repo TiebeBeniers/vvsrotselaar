@@ -64,7 +64,7 @@
                             <li style="display:none;"><a href="werklijst.html">Werklijst</a></li>
                         </ul>
                     </li>
-                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="partners.html">SPONSORS</a></li>
                     <li><a href="galerij.html">GALERIJ</a></li>
                     <li><a href="contact.html">CONTACT</a></li>
                     <li><a href="login.html" id="loginLink">LOGIN</a></li>
@@ -147,6 +147,12 @@
                     <button class="filter-btn active" data-match-filter="all">Alle</button>
                     <button class="filter-btn" data-match-filter="planned">Gepland</button>
                     <button class="filter-btn" data-match-filter="finished">Afgelopen</button>
+                    <select id="matchTeamFilter" class="match-team-filter">
+                        <option value="all">Alle teams</option>
+                        <option value="veteranen">Veteranen</option>
+                        <option value="zaterdag">Zaterdag</option>
+                        <option value="zondag">Zondag</option>
+                    </select>
                 </div>
 
                 <div class="matches-list" id="matchesList">
@@ -417,7 +423,7 @@
                     <input type="hidden" id="memberCategorie" value="veteranen">
                 </div>
                 <div class="form-group" id="memberRollenGroup">
-                    <label>Rol(len) <small style="font-weight:400;color:var(--text-gray);">Meerdere rollen mogelijk</small></label>
+                    <label>Permissions <small style="font-weight:400;color:var(--text-gray);">Meerdere opties mogelijk</small></label>
                     <div class="member-rechten-grid">
                         <label class="member-recht-label">
                             <input type="checkbox" name="memberRol" value="speler" id="rolSpeler" checked>
@@ -439,19 +445,13 @@
                                 </div>
                             </div>
                         </label>
-                    </div>
-                </div>
-                <input type="hidden" id="memberRole" value="speler">
-                <div class="form-group" id="memberRechtenGroup">
-                    <label>Toegangsrechten <small style="font-weight:400;color:var(--text-gray);">(alleen voor spelers)</small></label>
-                    <div class="member-rechten-grid">
                         <label class="member-recht-label">
                             <input type="checkbox" name="memberRecht" value="score_invullen" id="rechtScoreInvullen">
                             <div class="member-recht-content">
                                 <span class="member-recht-icon">⚽</span>
                                 <div>
                                     <strong>Score invullen</strong>
-                                    <span>Kan ALTIJD wedstrijden live invullen</span>
+                                    <span>Kan wedstrijden live bijhouden</span>
                                 </div>
                             </div>
                         </label>
@@ -477,6 +477,8 @@
                         </select>
                     </div>
                 </div>
+                <input type="hidden" id="memberRole" value="speler">
+                <div id="memberRechtenGroup" style="display:none;"></div>
 
                 <!-- Statistieken (alleen bij bewerken) -->
                 <div id="statsEditGroup" style="display:none;">
@@ -490,16 +492,18 @@
                             <label for="memberAssists">Assists</label>
                             <input type="number" id="memberAssists" min="0" value="0">
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="memberMatchen">Matchen</label>
                             <input type="number" id="memberMatchen" min="0" value="0">
                         </div>
-                    </div>
-                    <div class="form-row">
                         <div class="form-group">
                             <label for="memberMinuten">Minuten</label>
                             <input type="number" id="memberMinuten" min="0" value="0">
                         </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label for="memberGeel">Gele kaarten</label>
                             <input type="number" id="memberGeel" min="0" value="0">
@@ -547,12 +551,9 @@
                         <span class="detail-val" id="detailCategorie">—</span>
                     </div>
                     <div class="detail-item">
-                        <span class="detail-key">Rol</span>
+                        <span class="detail-key">Permissions</span>
                         <span class="detail-val" id="detailRol">—</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-key">Rechten</span>
-                        <span class="detail-val" id="detailRechten">—</span>
+                        <span class="detail-val" id="detailRechten" style="display:none;">—</span>
                     </div>
                 </div>
             </div>
@@ -839,18 +840,18 @@
                     <textarea id="evenementBeschrijving" rows="4" required></textarea>
                 </div>
                 <div class="form-group">
-                <label>Afbeelding</label>
-                <div id="evImgPreview" style="display:none;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-                    <img id="evImgPreviewImg" style="max-height:80px;max-width:150px;border-radius:6px;border:1px solid var(--border-color);object-fit:cover;" alt="Preview">
-                    <button type="button" id="evImgDeleteBtn" class="modal-btn cancel" style="padding:0.3rem 0.75rem;font-size:0.82rem;">🗑 Verwijder</button>
-                </div>
-                <input type="file" id="evenementAfbeeldingFile" accept="image/*">
-                <div id="evImgProgress" style="display:none;font-size:0.82rem;color:var(--text-gray);margin-top:0.3rem;">Uploaden…</div>
+                    <label for="evenementAfbeeldingFile">Afbeelding</label>
+                    <input type="file" id="evenementAfbeeldingFile" accept="image/*" style="margin-bottom:0.4rem;">
                     <input type="hidden" id="evenementAfbeelding">
+                    <div id="evImgProgress" style="display:none;font-size:0.85rem;color:var(--text-gray);margin-top:0.25rem;"></div>
+                    <div id="evImgPreview" style="display:none;align-items:center;gap:0.75rem;margin-top:0.5rem;padding:0.5rem;background:var(--off-white);border-radius:8px;border:1px solid var(--border-color);">
+                        <img id="evImgPreviewImg" src="" alt="Preview" style="width:80px;height:60px;object-fit:cover;border-radius:6px;">
+                        <button type="button" id="evImgDeleteBtn" class="action-btn delete" style="padding:0.3rem 0.75rem;font-size:0.8rem;">Verwijderen</button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="evenementLink">Link (optioneel)</label>
-                    <input type="url" id="evenementLink" placeholder="https://...">
+                    <input type="text" id="evenementLink" placeholder="https://... of ./rockwerchter.html">
                 </div>
                 <div class="toggle-setting-row">
                     <div class="toggle-setting-label">

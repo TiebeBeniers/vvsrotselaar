@@ -12,7 +12,7 @@ import {
     verifyBeforeUpdateEmail
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, query, where, getDocs, doc, updateDoc
+    collection, query, where, getDocs, getDoc, doc, updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // ── Cache configuratie ────────────────────────────────────────────────────────
@@ -90,21 +90,22 @@ function showOnly(id) {
 // ── UI vullen ─────────────────────────────────────────────────────────────────
 
 function fillProfile(userData) {
-    document.getElementById('heroNaam').textContent       = userData.naam || 'Onbekend';
-    document.getElementById('infoNaam').textContent       = userData.naam      || '—';
-    // Toon alle ploegen als de speler er meerdere heeft
-    const allPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
-        ? userData.ploegen
-        : (userData.categorie ? [userData.categorie] : []);
+    document.getElementById('heroNaam').textContent       = userData.name || 'Onbekend';
+    document.getElementById('infoNaam').textContent       = userData.name     || '—';
+    // Toon alle ploegen (v2: team[] array)
+    const allPloegen = Array.isArray(userData.team) && userData.team.length > 0
+        ? userData.team : [];
     document.getElementById('infoCategorie').textContent =
         allPloegen.map(p => capitalize(p)).join(' + ') || '—';
 
-    document.getElementById('statGoals').textContent   = userData.goals        ?? 0;
-    document.getElementById('statAssists').textContent = userData.assists      ?? 0;
-    document.getElementById('statMatches').textContent = userData.matchen      ?? 0;
-    document.getElementById('statMinutes').textContent = userData.minuten      ?? 0;
-    document.getElementById('statYellow').textContent  = userData.geelKaarten  ?? 0;
-    document.getElementById('statRed').textContent     = userData.roodKaarten  ?? 0;
+    // v2 schema: stats zijn een map-veld
+    const s = userData.stats || {};
+    document.getElementById('statGoals').textContent   = s.goals      ?? 0;
+    document.getElementById('statAssists').textContent = s.assists    ?? 0;
+    document.getElementById('statMatches').textContent = s.matches    ?? 0;
+    document.getElementById('statMinutes').textContent = s.minutes    ?? 0;
+    document.getElementById('statYellow').textContent  = s.yellowCard ?? 0;
+    document.getElementById('statRed').textContent     = s.redCard    ?? 0;
 
     setAvatarDisplay(userData.fotoUrl || null);
 
@@ -116,7 +117,7 @@ function fillProfile(userData) {
     if (isOwnProfile) {
         // ── Geval 1: eigen profiel ───────────────────────────────────────────
         document.getElementById('infoEmail').textContent    = userData.email    || '—';
-        document.getElementById('infoTelefoon').textContent = userData.telefoon || '—';
+        document.getElementById('infoTelefoon').textContent = userData.telnr || '—';
         // Voeg bewerkingsicoontjes toe (na DOM-update zodat refs geldig zijn)
         setTimeout(() => {
             addEditIcon('infoEmail',    'E-mail',        'email');
@@ -226,7 +227,7 @@ function fillProfile(userData) {
         const bannerText = document.getElementById('guestBannerText');
         if (banner) banner.style.display = '';
         if (bannerText) bannerText.textContent =
-            'Je bekijkt het profiel van ' + (userData.naam || 'een ander lid') + '.';
+            'Je bekijkt het profiel van ' + (userData.name || 'een ander lid') + '.';
 
     } else {
         // ── Geval 3: niet ingelogd ───────────────────────────────────────────
@@ -239,7 +240,7 @@ function fillProfile(userData) {
         const ownBtn     = document.getElementById('ownProfileBtn');
         if (banner) banner.style.display = '';
         if (bannerText) bannerText.textContent =
-            'Je bekijkt het publiek profiel van ' + (userData.naam || 'een speler') + '.';
+            'Je bekijkt het publiek profiel van ' + (userData.name || 'een speler') + '.';
         if (ownBtn) ownBtn.style.display = 'none';
     }
 }
@@ -373,18 +374,17 @@ async function loadProfile(targetUid) {
         return;
     }
 
-    // 2. Cache miss — haal op uit Firestore
+    // 2. Cache miss — haal op uit Firestore (doc-ID = uid in v2 schema)
     console.log('[firestore] profiel ophalen voor', targetUid);
-    const q    = query(collection(db, 'users'), where('uid', '==', targetUid));
-    const snap = await getDocs(q);
+    const snap = await getDoc(doc(db, 'users', targetUid));
 
-    if (snap.empty) {
+    if (!snap.exists()) {
         showOnly('stateNotFound');
         return;
     }
 
-    profileDocId    = snap.docs[0].id;
-    const userData  = { uid: targetUid, _docId: profileDocId, ...snap.docs[0].data() };
+    profileDocId    = targetUid;
+    const userData  = { uid: targetUid, _docId: targetUid, ...snap.data() };
 
     // Sla op in cache
     cacheSet('profile', targetUid, userData);
@@ -576,17 +576,8 @@ let _editDocRef = null;
 
 async function getEditDocRef() {
     if (!auth.currentUser) return null;
-    // Probeer direct via uid als doc-ID (na migratie)
-    const direct = doc(db, 'users', auth.currentUser.uid);
-    try {
-        const { getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const snap = await getDoc(direct);
-        if (snap.exists()) return direct;
-    } catch (_) {}
-    // Fallback: zoek op uid-veld
-    const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', auth.currentUser.uid)));
-    if (snap.empty) return null;
-    return snap.docs[0].ref;
+    // v2 schema: doc-ID = uid, geen query nodig
+    return doc(db, 'users', auth.currentUser.uid);
 }
 
 function addEditIcon(spanId, label, field) {
@@ -732,7 +723,7 @@ async function saveField(field, label, isEmail, closeFn) {
 
         } else {
             const ref = await getEditDocRef();
-            if (ref) await updateDoc(ref, { telefoon: newVal });
+            if (ref) await updateDoc(ref, { telnr: newVal });
             document.getElementById('infoTelefoon').textContent = newVal;
             // Herplaats edit-icoon
             addEditIcon('infoTelefoon', 'Telefoonnummer', 'telefoon');

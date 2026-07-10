@@ -200,6 +200,26 @@
     z-index: 1;
 }
 
+/* Meerdaags evenement dat nu bezig is */
+#upcomingEvenementen .evenement-card.ongoing {
+    opacity: 0.85;
+}
+
+#upcomingEvenementen .evenement-card.ongoing::after {
+    content: 'Bezig';
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(46, 125, 50, 0.88);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    z-index: 1;
+}
+
 .evenement-card-image {
     width: 100%;
     aspect-ratio: 1 / 1;
@@ -243,6 +263,59 @@
     color: var(--text-gray);
     font-size: 1.1rem;
     font-style: italic;
+}
+
+/* ── Afgelopen Evenementen ── */
+.afgelopen-titel {
+    font-family: 'Barlow Condensed', 'Segoe UI', sans-serif;
+    text-align: center;
+    color: var(--text-gray);
+    margin: 60px 0 24px;
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.past-evenementen-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+    gap: 20px;
+}
+
+.past-evenementen-grid .evenement-card {
+    background: var(--white);
+    border-radius: var(--radius-lg, 16px);
+    overflow: hidden;
+    box-shadow: 0 2px 10px var(--shadow);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-top: 3px solid var(--text-gray);
+    opacity: 0.7;
+    filter: grayscale(0.4);
+    transition: opacity 0.3s, filter 0.3s, transform 0.3s;
+}
+
+.past-evenementen-grid .evenement-card:hover {
+    opacity: 0.95;
+    filter: grayscale(0.1);
+    transform: translateY(-2px);
+}
+
+.past-evenementen-grid .evenement-card::after {
+    content: 'Afgelopen';
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(0,0,0,0.65);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    z-index: 1;
 }
 
 /* ── Inschrijf popup ── */
@@ -426,6 +499,8 @@ html.dark .featured-evenement        { background: var(--white); }
 html.dark .featured-evenement-content h2 { color: var(--text-dark); }
 html.dark .evenement-beschrijving    { color: var(--text-dark); }
 html.dark #upcomingEvenementen .evenement-card { background: var(--white); }
+html.dark .past-evenementen-grid .evenement-card { background: var(--white); }
+html.dark .afgelopen-titel { color: var(--text-gray); }
 html.dark .evenement-card-content    { background: var(--white); }
 html.dark .evenement-card-content h3 { color: var(--primary-blue); }
 html.dark .evenement-date            { color: var(--text-dark); }

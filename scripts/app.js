@@ -5,7 +5,8 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, onSnapshot, getDocs, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, query, where, onSnapshot, getDocs, getDoc, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { isAdmin, hasPermission, isTijdelijk } from './vvs-user-helpers.js';
 import { checkAndShowWrapped } from './vvs-wrapped.js';
 import { applyLogoFromCache }  from './vvs-logo.js';
 
@@ -148,13 +149,12 @@ onAuthStateChanged(auth, async (user) => {
             const _rKey = `user_role_${user.uid}`;
             let _rData   = tcGet(_rKey, CACHE_TTL.profile);
             if (!_rData) {
-                const _uSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-                _rData = _uSnap.empty ? null : _uSnap.docs[0].data();
+                const _uSnap = await getDoc(doc(db, 'users', user.uid));
+                _rData = _uSnap.exists() ? _uSnap.data() : null;
                 if (_rData) tcSet(_rKey, _rData);
             }
-            const userDoc = { empty: !_rData, docs: _rData ? [{ data: () => _rData }] : [] };
-            if (!userDoc.empty) {
-                currentUserData = userDoc.docs[0].data();
+            if (_rData) {
+                currentUserData = _rData;
                 if (loginLink) loginLink.textContent = 'PROFIEL';
                 // VVS Wrapped: toon als admin het heeft ingeschakeld
                 checkAndShowWrapped(user, currentUserData);
@@ -436,11 +436,9 @@ async function checkForStartMatch() {
         return;
     }
 
-    const isBestuurslid  = currentUserData.categorie === 'bestuurslid'
-        || (currentUserData.rol || '') === 'bestuurslid';
-    // Spelers met 'score_invullen'-recht of tijdelijk account met score_invullen kunnen wedstrijd starten
-    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('score_invullen')
-        || (currentUserData.rol === 'tijdelijk' && (currentUserData.toegang || []).includes('score_invullen'));
+    // v2 schema: permissions[]
+    const heeftWedstrijdRecht = hasPermission(currentUserData, 'score_invullen')
+        || isAdmin(currentUserData);
     const now = new Date();
     // Window: from 24u before match kick-off, until end of match day
     const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -462,7 +460,7 @@ async function checkForStartMatch() {
             const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
 
             // Match moet binnen de volgende 24 uur vallen OF binnen de grace period liggen
-            if ((isBestuurslid || isDesignated || heeftWedstrijdRecht) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
+            if ((isDesignated || heeftWedstrijdRecht) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
                 // Kies de eerstvolgende kwalificerende wedstrijd
                 if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
                     todayMatch = { id: docSnap.id, ...d };
@@ -875,8 +873,8 @@ async function finalizeMatchStart(matchData) {
         }
         await Promise.all(minutePromises);
 
-        await addDoc(collection(db, 'events'), {
-            matchId:   matchData.id,
+        // NIEUW: events in matches/{id}/events subcollection
+        await addDoc(collection(db, 'matches', matchData.id, 'events'), {
             minuut:    0,
             half:      1,
             type:      'aftrap',

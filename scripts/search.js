@@ -12,8 +12,7 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/fi
 import { tcGet, tcSet, CACHE_TTL } from './vvs-cache.js';
 import { collection, getDocs, query, orderBy }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
-// Track auth state so search knows what's allowed
+ 
 let searchCurrentUser = null;
 onAuthStateChanged(auth, (user) => { searchCurrentUser = user; });
 
@@ -159,20 +158,20 @@ function doSearch(q) {
     const lower = q.toLowerCase();
     const results = [];
 
-    // Leden — klikbaar naar speler.html?uid=...
+    // Leden — enkel zoeken op naam, toon enkel naam (geen email/team)
     searchData.users
         .filter(u => {
-            return (u.naam || '').toLowerCase().includes(lower)
-                || (u.email || '').toLowerCase().includes(lower)
-                || (u.categorie || '').toLowerCase().includes(lower);
+            // Sla tijdelijke/externe accounts over
+            if ((u.permissions || []).some(p => ['tijdelijk', 'extern'].includes(p))) return false;
+            return (u.name || '').toLowerCase().includes(lower);
         })
         .slice(0, 5)
         .forEach(u => results.push({
-            type:    'lid',
-            icon:    '👤',
-            title:   u.naam || u.email,
-            sub:     `${u.categorie || ''}${u.rol === 'admin' ? ' · Admin' : ''}`,
-            href:    u.uid ? `speler.html?uid=${u.uid}` : null,
+            type:  'lid',
+            icon:  '👤',
+            title: u.name || '—',
+            sub:   '',
+            href:  u.uid ? `speler.html?uid=${u.uid}` : null,
         }));
 
     // Wedstrijden — live → live.html, anders → teampage

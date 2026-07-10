@@ -71,9 +71,9 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         try {
-            const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-            if (!snap.empty) {
-                currentUserData = snap.docs[0].data();
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+                currentUserData = userSnap.data();
                 if (loginLink) loginLink.textContent = 'PROFIEL';
             }
         } catch (e) { console.error('Error loading user data:', e); }
@@ -123,13 +123,10 @@ function checkAccess() {
         if (panel) panel.style.display = 'none';
         return;
     }
-    const isBestuurslid      = currentUserData.categorie === 'bestuurslid'
-        || (currentUserData.rol || '') === 'bestuurslid';
+    const perms              = currentUserData.permissions || [];
     const isDesignated       = currentMatch.aangeduidePersonen?.includes(currentUser.uid);
-    // Spelers met 'score_invullen'-recht of tijdelijk account met score_invullen hebben toegang
-    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('score_invullen')
-        || (currentUserData.rol === 'tijdelijk' && (currentUserData.toegang || []).includes('score_invullen'));
-    hasAccess = isBestuurslid || isDesignated || heeftWedstrijdRecht;
+    const heeftWedstrijdRecht = perms.includes('score_invullen') || perms.includes('admin');
+    hasAccess = isDesignated || heeftWedstrijdRecht;
     if (hasAccess) {
         if (panel) panel.style.display = 'block';
         setupControlButtons();
@@ -213,7 +210,7 @@ function setupMatchListener() {
 function setupEventsListener() {
     if (eventsListener) eventsListener();
     eventsListener = onSnapshot(
-        query(collection(db, 'events'), where('matchId', '==', currentMatchId)),
+        collection(db, 'matches', currentMatchId, 'events'),
         snap => {
             const counts = {};
             snap.forEach(d => {
@@ -419,8 +416,8 @@ async function handlePause() {
         else if (phase === 3) { upd.etHalfTimeReached = true; upd.phase = 4; }
 
         await updateDoc(matchRef, upd);
-        await addDoc(collection(db, 'events'), {
-            matchId: currentMatchId, minuut: minute, half: phase,
+        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+            minuut: minute, half: phase,
             type: 'rust', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
     } catch (e) { console.error('Error pausing:', e); showToast('Fout bij pauze: ' + e.message, 'error'); }
@@ -492,8 +489,8 @@ async function handleExtraTime() {
             status: 'rust', pausedAt: Timestamp.fromDate(new Date()),
             extraTimeStarted: true, phase: 3
         });
-        await addDoc(collection(db, 'events'), {
-            matchId: currentMatchId, minuut: minute, half: 2,
+        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+            minuut: minute, half: 2,
             type: 'einde-regulier', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
     } catch (e) { console.error('Error starting extra time:', e); showToast('Fout bij verlengingen: ' + e.message, 'error'); }
@@ -508,8 +505,8 @@ async function handleEndMatch() {
         const phase  = currentMatch.phase || 1;
 
         await updateDoc(doc(db, 'matches', currentMatchId), { status: 'finished' });
-        await addDoc(collection(db, 'events'), {
-            matchId: currentMatchId, minuut: minute, half: phase,
+        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+            minuut: minute, half: phase,
             type: 'einde', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
 
@@ -561,9 +558,9 @@ async function finalizePlayerStats(finalMinute) {
             collection(db, 'matches', currentMatchId, 'playerMinutes')
         );
 
-        // 2. Fetch all events for this match
+        // 2. Fetch all events — subcollection
         const eventsSnap = await getDocs(
-            query(collection(db, 'events'), where('matchId', '==', currentMatchId))
+            collection(db, 'matches', currentMatchId, 'events')
         );
         const events = [];
         eventsSnap.forEach(d => events.push(d.data()));
@@ -595,12 +592,12 @@ async function finalizePlayerStats(finalMinute) {
             const played = totalSoFar + currentStint;
 
             playerUpdates[uid] = {
-                minuten:      played,
-                matchen:      1,
-                goals:        0,
-                assists:      0,
-                geelKaarten:  0,
-                roodKaarten:  0
+                minutes:    played,
+                matches:    1,
+                goals:      0,
+                assists:    0,
+                yellowCard: 0,
+                redCard:    0
             };
         });
 
@@ -612,13 +609,13 @@ async function finalizePlayerStats(finalMinute) {
                 // Starter zonder playerMinutes record: heeft de hele wedstrijd gespeeld
                 const isStarter = info.status === 'starter';
                 playerUpdates[uid] = {
-                    minuten:     isStarter ? finalMinute : 0,
-                    matchen:     1,
-                    goals:       0, assists: 0, geelKaarten: 0, roodKaarten: 0
+                    minutes:    isStarter ? finalMinute : 0,
+                    matches:    1,
+                    goals:      0, assists: 0, yellowCard: 0, redCard: 0
                 };
             } else if (!uid.startsWith('manual_') && playerUpdates[uid]) {
                 // Bestaande entry: zorg dat matchen altijd 1 is voor lineup-leden
-                playerUpdates[uid].matchen = 1;
+                playerUpdates[uid].matches = 1;
             }
         }
 
@@ -627,7 +624,7 @@ async function finalizePlayerStats(finalMinute) {
         function ensureEntry(uid) {
             if (!uid || uid.startsWith('manual_')) return false;
             if (!playerUpdates[uid]) {
-                playerUpdates[uid] = { minuten: 0, matchen: 0, goals: 0, assists: 0, geelKaarten: 0, roodKaarten: 0 };
+                playerUpdates[uid] = { minutes: 0, matches: 0, goals: 0, assists: 0, yellowCard: 0, redCard: 0 };
             }
             return true;
         }
@@ -651,9 +648,9 @@ async function finalizePlayerStats(finalMinute) {
                 const uid = nameToUid[ev.speler];
                 if (uid && !uid.startsWith('manual_')) {
                     if (!playerUpdates[uid]) ensureEntry(uid);
-                    if (ev.type === 'yellow')    { playerUpdates[uid].geelKaarten++; }
-                    if (ev.type === 'yellow2red') { playerUpdates[uid].geelKaarten++; playerUpdates[uid].roodKaarten++; }
-                    if (ev.type === 'red')        { playerUpdates[uid].roodKaarten++; }
+                    if (ev.type === 'yellow')    { playerUpdates[uid].yellowCard++; }
+                    if (ev.type === 'yellow2red') { playerUpdates[uid].yellowCard++; playerUpdates[uid].redCard++; }
+                    if (ev.type === 'red')        { playerUpdates[uid].redCard++; }
                 }
             }
         });
@@ -674,21 +671,18 @@ async function finalizePlayerStats(finalMinute) {
 
 async function incrementUserStats(uid, delta) {
     try {
-        // Find the user doc (uid is stored as a field, not doc ID)
-        const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', uid)));
-        if (snap.empty) return;
-
-        const userDocId  = snap.docs[0].id;
-        const userData   = snap.docs[0].data();
-        const userDocRef = doc(db, 'users', userDocId);
-
-        await updateDoc(userDocRef, {
-            goals:       (userData.goals       || 0) + delta.goals,
-            assists:     (userData.assists     || 0) + delta.assists,
-            geelKaarten: (userData.geelKaarten || 0) + delta.geelKaarten,
-            roodKaarten: (userData.roodKaarten || 0) + delta.roodKaarten,
-            matchen:     (userData.matchen     || 0) + delta.matchen,
-            minuten:     (userData.minuten     || 0) + delta.minuten,
+        // v2: doc-ID = uid, stats in stats.* map
+        const userRef  = doc(db, 'users', uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) return;
+        const s = userSnap.data().stats || {};
+        await updateDoc(userRef, {
+            'stats.goals':      (s.goals      || 0) + delta.goals,
+            'stats.assists':    (s.assists    || 0) + delta.assists,
+            'stats.yellowCard': (s.yellowCard || 0) + delta.yellowCard,
+            'stats.redCard':    (s.redCard    || 0) + delta.redCard,
+            'stats.matches':    (s.matches    || 0) + delta.matches,
+            'stats.minutes':    (s.minutes    || 0) + delta.minutes,
         });
     } catch (e) {
         console.error(`Error updating stats for uid ${uid}:`, e);
@@ -990,16 +984,13 @@ async function executeMultiSub(team, pairs) {
     const anyInjured = pairs.some(p => p.injured);
 
     const eventData = {
-        matchId:   currentMatchId,
         minuut:    minute,
         half:      phase,
         type:      'substitution',
         ploeg:     team,
         speler:    '',
-        // Store as arrays for multi-sub; single sub stays backward-compat via [0]
         spelersUit: allOut,
         spelersIn:  allIn,
-        // Keep legacy single fields for backward compat (first pair)
         spelerUit:  allOut[0] || '',
         spelerIn:   allIn[0]  || '',
         injured:    anyInjured,
@@ -1008,7 +999,7 @@ async function executeMultiSub(team, pairs) {
     };
 
     try {
-        await addDoc(collection(db, 'events'), eventData);
+        await addDoc(collection(db, 'matches', currentMatchId, 'events'), eventData);
 
         // Update lineup + playerMinutes for each VVS pair
         if (team === vvsSide) {
@@ -1038,7 +1029,6 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
         }
 
         const eventData = {
-            matchId: currentMatchId,
             minuut:  minute,
             half:    phase,
             type:    resolvedAction,
@@ -1076,7 +1066,7 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
             if (options.injured) eventData.injured = true;
         }
 
-        await addDoc(collection(db, 'events'), eventData);
+        await addDoc(collection(db, 'matches', currentMatchId, 'events'), eventData);
         console.log('Action:', resolvedAction, 'min:', minute, 'phase:', phase);
 
     } catch (e) {
@@ -1484,7 +1474,7 @@ async function openEditEventModal(event) {
         const btn = modal.querySelector('#editEventSave');
         btn.disabled = true;
         try {
-            await updateDoc(doc(db, 'events', event.id), updates);
+            await updateDoc(doc(db, 'matches', currentMatchId, 'events', event.id), updates);
             modal.classList.remove('active');
             showToast('✅ Event bijgewerkt!', 'success');
         } catch (e) {

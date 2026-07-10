@@ -9,8 +9,9 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
+import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel } from './vvs-user-helpers.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 const storage = getStorage();
@@ -34,6 +35,7 @@ let allMembers = [];
 let allEvenementen = [];
 let allMatchesCache = [];
 let currentMatchFilter = 'all';
+let currentMatchTeamFilter = 'all';
 
 // ===============================================
 // ACCESS CONTROL
@@ -50,19 +52,18 @@ onAuthStateChanged(auth, async (user) => {
     console.log('User logged in:', user.uid);
     
     try {
-        const userQuery = query(collection(db, 'users'), where('uid', '==', user.uid));
-        const userSnapshot = await getDocs(userQuery);
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
         
-        if (userSnapshot.empty) {
+        if (!userSnap.exists()) {
             console.error('User not found in database');
             window.location.href = 'index.html';
             return;
         }
         
-        currentUserData = userSnapshot.docs[0].data();
-        console.log('User data loaded:', currentUserData.naam, 'Role:', currentUserData.rol);
+        currentUserData = userSnap.data();
+        console.log('User data loaded:', currentUserData.name, 'Permissions:', currentUserData.permissions);
         
-        if (currentUserData.rol !== 'admin' && !(currentUserData.rollen || []).includes('admin')) {
+        if (!_isAdmin(currentUserData)) {
             console.log('User is not admin, redirecting');
             window.location.href = 'index.html';
             return;
@@ -123,6 +124,11 @@ document.querySelectorAll('[data-match-filter]').forEach(btn => {
         currentMatchFilter = btn.getAttribute('data-match-filter');
         renderMatchList();
     });
+});
+
+document.getElementById('matchTeamFilter')?.addEventListener('change', (e) => {
+    currentMatchTeamFilter = e.target.value;
+    renderMatchList();
 });
 
 // ===============================================
@@ -424,8 +430,7 @@ function rollenLabel(rollen) {
 }
 
 function heeftAdminToegang(userData) {
-    return userData.rol === 'admin'
-        || (Array.isArray(userData.rollen) && userData.rollen.includes('admin'));
+    return (userData.permissions || []).includes('admin');
 }
 
 function rechtenLabel(rechten, afgevaardigdeTeam) {
@@ -495,11 +500,7 @@ if (memberForm) {
         try {
             if (uid) {
                 console.log('Updating member with UID:', uid);
-                const memberQuery = query(collection(db, 'users'), where('uid', '==', uid));
-                const memberSnapshot = await getDocs(memberQuery);
-                
-                if (!memberSnapshot.empty) {
-                    const memberDoc = memberSnapshot.docs[0];
+                if (uid) {
                     const rechten = getMemberRechten();
                     const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
                     const updateData = {
@@ -523,7 +524,6 @@ if (memberForm) {
                     console.log('Updating document:', memberDoc.id, updateData);
                     await updateDoc(doc(db, 'users', memberDoc.id), updateData);
                     console.log('Member updated successfully');
-                    
                     showToast('Lid bijgewerkt!', 'success');
                     memberModal.classList.remove('active');
                     memberForm.reset();
@@ -550,16 +550,20 @@ if (memberForm) {
                 
                 const rechten = getMemberRechten();
                 const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
+                const newPermissions2 = [...rollen];
+                rechten.forEach(r => {
+                    if (r === 'afgevaardigde') newPermissions2.push(`afgevaardigde:${afgevaardigdeTeam || '*'}`);
+                    else newPermissions2.push(r);
+                });
                 const userData = {
-                    uid: newUser.uid,
-                    naam: name,
-                    email: email,
-                    rol: role,
-                    rollen: rollen,
-                    categorie: categorie,
-                    ploegen: ploegen,
-                    rechten: rechten,
-                    afgevaardigdeTeam: rechten.includes('afgevaardigde') ? afgevaardigdeTeam : null,
+                    uid:         newUser.uid,
+                    name,
+                    email,
+                    telnr:       telefoon,
+                    team:        ploegen,
+                    permissions: newPermissions2,
+                    stats:       emptyStats(),
+                    registered:  serverTimestamp(),
                 };
                 
                 console.log('Adding user to Firestore:', userData);
@@ -665,7 +669,7 @@ async function loadMembers() {
         membersSnapshot.forEach(docSnap => {
             const member = { id: docSnap.id, ...docSnap.data() };
             // Tijdelijke en externe accounts worden alleen in de tijdelijke accounts sectie getoond
-            if (member.rol === 'tijdelijk' || member.categorie === 'extern') return;
+            if ((member.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
             allMembers.push(member);
             const memberCard = createMemberCard(member);
             membersList.appendChild(memberCard);
@@ -684,17 +688,9 @@ function createMemberCard(member) {
     const card = document.createElement('div');
     card.className = 'member-card';
     
-    const roleText = member.rol === 'admin' ? 'Admin' : 'Speler';
-    const memberPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
-        ? member.ploegen
-        : [member.categorie || 'Geen categorie'];
-    const categorieText = memberPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ');
-    const rechtenText   = rechtenLabel(member.rechten || [], member.afgevaardigdeTeam || '');
-    // Gebruik rollen-array als die beschikbaar is, anders val terug op rol-veld
-    const effectieveRollen = Array.isArray(member.rollen) && member.rollen.length > 0
-        ? member.rollen
-        : [member.rol || 'speler'];
-    const rolBadges = effectieveRollen.map(r => {
+    const categorieText = teamsLabel(member.team || []);
+    const effectieveRollen = (member.permissions || []).filter(p => p === 'admin' || p === 'speler');
+    const rolBadges = (effectieveRollen.length > 0 ? effectieveRollen : ['speler']).map(r => {
         const kleur = r === 'admin' ? 'var(--danger)' : 'var(--primary-blue)';
         const label = r === 'admin' ? 'Admin' : 'Speler';
         return `<span class="member-badge" style="background:${kleur}">${label}</span>`;
@@ -702,11 +698,11 @@ function createMemberCard(member) {
     
     card.innerHTML = `
         <div class="member-info">
-            <h4 class="member-name-link">${member.naam}</h4>
+            <h4 class="member-name-link">${member.name}</h4>
             <p>${member.email}</p>
             ${rolBadges}
             <span class="member-badge">${categorieText}</span>
-            ${rechtenText !== 'Geen extra rechten' ? `<span class="member-badge" style="background:var(--accent-blue)">${rechtenText}</span>` : ''}
+
         </div>
         <div class="card-actions">
             <button class="action-btn edit" data-id="${member.id}">Bewerken</button>
@@ -730,35 +726,33 @@ function showMemberDetail(member) {
     const modal = document.getElementById('memberDetailModal');
     if (!modal) return;
 
-    document.getElementById('detailNaam').textContent     = member.naam || '—';
+    document.getElementById('detailNaam').textContent     = member.name || '—';
     document.getElementById('detailUid').textContent      = member.uid  || '—';
     document.getElementById('detailEmail').textContent    = member.email || '—';
-    document.getElementById('detailTelefoon').textContent = member.telefoon || '—';
-    const detailPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
-        ? member.ploegen
-        : (member.categorie ? [member.categorie] : []);
-    const detailPloegText = detailPloegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ') || '—';
-    document.getElementById('detailCategorie').textContent = detailPloegText;
-    document.getElementById('detailRol').textContent      = member.rol === 'admin' ? 'Admin' : 'Speler';
+    document.getElementById('detailTelefoon').textContent = member.telnr || '—';
+    document.getElementById('detailCategorie').textContent = teamsLabel(member.team || []);
+    document.getElementById('detailRol').textContent      = permissionsLabel(member.permissions || []);
     const detailRechtenEl = document.getElementById('detailRechten');
-    if (detailRechtenEl) detailRechtenEl.textContent = rechtenLabel(member.rechten || [], member.afgevaardigdeTeam || '');
+    if (detailRechtenEl) detailRechtenEl.textContent = permissionsLabel(member.permissions || []);
 
     const badgesEl = document.getElementById('detailBadges');
     if (badgesEl) {
-        const ploegBadges = detailPloegen.map(p =>
+        const ploegBadges = (member.team || []).map(p =>
             `<span class="member-badge">${p.charAt(0).toUpperCase() + p.slice(1)}</span>`
         ).join('') || `<span class="member-badge">—</span>`;
+        const isAdm = (member.permissions || []).includes('admin');
         badgesEl.innerHTML = `
-            <span class="member-badge">${member.rol === 'admin' ? 'Admin' : 'Speler'}</span>
+            <span class="member-badge">${isAdm ? 'Admin' : 'Speler'}</span>
             ${ploegBadges}`;
     }
 
-    document.getElementById('detailGoals').textContent   = member.goals        ?? 0;
-    document.getElementById('detailAssists').textContent = member.assists      ?? 0;
-    document.getElementById('detailMatchen').textContent = member.matchen      ?? 0;
-    document.getElementById('detailMinuten').textContent = member.minuten      ?? 0;
-    document.getElementById('detailGeel').textContent    = member.geelKaarten  ?? 0;
-    document.getElementById('detailRood').textContent    = member.roodKaarten  ?? 0;
+    const s = getStats(member);
+    document.getElementById('detailGoals').textContent   = s.goals;
+    document.getElementById('detailAssists').textContent = s.assists;
+    document.getElementById('detailMatchen').textContent = s.matches;
+    document.getElementById('detailMinuten').textContent = s.minutes;
+    document.getElementById('detailGeel').textContent    = s.yellowCard;
+    document.getElementById('detailRood').textContent    = s.redCard;
 
     modal.classList.add('active');
 }
@@ -783,28 +777,28 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function editMember(member) {
-    console.log('Editing member:', member.naam);
+    console.log('Editing member:', member.name);
     document.getElementById('memberModalTitle').textContent = 'Lid Bewerken';
     document.getElementById('memberUid').value = member.uid;
-    document.getElementById('memberName').value = member.naam;
+    document.getElementById('memberName').value = member.name;
     document.getElementById('memberEmail').value = member.email;
-    document.getElementById('memberTelefoon').value = member.telefoon || '';
-    const memberPloegen = Array.isArray(member.ploegen) && member.ploegen.length > 0
-        ? member.ploegen
-        : [member.categorie || 'veteranen'];
-    setMemberPloegen(memberPloegen);
-    setMemberRechten(member.rechten || [], member.afgevaardigdeTeam || '');
-    // Herstel rollen: gebruik rollen-array als beschikbaar, anders rol-veld
-    const memberRollen = Array.isArray(member.rollen) && member.rollen.length > 0
-        ? member.rollen : [member.rol || 'speler'];
-    setMemberRollen(memberRollen);
+    document.getElementById('memberTelefoon').value = member.telnr || '';
+    setMemberPloegen(member.team || []);
+    // Rechten uit permissions extraheren
+    const rechtenUitPerms = (member.permissions || []).filter(p => !['admin','speler'].includes(p));
+    const afgevaardigdeTeamVal = rechtenUitPerms.find(p => p.startsWith('afgevaardigde:'))?.split(':')[1] || '';
+    const rechtenSimple = rechtenUitPerms.map(p => p.startsWith('afgevaardigde:') ? 'afgevaardigde' : p);
+    setMemberRechten([...new Set(rechtenSimple)], afgevaardigdeTeamVal);
+    const memberRollen = (member.permissions || []).filter(p => p === 'admin' || p === 'speler');
+    setMemberRollen(memberRollen.length > 0 ? memberRollen : ['speler']);
 
-    document.getElementById('memberGoals').value   = member.goals       ?? 0;
-    document.getElementById('memberAssists').value = member.assists     ?? 0;
-    document.getElementById('memberMatchen').value = member.matchen     ?? 0;
-    document.getElementById('memberMinuten').value = member.minuten     ?? 0;
-    document.getElementById('memberGeel').value    = member.geelKaarten ?? 0;
-    document.getElementById('memberRood').value    = member.roodKaarten ?? 0;
+    const s = getStats(member);
+    document.getElementById('memberGoals').value   = s.goals;
+    document.getElementById('memberAssists').value = s.assists;
+    document.getElementById('memberMatchen').value = s.matches;
+    document.getElementById('memberMinuten').value = s.minutes;
+    document.getElementById('memberGeel').value    = s.yellowCard;
+    document.getElementById('memberRood').value    = s.redCard;
 
     const statsGroup = document.getElementById('statsEditGroup');
     if (statsGroup) statsGroup.style.display = '';
@@ -827,7 +821,7 @@ async function deleteMember(member) {
     const confirmDelete = document.getElementById('confirmDelete');
     const confirmCancel = document.getElementById('confirmCancel');
     
-    confirmMessage.textContent = `Weet je zeker dat je ${member.naam} wilt verwijderen? (Dit verwijdert alleen het Firestore document, niet het Firebase Auth account)`;
+    confirmMessage.textContent = `Weet je zeker dat je ${member.name} wilt verwijderen? (Dit verwijdert alleen het Firestore document, niet het Firebase Auth account)`;
     confirmModal.classList.add('active');
     
     confirmCancel.onclick = () => {
@@ -836,17 +830,9 @@ async function deleteMember(member) {
     
     confirmDelete.onclick = async () => {
         try {
-            console.log('Deleting member:', member.naam);
-            
-            const memberQuery = query(collection(db, 'users'), where('uid', '==', member.uid));
-            const memberSnapshot = await getDocs(memberQuery);
-            
-            if (!memberSnapshot.empty) {
-                const memberDoc = memberSnapshot.docs[0];
-                await deleteDoc(doc(db, 'users', memberDoc.id));
-                console.log('Member deleted successfully from Firestore');
-            }
-            
+            console.log('Deleting member:', member.name);
+            await deleteDoc(doc(db, 'users', member.uid));
+            console.log('Member deleted successfully from Firestore');
             confirmModal.classList.remove('active');
             await loadMembers();
         } catch (error) {
@@ -899,17 +885,17 @@ function openTempAccountModal(acc) {
 
     if (acc) {
         document.getElementById('tempAccountModalTitle').textContent = 'Tijdelijk Account Bewerken';
-        document.getElementById('tempName').value = acc.naam || '';
+        document.getElementById('tempName').value = acc.name || '';
         emailField.value    = acc.email || '';
         emailField.disabled = true;
         if (passwordGroup)        passwordGroup.style.display        = 'none';
         if (passwordField)        { passwordField.required = false; passwordField.value = ''; }
         if (passwordDisplayGroup) passwordDisplayGroup.style.display  = '';
-        if (passwordDisplay)      passwordDisplay.value               = acc.wachtwoord || '(niet opgeslagen)';
+        if (passwordDisplay)      passwordDisplay.value               = acc.information?.wachtwoord || '(niet opgeslagen)';
         // Kopieer-knop
         if (passwordCopyBtn) {
             passwordCopyBtn.onclick = () => {
-                navigator.clipboard.writeText(acc.wachtwoord || '').then(() => {
+                navigator.clipboard.writeText(acc.information?.wachtwoord || '').then(() => {
                     passwordCopyBtn.textContent = '✓';
                     setTimeout(() => {
                         passwordCopyBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
@@ -918,13 +904,14 @@ function openTempAccountModal(acc) {
             };
         }
 
-        const from  = acc.validFrom?.toDate  ? acc.validFrom.toDate()  : new Date(acc.validFrom  || now);
-        const until = acc.validUntil?.toDate ? acc.validUntil.toDate() : new Date(acc.validUntil || plus);
+        const from  = acc.information?.validFrom?.toDate  ? acc.information.validFrom.toDate()  : new Date(acc.information?.validFrom  || now);
+        const until = acc.information?.validUntil?.toDate ? acc.information.validUntil.toDate() : new Date(acc.information?.validUntil || plus);
         document.getElementById('tempValidFrom').value  = toDatetimeLocal(from);
         document.getElementById('tempValidUntil').value = toDatetimeLocal(until);
         document.getElementById('tempNote').value = acc.note || '';
+        const toegangUitPerms = (acc.permissions || []).filter(p => !['tijdelijk','extern'].includes(p));
         document.querySelectorAll('input[name="tempPerm"]').forEach(cb => {
-            cb.checked = (acc.toegang || []).includes(cb.value);
+            cb.checked = toegangUitPerms.includes(cb.value);
         });
         tempAccountForm.dataset.editId = acc.id;
         // Fix: knoptekst aanpassen bij bewerken bestaand account
@@ -989,7 +976,11 @@ if (tempAccountForm) {
         try {
             if (editId) {
                 await updateDoc(doc(db, 'users', editId), {
-                    naam, toegang: perms, validFrom, validUntil, note: note || null,
+                    name: naam,
+                    permissions: ['tijdelijk', 'extern', ...perms],
+                    note: note || null,
+                    'information.validFrom':  validFrom,
+                    'information.validUntil': validUntil,
                 });
                 showToast(`Account "${naam}" bijgewerkt.`, 'success');
             } else {
@@ -999,12 +990,13 @@ if (tempAccountForm) {
                 const uid  = cred.user.uid;
                 await secondaryAuth.signOut();
                 await setDoc(doc(db, 'users', uid), {
-                    uid, naam, email,
-                    rol: 'tijdelijk', categorie: 'extern', ploegen: [], rechten: [],
-                    toegang: perms, validFrom, validUntil,
+                    uid, name: naam, email,
+                    telnr: '', team: [],
+                    permissions: ['tijdelijk', 'extern', ...perms],
+                    stats: emptyStats(),
+                    information: { validFrom, validUntil, wachtwoord: password },
                     note: note || null,
-                    wachtwoord: password,   // leesbaar opgeslagen voor admin-raadpleging
-                    aangemaaktOp: serverTimestamp(),
+                    registered: serverTimestamp(),
                 });
                 showToast(`Tijdelijk account aangemaakt voor ${naam}.`, 'success');
             }
@@ -1027,24 +1019,25 @@ async function loadTempAccounts() {
     if (!section || !listEl) return;
 
     try {
-        const snap = await getDocs(query(collection(db, 'users'), where('rol', '==', 'tijdelijk')));
+        const snap = await getDocs(query(collection(db, 'users'), where('permissions', 'array-contains', 'tijdelijk')));
         if (snap.empty) { section.style.display = 'none'; return; }
 
         const accounts = [];
         snap.forEach(d => accounts.push({ id: d.id, ...d.data() }));
-        accounts.sort((a, b) => (a.validUntil?.toMillis?.() || 0) - (b.validUntil?.toMillis?.() || 0));
+        accounts.sort((a, b) => (a.information?.validUntil?.toMillis?.() || 0) - (b.information?.validUntil?.toMillis?.() || 0));
 
         listEl.innerHTML = '';
         const now = new Date();
 
         accounts.forEach(acc => {
-            const from  = acc.validFrom?.toDate  ? acc.validFrom.toDate()  : new Date(acc.validFrom  || 0);
-            const until = acc.validUntil?.toDate ? acc.validUntil.toDate() : new Date(acc.validUntil || 0);
+            const from  = acc.information?.validFrom?.toDate  ? acc.information.validFrom.toDate()  : new Date(acc.information?.validFrom  || 0);
+            const until = acc.information?.validUntil?.toDate ? acc.information.validUntil.toDate() : new Date(acc.information?.validUntil || 0);
             const expired = until < now;
             const pending = from  > now;
 
-            const permLabels = { werken: '🛠️ Werken', score_invullen: '⚽ Score invullen' };
-            const permsHtml  = (acc.toegang || []).map(p =>
+            const permLabels = { werken: '🛠️ Werken', score_invullen: '⚽ Score invullen', rockwerchter: '🍺 Drankkaart' };
+            const toegangItems = (acc.permissions || []).filter(p => !['tijdelijk','extern'].includes(p));
+            const permsHtml  = toegangItems.map(p =>
                 `<span class="temp-perm-badge">${permLabels[p] || p}</span>`
             ).join('');
 
@@ -1056,7 +1049,7 @@ async function loadTempAccounts() {
             card.innerHTML = `
                 <div class="temp-card-info">
                     <div class="temp-card-name">
-                        ${acc.naam}
+                        ${acc.name}
                         <span class="temp-status-badge ${statusClass}">${statusLabel}</span>
                     </div>
                     <div class="temp-card-email">${acc.email}</div>
@@ -1074,7 +1067,7 @@ async function loadTempAccounts() {
             `;
 
             card.querySelector('.action-btn.edit').addEventListener('click', () => openTempAccountModal(acc));
-            card.querySelector('.action-btn.delete').addEventListener('click', () => deleteTempAccount(acc.id, acc.naam));
+            card.querySelector('.action-btn.delete').addEventListener('click', () => deleteTempAccount(acc.id, acc.name));
             listEl.appendChild(card);
         });
 
@@ -1236,7 +1229,7 @@ function createRequestCard(request) {
     
     card.innerHTML = `
         <div class="request-info">
-            <h4>${request.naam}</h4>
+            <h4>${request.naam || request.name}</h4>
             <p><strong>Email:</strong> ${request.email}</p>
             ${phoneDisplay}
             <p style="margin-bottom:0.35rem;"><strong>Aangevraagde ploeg(en):</strong></p>
@@ -1264,10 +1257,10 @@ function createRequestCard(request) {
         }
         acceptRequest(
             request.id,
-            request.naam,
+            request.naam || request.name,
             request.email,
             encryptedPwd,
-            request.categorie,
+            request.categorie || '',
             request.telefoon || '',
             selectedPloegen
         );
@@ -1321,13 +1314,14 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         
         // Add user to Firestore — doc-ID = Auth UID
         await setDoc(doc(db, 'users', newUser.uid), {
-            uid: newUser.uid,
-            naam: naam,
-            email: email,
-            categorie: primaryCategorie,
-            ploegen: ploegenToSave,
-            rol: 'speler',
-            ...(telefoon && { telefoon })
+            uid:  newUser.uid,
+            name: naam,
+            email,
+            telnr:       telefoon || '',
+            team:        ploegenToSave,
+            permissions: ['speler'],
+            stats:       emptyStats(),
+            registered:  serverTimestamp(),
         });
         
         console.log('User added to Firestore with ploegen:', ploegenToSave);
@@ -1473,11 +1467,7 @@ function populateDesignatedPersonsSelect() {
         checkbox.innerHTML = `
             <label>
                 <input type="checkbox" name="designatedPerson" value="${member.uid}">
-                ${member.naam} (${
-                    Array.isArray(member.ploegen) && member.ploegen.length > 0
-                        ? member.ploegen.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ')
-                        : member.categorie || 'geen categorie'
-                })
+                ${member.name} (${teamsLabel(member.team || [])})
             </label>
         `;
         container.appendChild(checkbox);
@@ -1666,6 +1656,10 @@ function renderMatchList() {
         filtered = [...allMatchesCache].sort((a, b) => new Date(b.datum) - new Date(a.datum));
     }
 
+    if (currentMatchTeamFilter !== 'all') {
+        filtered = filtered.filter(m => m.team === currentMatchTeamFilter);
+    }
+
     if (filtered.length === 0) {
         matchesList.innerHTML = '<p class="text-center">Geen wedstrijden gevonden voor deze filter.</p>';
         return;
@@ -1686,7 +1680,7 @@ function createMatchCard(match) {
     
     const personenNames = (match.aangeduidePersonen || []).map(uid => {
         const person = allMembers.find(m => m.uid === uid);
-        return person ? person.naam : 'Onbekend';
+        return person ? person.name : 'Onbekend';
     }).join(', ') || 'Niemand';
     
     card.innerHTML = `
@@ -1813,21 +1807,12 @@ async function deleteMatch(match) {
     
     confirmDelete.onclick = async () => {
         try {
-            const eventsSnapshot = await getDocs(
-                query(collection(db, 'events'), where('matchId', '==', match.id))
-            );
-            const availabilitySnapshot = await getDocs(
-                collection(db, 'matches', match.id, 'availability')
-            );
-            const playerMinutesSnapshot = await getDocs(
-                collection(db, 'matches', match.id, 'playerMinutes')
-            );
-
-            await Promise.all([
-                ...eventsSnapshot.docs.map(d => deleteDoc(d.ref)),
-                ...availabilitySnapshot.docs.map(d => deleteDoc(d.ref)),
-                ...playerMinutesSnapshot.docs.map(d => deleteDoc(d.ref))
-            ]);
+            // Verwijder alle subcollections van de match (events zijn nu subcollection)
+            const subColNames = ['events', 'availability', 'playerMinutes', 'motm'];
+            for (const subCol of subColNames) {
+                const subSnap = await getDocs(collection(db, 'matches', match.id, subCol));
+                await Promise.all(subSnap.docs.map(d => deleteDoc(d.ref)));
+            }
 
             await deleteDoc(doc(db, 'matches', match.id));
 
@@ -2132,8 +2117,8 @@ function createEvenementCard(evenement) {
                 <span class="ev-pin-label">${isPinned ? '📌 Uitgelicht' : 'Uitlichten'}</span>
             </label>
             ${evenement.inschrijvingenAan ? `<button class="action-btn" style="background:#e8f5e9;color:#2e7d32;" id="viewInschrijv_${evenement.id}">Inschrijvingen</button>` : ''}
-            <button class="action-btn edit"><img src="assets/edit.png" class="icon" alt=""></button>
-            <button class="action-btn delete"><img src="assets/delete.png" class="icon" alt=""></button>
+            <button class="action-btn edit">Bewerken</button>
+            <button class="action-btn delete">Verwijderen</button>
         </div>
     `;
 
@@ -2155,27 +2140,30 @@ function createEvenementCard(evenement) {
 
 function editEvenement(evenement) {
     document.getElementById('evenementModalTitle').textContent = 'Evenement Bewerken';
-    document.getElementById('evenementId').value = evenement.id;
-    document.getElementById('evenementDatum').value    = evenement.datum    || '';
-    document.getElementById('evenementEindDatum').value = evenement.eindDatum || '';
-    document.getElementById('evenementEindTijd').value  = evenement.eindTijd  || '';
-    document.getElementById('evenementTijd').value = evenement.tijd;
-    document.getElementById('evenementTitel').value = evenement.titel;
-    document.getElementById('evenementLocatie').value = evenement.locatie;
-    document.getElementById('evenementBeschrijving').value = evenement.beschrijving;
+    document.getElementById('evenementId').value               = evenement.id;
+    document.getElementById('evenementDatum').value            = evenement.datum     || '';
+    document.getElementById('evenementEindDatum').value        = evenement.eindDatum || '';
+    document.getElementById('evenementEindTijd').value         = evenement.eindTijd  || '';
+    document.getElementById('evenementTijd').value             = evenement.tijd      || '';
+    document.getElementById('evenementTitel').value            = evenement.titel     || '';
+    document.getElementById('evenementLocatie').value          = evenement.locatie   || '';
+    document.getElementById('evenementBeschrijving').value     = evenement.beschrijving || '';
+
+    // Afbeelding — gebruik afbeeldingNaam (Firebase Storage URL) als dat beschikbaar is
     const evUrl = evenement.afbeeldingNaam || '';
-document.getElementById('evenementAfbeelding').value = evUrl;
-document.getElementById('evenementAfbeeldingFile').value = '';
-document.getElementById('evImgProgress').style.display = 'none';
-const evPreview = document.getElementById('evImgPreview');
-const evPreviewImg = document.getElementById('evImgPreviewImg');
-if (evUrl) {
-    evPreviewImg.src = evUrl;
-    evPreview.style.display = 'flex';
-} else {
-    evPreview.style.display = 'none';
-}
-    
+    const evAfbEl   = document.getElementById('evenementAfbeelding');
+    const evFileEl  = document.getElementById('evenementAfbeeldingFile');
+    const evProgEl  = document.getElementById('evImgProgress');
+    const evPreview = document.getElementById('evImgPreview');
+    const evPrevImg = document.getElementById('evImgPreviewImg');
+    if (evAfbEl)  evAfbEl.value = evUrl;
+    if (evFileEl) evFileEl.value = '';
+    if (evProgEl) evProgEl.style.display = 'none';
+    if (evPreview && evPrevImg) {
+        if (evUrl) { evPrevImg.src = evUrl; evPreview.style.display = 'flex'; }
+        else        { evPreview.style.display = 'none'; }
+    }
+
     const linkField = document.getElementById('evenementLink');
     if (linkField) linkField.value = evenement.link || '';
 
@@ -2207,6 +2195,16 @@ async function deleteEvenement(evenement) {
     
     confirmDelete.onclick = async () => {
         try {
+            // Afbeelding uit Storage verwijderen (indien aanwezig en effectief een Storage-URL is)
+            if (evenement.afbeeldingNaam && evenement.afbeeldingNaam.startsWith('http')) {
+                try {
+                    await deleteObject(ref(storage, evenement.afbeeldingNaam));
+                } catch (imgErr) {
+                    // Niet blokkerend: bv. bestand bestaat al niet meer in Storage
+                    console.warn('Kon evenement-afbeelding niet verwijderen uit Storage:', imgErr.message);
+                }
+            }
+
             await deleteDoc(doc(db, 'evenementen', evenement.id));
             confirmModal.classList.remove('active');
             await loadEvenementen();
@@ -3168,7 +3166,7 @@ async function renderRetroStep1(content) {
         snap.forEach(d => {
             const data = d.data();
             if (!data.available) return;
-            const name = data.displayName || data.naam || d.id;
+            const name = data.displayName || data.name || data.naam || d.id;
             retroAvailable.push({ uid: d.id, name, isExternal: !!data.isExternalPlayer });
         });
         retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
@@ -3618,17 +3616,18 @@ async function retroFinalize() {
             .map(([uid,info]) => setDoc(doc(db,'matches',matchId,'playerMinutes',uid),
                 { uid, name: info.name, minuteOn: 0, minuteOff: null, totalMinutes: fd })));
 
-        // Verwijder bestaande events
-        const existSnap = await getDocs(query(collection(db,'events'), where('matchId','==',matchId)));
+        // Verwijder bestaande events in subcollection
+        const existSnap = await getDocs(collection(db, 'matches', matchId, 'events'));
         await Promise.all(existSnap.docs.map(d => deleteDoc(d.ref)));
 
-        // Bouw events array (exact live.js formaat)
+        // Bouw events array → subcollection matches/{id}/events
+        const eventsCol = collection(db, 'matches', matchId, 'events');
         const allEvDocs = [
-            { matchId, minuut: 0,  half: 1, type: 'aftrap', ploeg: 'center', speler: '' },
-            { matchId, minuut: hd, half: 1, type: 'rust',   ploeg: 'center', speler: '' },
+            { minuut: 0,  half: 1, type: 'aftrap', ploeg: 'center', speler: '' },
+            { minuut: hd, half: 1, type: 'rust',   ploeg: 'center', speler: '' },
         ];
         retroEvents.forEach(ev => {
-            const evDoc = { matchId, minuut: ev.minuut, half: ev.half, type: ev.type, ploeg: ev.ploeg, speler: ev.speler||'' };
+            const evDoc = { minuut: ev.minuut, half: ev.half, type: ev.type, ploeg: ev.ploeg, speler: ev.speler||'' };
             if (ev.assist)     evDoc.assist     = ev.assist;
             if (ev.spelerUit)  evDoc.spelerUit  = ev.spelerUit;
             if (ev.spelerIn)   evDoc.spelerIn   = ev.spelerIn;
@@ -3638,17 +3637,17 @@ async function retroFinalize() {
             allEvDocs.push(evDoc);
         });
         if (hasET) {
-            allEvDocs.push({ matchId, minuut: fd,      half: 2, type: 'einde-regulier', ploeg: 'center', speler: '' });
-            allEvDocs.push({ matchId, minuut: fd + 15, half: 3, type: 'rust',           ploeg: 'center', speler: '' });
+            allEvDocs.push({ minuut: fd,      half: 2, type: 'einde-regulier', ploeg: 'center', speler: '' });
+            allEvDocs.push({ minuut: fd + 15, half: 3, type: 'rust',           ploeg: 'center', speler: '' });
         }
         allEvDocs.push({
-            matchId, ploeg: 'center', speler: '',
+            ploeg: 'center', speler: '',
             minuut: has2ndET ? fd+30 : (hasET ? fd+15 : fd),
             half:   has2ndET ? 4      : (hasET ? 3      : 2),
             type:  'einde',
         });
 
-        await Promise.all(allEvDocs.map(ev => addDoc(collection(db,'events'), {...ev, timestamp: serverTimestamp()})));
+        await Promise.all(allEvDocs.map(ev => addDoc(eventsCol, {...ev, timestamp: serverTimestamp()})));
 
         showToast('✅ Opstelling en tijdslijn opgeslagen!', 'success');
         document.getElementById('retroModal').classList.remove('active');

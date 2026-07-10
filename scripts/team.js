@@ -5,9 +5,15 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, getDoc, orderBy, limit, onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import {
+    collection, query, where, getDocs, getDoc, orderBy, limit,
+    onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, arrayUnion
+} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import {
+    isAdmin, isAfgevaardigde, getAfgevaardigdeTeam,
+    getTeams, getDisplayName, getStats
+} from './vvs-user-helpers.js';
 
-console.log('Team.js loaded');
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 //
@@ -121,9 +127,9 @@ onAuthStateChanged(auth, async (user) => {
 
         if (!currentUserData) {
             try {
-                const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-                if (!snap.empty) {
-                    currentUserData = snap.docs[0].data();
+                const userSnap = await getDoc(doc(db, 'users', user.uid));
+                if (userSnap.exists()) {
+                    currentUserData = userSnap.data();
                     localStorage.setItem(`vvs_authuser_${user.uid}`,
                         JSON.stringify({ ts: Date.now(), data: currentUserData }));
                 }
@@ -222,7 +228,7 @@ async function loadPlannedMatch(container) {
         ));
 
         if (snapshot.empty) {
-            container.innerHTML = '<p class="no-matches">Geen geplande wedstrijden gevonden.</p>';
+            container.innerHTML = '<p class="no-matches">Het veld heeft rust nodig — nieuwe matchen volgen binnenkort!</p>';
             return;
         }
 
@@ -995,10 +1001,10 @@ async function showMatchTimeline(match) {
     }
 
     try {
-        const eventsSnapshot = await getDocs(query(
-            collection(db, 'events'),
-            where('matchId', '==', match.id)
-        ));
+        // NIEUW: events uit matches/{id}/events subcollection
+        const eventsSnapshot = await getDocs(
+            collection(db, 'matches', match.id, 'events')
+        );
 
         if (eventsSnapshot.empty) {
             tcSet(tlKey, []);
@@ -1299,9 +1305,9 @@ async function loadStatistics() {
     }
 
     try {
-        // Haal alle spelers op van de zondagploeg
+        // NIEUW: team[] array-contains query
         const usersSnap = await getDocs(
-            query(collection(db, 'users'), where('categorie', '==', 'zondag'))
+            query(collection(db, 'users'), where('team', 'array-contains', 'zondag'))
         );
 
         if (usersSnap.empty) {
@@ -1312,12 +1318,17 @@ async function loadStatistics() {
         const players = [];
         usersSnap.forEach(d => {
             const u = d.data();
-            if (u.naam) players.push({
-                name:    u.naam,
-                uid:     u.uid || null,
-                goals:   u.goals   || 0,
-                assists: u.assists || 0,
-            });
+            // Sla tijdelijke/externe accounts over
+            if ((u.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+            if (u.name) {
+                const s = u.stats || {};
+                players.push({
+                    name:    u.name,
+                    uid:     u.uid || null,
+                    goals:   s.goals   || 0,
+                    assists: s.assists || 0,
+                });
+            }
         });
 
         // Top 3 doelpuntenmakers (min. 1 goal)
@@ -1417,34 +1428,28 @@ async function loadAvailability(matchId, matchData = {}) {
         } catch (_) {}
 
         if (!userData) {
-            const userSnapshot = await getDocs(
-                query(collection(db, 'users'), where('uid', '==', currentUser.uid))
-            );
-            if (userSnapshot.empty) { contentDiv.innerHTML = ''; return; }
-            userData = userSnapshot.docs[0].data();
             try {
-                localStorage.setItem(`vvs_authuser_${currentUser.uid}`,
-                    JSON.stringify({ ts: Date.now(), data: userData }));
-            } catch (_) {}
+                const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+                if (!userSnap.exists()) { contentDiv.innerHTML = ''; return; }
+                userData = userSnap.data();
+                try {
+                    localStorage.setItem(`vvs_authuser_${currentUser.uid}`,
+                        JSON.stringify({ ts: Date.now(), data: userData }));
+                } catch (_) {}
+            } catch (_) { contentDiv.innerHTML = ''; return; }
         }
 
-        const userCategorie = userData.categorie;
-        // ploegen-array: ondersteuning voor spelers in meerdere ploegen
-        const userPloegen   = Array.isArray(userData.ploegen) ? userData.ploegen : [userCategorie];
+        // v2 schema: team[] array, permissions[]
+        const userTeams    = userData.team || [];
+        console.log('User teams:', userTeams, 'Team type:', TEAM_TYPE);
 
-        console.log('User categorie:', userCategorie, 'ploegen:', userPloegen, 'Team type:', TEAM_TYPE);
-
-        const isOwnTeam = userPloegen.includes(TEAM_TYPE);
-        const isBestuurslid = userCategorie === 'bestuurslid'
-            || (userData.rol || '') === 'bestuurslid';
+        const perms        = userData.permissions || [];
+        const isOwnTeam    = userTeams.includes(TEAM_TYPE);
         const isDesignated = matchData.aangeduidePersonen &&
             matchData.aangeduidePersonen.includes(currentUser.uid);
-        // Spelers met 'wedstrijd'-recht kunnen ook de aanwezigheidslijst beheren
-        const heeftWedstrijdRecht = (userData.rechten || []).includes('wedstrijd');
-        // Afgevaardigde voor deze specifieke ploeg: kan lijst bekijken + spelers toevoegen (geen eigen knoppen)
-        const isAfgevaardigde = (userData.rechten || []).includes('afgevaardigde')
-            && (userData.afgevaardigdeTeam || '').toLowerCase() === (TEAM_TYPE || '').toLowerCase();
-        const canManageList = isBestuurslid || isDesignated || heeftWedstrijdRecht || isAfgevaardigde;
+        const heeftWedstrijdRecht = perms.includes('score_invullen');
+        const isAfgevaardigdeLoc  = isAfgevaardigde(userData, TEAM_TYPE);
+        const canManageList = isDesignated || heeftWedstrijdRecht || isAfgevaardigdeLoc || isAdmin(userData);
         
         if (isOwnTeam) {
             // Eigen ploeg: toon knoppen EN lijst
@@ -1473,8 +1478,8 @@ async function loadAvailability(matchId, matchData = {}) {
                 </div>
             `;
             
-            document.getElementById('availableBtn').addEventListener('click', () => setAvailability(matchId, true, userData.naam));
-            document.getElementById('unavailableBtn').addEventListener('click', () => setAvailability(matchId, false, userData.naam));
+            document.getElementById('availableBtn').addEventListener('click', () => setAvailability(matchId, true, userData.name));
+            document.getElementById('unavailableBtn').addEventListener('click', () => setAvailability(matchId, false, userData.name));
             if (canManageList) {
                 document.getElementById('addExtraPlayerBtn').addEventListener('click', () => showAddExtraPlayerModal(matchId));
             }
@@ -1527,12 +1532,13 @@ async function getAllUsers() {
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
         // Exclude users who are member of this team (they already have availability buttons)
-        const userPloegen = Array.isArray(data.ploegen) ? data.ploegen : [data.categorie];
-        if (!userPloegen.includes(TEAM_TYPE)) {
+        if (!(data.team || []).includes(TEAM_TYPE)) {
+            // Sla tijdelijke/externe accounts over
+            if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
             allUsersCache.push({
-                uid: data.uid || docSnap.id,
-                naam: data.naam || data.displayName || '',
-                categorie: data.categorie || ''
+                uid:      data.uid || docSnap.id,
+                naam:     data.name || data.displayName || '',
+                categorie: (data.team || [])[0] || ''
             });
         }
     });
@@ -1972,18 +1978,15 @@ function renderMotmSection() {
 
     if (!currentUser || !currentUserData) return; // niet ingelogd of profiel nog niet geladen
 
-    // Bepaal rechten van ingelogde user
-    const userPloegen = Array.isArray(currentUserData.ploegen)
-        ? currentUserData.ploegen : (currentUserData.categorie ? [currentUserData.categorie] : []);
-    const isInTeam            = userPloegen.includes(TEAM_TYPE);
-    const heeftWedstrijdRecht = (currentUserData.rechten || []).includes('wedstrijd');
-    const isAfgevaardigde     = (currentUserData.rechten || []).includes('afgevaardigde')
-        && (currentUserData.afgevaardigdeTeam || '').toLowerCase() === TEAM_TYPE;
-    const isAdminUser         = currentUserData.rol === 'admin'
-        || (currentUserData.rollen || []).includes('admin');
+    // Bepaal rechten via permissions[] (v2 schema)
+    const permsMotm           = currentUserData.permissions || [];
+    const isInTeam            = (currentUserData.team || []).includes(TEAM_TYPE);
+    const heeftWedstrijdRecht = permsMotm.includes('score_invullen');
+    const isAfgevaardigdeMOTM = isAfgevaardigde(currentUserData, TEAM_TYPE);
+    const isAdminUser         = permsMotm.includes('admin');
 
     // Sectie enkel zichtbaar voor teamleden, aangeduide personen, afgevaardigde, of admin
-    if (!isInTeam && !heeftWedstrijdRecht && !isAfgevaardigde && !isAdminUser) return;
+    if (!isInTeam && !heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser) return;
 
     const now = new Date();
 
@@ -2015,7 +2018,7 @@ function renderMotmSection() {
     const motmResults   = match.motmResults || null;
     const isDesignated  = match.aangeduidePersonen?.includes(currentUser.uid);
     // Wie mag de uitslag onthullen: aangeduid persoon, wedstrijdrecht, afgevaardigde, admin
-    const canReveal     = isDesignated || heeftWedstrijdRecht || isAfgevaardigde || isAdminUser;
+    const canReveal     = isDesignated || heeftWedstrijdRecht || isAfgevaardigdeMOTM || isAdminUser;
     const resultVisible = motmResults && motmResultsVisible(match);
 
     // Resultaten zijn bekendgemaakt maar de zichtbaarheidsperiode (24u) is voorbij → niets tonen
@@ -2236,16 +2239,21 @@ async function revealMotm(match, tallyArg = null) {
             // Sla enkel op voor echte Firebase-accounts (niet manual_...)
             if (r.uid && !String(r.uid).startsWith('manual_')) {
                 try {
-                    await updateDoc(doc(db, 'users', r.uid), {
-                        motmPunten: increment(pts),
-                        motmHistory: arrayUnion({
-                            matchId:  match.id,
-                            datum:    match.datum,
-                            positie:  i + 1,
-                            punten:   pts,
-                            team:     TEAM_TYPE,
-                        })
-                    });
+                    // NIEUW: stats.motmPoints / stats.motmHistory (v2 schema)
+                    const userSnap = await getDoc(doc(db, 'users', r.uid));
+                    if (userSnap.exists()) {
+                        const s = userSnap.data().stats || {};
+                        await updateDoc(doc(db, 'users', r.uid), {
+                            'stats.motmPoints':  (s.motmPoints || 0) + pts,
+                            'stats.motmHistory': arrayUnion({
+                                matchId:  match.id,
+                                datum:    match.datum,
+                                positie:  i + 1,
+                                punten:   pts,
+                                team:     TEAM_TYPE,
+                            })
+                        });
+                    }
                 } catch (e) {
                     console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
                 }

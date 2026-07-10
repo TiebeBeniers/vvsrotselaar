@@ -64,7 +64,7 @@
                             <li style="display:none;"><a href="werklijst.html">Werklijst</a></li>
                         </ul>
                     </li>
-                    <li><a href="sponsors.html">SPONSORS</a></li>
+                    <li><a href="partners.html">SPONSORS</a></li>
                     <li><a href="galerij.html">GALERIJ</a></li>
                     <li><a href="contact.html">CONTACT</a></li>
                     <li><a href="login.html" id="loginLink">LOGIN</a></li>
@@ -75,14 +75,6 @@
 
     <main class="rockwerchter-page" id="mainContent">
         <div class="rockwerchter-container">
-
-            <div class="login-banner" id="loginBanner" style="display:none;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <span>Je bekijkt de drankkaart als gast. <a href="login.html">Log in</a> om te gebruiken.</span>
-            </div>
 
             <section class="drankjes-section">
                 <div class="drankkaart-header-row">
@@ -127,7 +119,11 @@
 
     <!-- ════════════════════════════════════════
          KAART: stap 1 – terminal kiezen
+         UITGESCHAKELD voor dit evenement (terminal-koppeling nog niet klaar).
+         Heractiveer door dit blok terug te uncommenten en in rockwerchter.js
+         de oorspronkelijke kaartBtn-listener terug te zetten.
          ════════════════════════════════════════ -->
+    <!--
     <div class="rw-modal-backdrop" id="kaartModal">
         <div class="rw-modal">
             <div class="rw-modal-header">
@@ -150,6 +146,7 @@
             </div>
         </div>
     </div>
+    -->
 
     <!-- ════════════════════════════════════════
          KAART: stap 2 – betaling gelukt/mislukt?
@@ -185,7 +182,8 @@
                 <div class="modal-totaal" id="qrTotaal"></div>
                 <p class="modal-subtitle" style="text-align:center; margin-top:1rem;">Scan de QR-code met de Payconiq app</p>
                 <div class="qr-container">
-                    <canvas id="qrCanvas"></canvas>
+                    <div class="loader" id="qrLoader"></div>
+                    <img id="qrCanvas" alt="Bancontact QR code" style="display:none;margin:auto;">
                 </div>
                 <img src="assets/rockwerchter/bancontactpay.png" alt="Payconiq Logo" class="payconiq-logo" onerror="this.style.display='none'">
                 <div class="modal-status" id="qrStatus" style="display:none;"></div>

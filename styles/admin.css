@@ -339,6 +339,28 @@
     color: var(--white);
 }
 
+/* ── Team filter dropdown (matches tab) ── */
+.match-team-filter {
+    padding: 0.6rem 1.2rem;
+    background: var(--white);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-gray);
+    cursor: pointer;
+    font-family: inherit;
+    margin-left: auto;
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.match-team-filter:hover,
+.match-team-filter:focus {
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    outline: none;
+}
+
 /* ── Match type selector (modal) ── */
 .match-type-selector {
     display: flex;
@@ -979,7 +1001,7 @@ a.message-email:hover {
     background: var(--off-white);
     border-radius: 10px;
     border: 1.5px solid var(--border-color);
-    overflow: hidden;
+    overflow: visible; /* visible zodat dropdown niet afgeknipt wordt */
     transition: box-shadow 0.2s ease;
 }
 
@@ -1048,42 +1070,7 @@ a.message-email:hover {
 .shift-person-row .remove-person-btn:hover { background: #FEE2E2; }
 
 /* Add person inline form */
-.shift-add-person {
-    display: flex;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-}
-
-.shift-add-person input {
-    flex: 1;
-    padding: 0.55rem 0.9rem;
-    border: 2px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 0.9rem;
-    font-family: inherit;
-    transition: border-color 0.2s;
-}
-
-.shift-add-person input:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-}
-
-.shift-add-person .add-person-btn {
-    padding: 0.55rem 1rem;
-    background: var(--primary-blue);
-    color: var(--white);
-    border: none;
-    border-radius: 6px;
-    font-size: 0.88rem;
-    font-weight: 600;
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: inherit;
-    transition: background 0.2s;
-}
-
-.shift-add-person .add-person-btn:hover { background: var(--dark-blue); }
+/* shift-add-person: zie definitie onderaan (geconsolideerd) */
 
 /* Small icon-style button (edit/delete in header) */
 .icon-btn {
@@ -1483,7 +1470,7 @@ html.dark .wl-admin-hint {
     background: var(--off-white);
     border-radius: 9px;
     border: 1.5px solid var(--border-color);
-    overflow: hidden;
+    overflow: visible; /* visible zodat dropdown niet afgeknipt wordt */
     transition: box-shadow 0.2s;
     display: flex;
     flex-direction: column;
@@ -1625,43 +1612,7 @@ html.dark .wl-admin-hint {
 .remove-person-btn:hover { background: #FEE2E2; }
 
 /* Add person row */
-.shift-add-person {
-    display: flex;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-    align-items: stretch;
-}
-
-.add-name-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0.45rem 0.7rem;
-    border: 1.5px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 0.82rem;
-    font-family: inherit;
-    transition: border-color 0.2s;
-}
-.add-name-input:focus {
-    outline: none;
-    border-color: var(--primary-blue);
-}
-
-.add-person-btn {
-    padding: 0.45rem 0.75rem;
-    background: var(--primary-blue);
-    color: var(--white);
-    border: none;
-    border-radius: 6px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: inherit;
-    transition: background 0.2s;
-    flex-shrink: 0;
-}
-.add-person-btn:hover { background: var(--dark-blue); }
+/* shift-add-person: zie definitie onderaan (geconsolideerd) */
 
 /* Empty state */
 .werklijst-empty-state {
@@ -1720,10 +1671,6 @@ html.dark .wl-admin-hint {
     }
 
     .add-btn { width: 100%; }
-
-    .shift-add-person {
-        flex-wrap: nowrap;
-    }
 
     .add-name-input { min-width: 0; }
 }
@@ -3656,6 +3603,7 @@ html.dark .temp-perm-label:has(input:checked) { background: #2d1f4a; border-colo
     font-size: 0.9rem;
     color: var(--text-dark);
     font-weight: 700;
+    text-transform: none;
 }
 
 .member-recht-content span {
@@ -3663,6 +3611,7 @@ html.dark .temp-perm-label:has(input:checked) { background: #2d1f4a; border-colo
     color: var(--text-gray);
     font-weight: 400;
     line-height: 1.35;
+    text-transform: none;
 }
 
 /* Afgevaardigde team selector */
@@ -4359,6 +4308,146 @@ html.dark .tour-btn-prev { background: rgba(255,255,255,0.1); }
 @keyframes tabPulse {
     0%, 100% { box-shadow: 0 0 0 0   rgba(0,71,171,0.45); }
     50%       { box-shadow: 0 0 0 5px rgba(0,71,171,0);    }
+}
+
+
+/* ── Shift person row: acties ─────────────────────────────── */
+.person-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.toggle-resp-btn {
+    background: none;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    width: 28px; height: 28px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-gray);
+    line-height: 1;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.toggle-resp-btn:hover { background: #FEF9C3; color: #854D0E; border-color: #FCD34D; }
+.toggle-resp-btn.is-resp { background: #FEF08A; color: #854D0E; border-color: #FCD34D; }
+
+/* ── Add person: zoekbalk + suggesties ───────────────────── */
+/* (zie geconsolideerde definitie van .shift-add-person hieronder) */
+
+.member-suggestion-item {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.88rem;
+    cursor: pointer;
+    color: var(--text-dark);
+    transition: background 0.12s;
+    outline: none;
+}
+.member-suggestion-item:hover,
+.member-suggestion-item:focus { background: var(--off-white); }
+.member-suggestion-item mark {
+    background: #FEF08A;
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+/* ── Add person: verantwoordelijke checkbox ──────────────── */
+/* (zie geconsolideerde definitie van .shift-add-person hieronder) */
+
+/* ── shift-add-person: geconsolideerde definitie ─────────────────────────────
+   Layout: twee rijen
+   Rij 1: [zoekbalk (breed)          ] [+ Toevoegen knop]
+   Rij 2: [☐ Verantwoordelijke]
+   ────────────────────────────────────────────────────────────────────────── */
+.shift-add-person {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "search  btn"
+        "resp    resp";
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    align-items: center;
+}
+
+.add-person-search-wrap {
+    grid-area: search;
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+
+.add-name-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+.add-name-input:focus {
+    outline: none;
+    border-color: var(--primary-blue);
+}
+
+.add-person-btn {
+    grid-area: btn;
+    padding: 0.5rem 1rem;
+    background: var(--primary-blue);
+    color: var(--white);
+    border: none;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    height: 100%;
+}
+.add-person-btn:hover { background: var(--dark-blue); }
+
+.add-resp-label {
+    grid-area: resp;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.83rem;
+    color: var(--text-gray);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    padding: 0.1rem 0;
+}
+.add-resp-label input[type="checkbox"] {
+    accent-color: var(--primary-blue);
+    width: 15px; height: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.member-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    min-width: 200px;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    list-style: none;
+    margin: 0; padding: 0.25rem 0;
+    z-index: 9000;
+    max-height: 220px;
+    overflow-y: auto;
+    box-sizing: border-box;
 }
 
 @media (max-width: 480px) {

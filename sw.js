@@ -1,10 +1,10 @@
 // ============================================================
-//  VVS Rotselaar — Service Worker (subdirectory: /vvsrotselaar/)
+//  VVS Rotselaar — Service Worker (root domain)
 // ============================================================
 
-const BASE        = '/vvsrotselaar';
-const CACHE_NAME  = 'vvs-static-v20'; //Last updated 25/06/2026 - 21:15
-const PAGES_CACHE = 'vvs-pages-v20';
+const BASE        = '';
+const CACHE_NAME  = 'vvs-static-v27'; //Last updated 06/07/2026 - 21:00
+const PAGES_CACHE = 'vvs-pages-v27';
 const OFFLINE_URL = BASE + '/offline.html';
 
 const STATIC_ASSETS = [
@@ -26,7 +26,7 @@ const HTML_PAGES = [
   BASE + '/login.html',
   BASE + '/privacy.html',
   BASE + '/speler.html',
-  BASE + '/sponsors.html',
+  BASE + '/partners.html',
   BASE + '/veteranen.html',
   BASE + '/werklijst.html',
   BASE + '/zaterdag.html',

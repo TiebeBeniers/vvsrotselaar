@@ -7,6 +7,7 @@
 import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { isAdmin as _isAdmin, isTijdelijk, hasPermission } from './vvs-user-helpers.js';
 import { encryptPassword } from './crypto-utils.js';
 
 // ===============================================
@@ -563,16 +564,12 @@ onAuthStateChanged(auth, async (user) => {
         // User is logged in
         console.log('User logged in:', user.uid);
         try {
-            // Get user data from Firestore
-            const userQuery = query(
-                collection(db, 'users'),
-                where('uid', '==', user.uid)
-            );
-            const userSnapshot = await getDocs(userQuery);
-            
-            if (!userSnapshot.empty) {
-                const userDocRef = userSnapshot.docs[0].ref;
-                let userData = userSnapshot.docs[0].data();
+            // Get user data from Firestore — doc-ID = uid (v2 schema)
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                let userData = userDocSnap.data();
                 console.log('User data found:', userData);
 
                 // ── Email-sync na verificatie ─────────────────────────────────
@@ -608,14 +605,15 @@ onAuthStateChanged(auth, async (user) => {
                 const userEmailEl = document.getElementById('userEmail');
                 const userRoleEl = document.getElementById('userRole');
 
-                if (userNameEl)  userNameEl.textContent  = userData.naam  || 'Gebruiker';
+                if (userNameEl)  userNameEl.textContent  = userData.name  || 'Gebruiker';
                 if (userEmailEl) userEmailEl.textContent = userData.email || user.email;
 
                 // ── Tijdelijk account: valideer geldigheidsperiode ──────────
-                if (userData.rol === 'tijdelijk') {
+                if (isTijdelijk(userData)) {
                     const now   = new Date();
-                    const from  = userData.validFrom?.toDate  ? userData.validFrom.toDate()  : new Date(userData.validFrom);
-                    const until = userData.validUntil?.toDate ? userData.validUntil.toDate() : new Date(userData.validUntil);
+                    const info  = userData.information || {};
+                    const from  = info.validFrom?.toDate  ? info.validFrom.toDate()  : new Date(info.validFrom  || 0);
+                    const until = info.validUntil?.toDate ? info.validUntil.toDate() : new Date(info.validUntil || 0);
 
                     if (now < from) {
                         await signOut(auth);
@@ -633,7 +631,7 @@ onAuthStateChanged(auth, async (user) => {
                     if (adminBtn)   adminBtn.style.display   = 'none';
                     if (profileBtn) profileBtn.style.display = 'none';
                     if (tijdelijkBtn) {
-                        tijdelijkBtn.style.display = (userData.toegang || []).includes('rockwerchter') ? 'block' : 'none';
+                        tijdelijkBtn.style.display = hasPermission(userData, 'werken') ? 'block' : 'none';
                     }
                     return; // verdere knop-logica overslaan
                 }
@@ -654,14 +652,10 @@ onAuthStateChanged(auth, async (user) => {
                     }
                 }
 
-                // Multi-rol: gebruiker kan tegelijk speler én admin zijn
-                const userRollen = Array.isArray(userData.rollen) && userData.rollen.length > 0
-                    ? userData.rollen : [userData.rol || 'speler'];
-                const isAdmin = userRollen.includes('admin') || userData.rol === 'admin';
-                const isSpeler = userRollen.includes('speler') && (
-                    Array.isArray(userData.ploegen) && userData.ploegen.length > 0
-                    || userData.categorie
-                );
+                // Permissions-gebaseerde rolcontrole (v2 schema)
+                const permissions = userData.permissions || [];
+                const isAdmin  = permissions.includes('admin');
+                const isSpeler = permissions.includes('speler') && (userData.team || []).length > 0;
 
                 // Show admin button if user has admin access
                 if (adminBtn) {
@@ -672,12 +666,8 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Profiel-knop: toon als speler OF als admin (admins hebben ook een profiel)
                 if (profileBtn) {
-                    const userPloegen = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
-                        ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
-                    const isBestuurslid = userPloegen.includes('bestuurslid')
-                        || userData.categorie === 'bestuurslid'
-                        || userData.rol === 'bestuurslid';
-                    // Toon profiel-knop als speler of admin (ook naast admin-knop)
+                    const userTeams2 = userData.team || [];
+                    const isBestuurslid = userTeams2.includes('bestuurslid');
                     profileBtn.style.display = (isAdmin || (isSpeler && !isBestuurslid)) ? 'block' : 'none';
                 }
 
@@ -690,14 +680,11 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Roltext aanpassen
                 if (userRoleEl) {
-                    const userPloegen2 = Array.isArray(userData.ploegen) && userData.ploegen.length > 0
-                        ? userData.ploegen : (userData.categorie ? [userData.categorie] : []);
-                    const isBestuurslid2 = userPloegen2.includes('bestuurslid')
-                        || userData.categorie === 'bestuurslid'
-                        || userData.rol === 'bestuurslid';
+                    const userTeams3 = userData.team || [];
+                    const isBestuurslid3 = userTeams3.includes('bestuurslid');
                     if (isAdmin && isSpeler) userRoleEl.textContent = 'Speler + Administrator';
                     else if (isAdmin) userRoleEl.textContent = 'Administrator';
-                    else if (isBestuurslid2) userRoleEl.textContent = 'Bestuurslid';
+                    else if (isBestuurslid3) userRoleEl.textContent = 'Bestuurslid';
                     else userRoleEl.textContent = 'Clublid';
                 }
 
@@ -708,7 +695,7 @@ onAuthStateChanged(auth, async (user) => {
                     actionBtns.classList.toggle('profile-action-btns-grid', vis.length >= 2);
                 }, 50);
             } else {
-                console.error('No user data found in Firestore for UID:', user.uid);
+                console.error('No user data found in Firestore for UID (doc-ID lookup):', user.uid);
                 // Show error and logout
                 showToast('Gebruikersgegevens niet gevonden', 'error');
                 await signOut(auth);

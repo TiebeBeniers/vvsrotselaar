@@ -9,7 +9,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, doc, setDoc, onSnapshot,
+    collection, doc, getDoc, setDoc, onSnapshot,
     query, where, getDocs, limit
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
@@ -34,11 +34,9 @@ onAuthStateChanged(auth, async (user) => {
     currentUser = user;
 
     try {
-        const snap = await getDocs(
-            query(collection(db, 'users'), where('uid', '==', user.uid))
-        );
-        if (!snap.empty) {
-            currentUserData = snap.docs[0].data();
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+            currentUserData = userSnap.data();
             document.getElementById('loginLink').textContent = 'PROFIEL';
         }
     } catch (e) {
@@ -49,14 +47,10 @@ onAuthStateChanged(auth, async (user) => {
     //   - Elk ingelogd account (speler, admin, bestuurslid) heeft altijd toegang.
     //   - Uitzondering: accounts met categorie 'extern' hebben expliciet het
     //     'werken'-recht nodig (via rechten[] of toegang[]).
-    const categorie = (currentUserData?.categorie || '').toLowerCase();
-    const rol       = (currentUserData?.rol || '').toLowerCase();
-    const rechten   = currentUserData?.rechten || [];
-    const toegang   = currentUserData?.toegang || [];
-    const rollen    = currentUserData?.rollen  || [];
+    const permissions = currentUserData?.permissions || [];
 
-    const isExtern         = categorie === 'extern';
-    const heeftWerkenRecht = rechten.includes('werken') || toegang.includes('werken');
+    const isExtern         = (currentUserData?.permissions || []).includes('extern');
+    const heeftWerkenRecht = permissions.includes('werken');
 
     // Extern: enkel toegang met expliciet 'werken'-recht
     // Alle andere ingelogde accounts (speler/admin/bestuurslid): altijd toegang
@@ -275,17 +269,21 @@ function renderShiftCard(shift) {
                      : isMe          ? 'wl-person chip-me'
                      :                 'wl-person';
         const star   = p.responsible ? '★ ' : '';
-        return `<span class="${cls}">${star}${p.naam}</span>`;
+        return `<span class="${cls}">${star}${p.name || p.naam || ''}</span>`;
     }).join('');
 
     const cardCls = ['wl-shift-card', isSigned ? 'is-signed' : '', isFull && !isSigned ? 'is-full' : '']
         .filter(Boolean).join(' ');
 
-    const isLocked = activeWerklijst?.locked;
-    const btnCls  = isLocked ? 'wl-btn btn-locked'
-                  : isSigned ? 'wl-btn btn-sign-out' : 'wl-btn btn-sign-in';
-    const btnText = isLocked ? '🔒 Vergrendeld'
-                  : isSigned ? 'Afmelden' : 'Aanmelden';
+    const isLocked   = activeWerklijst?.locked;
+    const hardLimit  = shift.hardLimit ?? false;
+    const isHardFull = hardLimit && isFull && !isSigned;
+    const btnCls  = isLocked   ? 'wl-btn btn-locked'
+                  : isHardFull ? 'wl-btn btn-locked'
+                  : isSigned   ? 'wl-btn btn-sign-out' : 'wl-btn btn-sign-in';
+    const btnText = isLocked   ? '🔒 Vergrendeld'
+                  : isHardFull ? 'Shift volzet'
+                  : isSigned   ? 'Afmelden' : 'Aanmelden';
 
     const capacityBar = max
         ? `<div class="wl-shift-capacity">
@@ -338,6 +336,14 @@ function handleClick(shiftId) {
     }
 
     const shift = shiftsData[shiftId];
+
+    // Harde limiet: blokkeer aanmelden als shift vol is
+    const max       = shift?.max ?? null;
+    const hardLimit = shift?.hardLimit ?? false;
+    if (hardLimit && max !== null && persons.length >= max) {
+        showToast('Deze shift is vol.', 'error');
+        return;
+    }
     const isSpecial = shift?.section === 'special';
 
     if (isSpecial) {
@@ -360,11 +366,11 @@ function handleClick(shiftId) {
 async function addToShift(shiftId, asResponsible) {
     if (!currentUser || !currentUserData) return;
 
-    const naam     = currentUserData.naam || currentUserData.email || 'Vrijwilliger';
+    const naam     = currentUserData.name || currentUserData.email || 'Vrijwilliger';
     const existing = shiftsData[shiftId]?.persons || [];
     if (existing.some(p => p.uid === currentUser.uid)) return;
 
-    const updated = [...existing, { uid: currentUser.uid, naam, responsible: asResponsible }];
+    const updated = [...existing, { uid: currentUser.uid, name: naam, naam, responsible: asResponsible }];
 
     try {
         await setDoc(

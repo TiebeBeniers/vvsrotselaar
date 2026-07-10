@@ -17,7 +17,7 @@ import { auth, db } from './firebase-config.js';
 import { tcGet, tcSet, CACHE_TTL, PAGE_REFRESHED } from './vvs-cache.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, query, where, getDocs, doc, setDoc, addDoc,
+    collection, query, where, getDocs, doc, getDoc, setDoc, addDoc,
     deleteDoc, onSnapshot, orderBy, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
@@ -47,10 +47,10 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         if (loginLink) loginLink.textContent = 'PROFIEL';
         try {
-            const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-            if (!snap.empty) {
-                currentUserData = snap.docs[0].data();
-                isAdmin = currentUserData.rol === 'admin';
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+                currentUserData = userSnap.data();
+                isAdmin = (currentUserData.permissions || []).includes('admin');
             }
         } catch (_) {}
         // Toon shift-legende en admin-knop
@@ -166,14 +166,20 @@ async function loadWeek() {
                 let cur = new Date(evStart + 'T12:00');
                 const endDt = new Date(evEnd + 'T12:00');
                 while (cur <= endDt) {
-                    const dayStr = cur.toISOString().split('T')[0];
+                    // Gebruik lokale datumcomponenten (niet toISOString) om UTC-verschuiving te vermijden
+                    const y = cur.getFullYear();
+                    const m = String(cur.getMonth() + 1).padStart(2, '0');
+                    const dd = String(cur.getDate()).padStart(2, '0');
+                    const dayStr = `${y}-${m}-${dd}`;
                     if (dayStr >= weekStart && dayStr <= weekEnd) {
                         const isFirst = dayStr === evStart;
                         const isLast  = dayStr === evEnd;
-                        calItems.push({ id: d.id + '_' + dayStr, type: 'event', source: 'event',
+                        // LET OP: ...data staat VOOR de specifieke velden zodat datum: dayStr
+                        // niet overschreven wordt door data.datum (de originele startdatum)
+                        calItems.push({ ...data, id: d.id + '_' + dayStr, type: 'event', source: 'event',
                             datum: dayStr, startTijd: isFirst ? (data.tijd || '') : '',
                             titel: data.titel + (data.eindDatum ? (isFirst ? ' (start)' : isLast ? ' (einde)' : '') : ''),
-                            locatie: data.locatie, eindDatum: data.eindDatum, ...data });
+                            locatie: data.locatie, eindDatum: data.eindDatum });
                     }
                     cur.setDate(cur.getDate() + 1);
                 }
@@ -319,7 +325,7 @@ function openPopup(item) {
             ${item.nota    ? `<div class="cal-popup-nota">${esc(item.nota)}</div>` : ''}
             ${aanwezigen.length ? `<div class="cal-popup-aanwezigen">
                 <strong>${aanwezigen.length} aanwezig</strong>
-                <div>${aanwezigen.map(p => `<span class="tr-aanwezig-chip${p.uid===currentUser?.uid?' me':''}">${p.naam}</span>`).join('')}</div>
+                <div>${aanwezigen.map(p => `<span class="tr-aanwezig-chip${p.uid===currentUser?.uid?' me':''}">${p.name || p.naam || ''}</span>`).join('')}</div>
             </div>` : ''}
             ${liveBtn}
             ${aanmeldBtn}
@@ -354,10 +360,10 @@ function closePopup() {
 // ── Aanwezigheid ──────────────────────────────────────────────────────────────
 async function toggleAanwezigheid(item) {
     if (!currentUser || !currentUserData) { showToast('Log in om je aan te melden.', 'error'); return; }
-    const naam = currentUserData.naam || currentUserData.email || 'Lid';
+    const naam = currentUserData.name || currentUserData.email || 'Lid';
     const list = [...(item.aanwezigen || [])];
     const idx  = list.findIndex(p => p.uid === currentUser.uid);
-    if (idx === -1) list.push({ uid: currentUser.uid, naam });
+    if (idx === -1) list.push({ uid: currentUser.uid, name: naam, naam });
     else list.splice(idx, 1);
     try {
         await setDoc(doc(db, 'trainingen', item.id), { aanwezigen: list }, { merge: true });

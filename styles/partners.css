@@ -1,20 +1,20 @@
 /* ===============================================
-   VVS ROTSELAAR – SPONSORS PAGE  v2
+   VVS ROTSELAAR – PARTNERS PAGE  v2
    =============================================== */
 
-.sponsors-page {
+.clubpartners-page {
     min-height: calc(100vh - 150px);
     padding: 3rem 2rem;
     max-width: 1200px;
     margin: 0 auto;
 }
 
-.sponsors-header {
+.clubpartners-header {
     text-align: center;
     margin-bottom: 3.5rem;
 }
 
-.sponsors-header h1 {
+.clubpartners-header h1 {
     font-family: 'Barlow Condensed', 'Segoe UI', sans-serif;
     color: var(--primary-blue);
     font-size: 3rem;
@@ -24,19 +24,19 @@
     margin-bottom: 0.75rem;
 }
 
-.sponsors-header p {
+.clubpartners-header p {
     color: var(--text-gray);
     font-size: 1rem;
 }
 
-.sponsors-container {
+.clubpartners-lijst {
     display: flex;
     flex-direction: column;
     gap: 0;
 }
 
 /* ── Sponsor card ── */
-.sponsor-card {
+.clubpartner-item {
     display: flex;
     align-items: center;
     gap: 3.5rem;
@@ -46,7 +46,7 @@
 }
 
 /* Divider between cards */
-.sponsor-card:not(:last-child)::after {
+.clubpartner-item:not(:last-child)::after {
     content: '';
     position: absolute;
     bottom: 0; left: 8%; right: 8%;
@@ -54,27 +54,27 @@
     background: var(--border-color);
 }
 
-.sponsor-card:nth-child(odd)  { flex-direction: row; }
-.sponsor-card:nth-child(even) { flex-direction: row-reverse; }
+.clubpartner-item:nth-child(odd)  { flex-direction: row; }
+.clubpartner-item:nth-child(even) { flex-direction: row-reverse; }
 
-.sponsor-logo {
+.clubpartner-visual {
     flex: 0 0 280px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.sponsor-logo a {
+.clubpartner-visual a {
     display: block;
     width: 100%;
     transition: transform 0.3s ease, filter 0.3s ease;
 }
-.sponsor-logo a:hover {
+.clubpartner-visual a:hover {
     transform: scale(1.05);
     filter: drop-shadow(0 8px 20px rgba(0,71,171,0.2));
 }
 
-.sponsor-logo img {
+.clubpartner-visual img {
     width: 100%;
     height: auto;
     max-height: 240px;
@@ -82,14 +82,14 @@
     border-radius: var(--radius, 10px);
 }
 
-.sponsor-info {
+.clubpartner-tekst {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
 }
 
-.sponsor-info h3 {
+.clubpartner-tekst h3 {
     font-family: 'Barlow Condensed', 'Segoe UI', sans-serif;
     color: var(--primary-blue);
     font-size: 2rem;
@@ -98,13 +98,13 @@
     text-transform: uppercase;
 }
 
-.sponsor-info p {
+.clubpartner-tekst p {
     color: var(--text-gray);
     font-size: 1rem;
     line-height: 1.7;
 }
 
-.sponsor-link {
+.clubpartner-url {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -114,31 +114,31 @@
     transition: color 0.2s ease, gap 0.2s ease;
     text-decoration: none;
 }
-.sponsor-link::after {
+.clubpartner-url::after {
     content: '→';
     transition: transform 0.2s ease;
 }
-.sponsor-link:hover { color: var(--dark-blue); }
-.sponsor-link:hover::after { transform: translateX(4px); }
+.clubpartner-url:hover { color: var(--dark-blue); }
+.clubpartner-url:hover::after { transform: translateX(4px); }
 
 /* Dark mode */
-html.dark .sponsor-info h3 { color: var(--primary-blue); }
-html.dark .sponsor-info p  { color: var(--text-gray); }
+html.dark .clubpartner-tekst h3 { color: var(--primary-blue); }
+html.dark .clubpartner-tekst p  { color: var(--text-gray); }
 
 @media (max-width: 768px) {
-    .sponsors-page        { padding: 2rem 1rem; }
-    .sponsors-header h1   { font-size: 2rem; }
+    .clubpartners-page        { padding: 2rem 1rem; }
+    .clubpartners-header h1   { font-size: 2rem; }
 
-    .sponsor-card,
-    .sponsor-card:nth-child(even) {
+    .clubpartner-item,
+    .clubpartner-item:nth-child(even) {
         flex-direction: column !important;
         gap: 1.5rem;
         padding: 2rem 0;
         align-items: center;
     }
 
-    .sponsor-logo { flex: 0 0 auto; width: 100%; max-width: 220px; }
-    .sponsor-info { text-align: center; align-items: center; }
-    .sponsor-info h3 { font-size: 1.5rem; }
-    .sponsor-info p  { font-size: 0.97rem; }
+    .clubpartner-visual { flex: 0 0 auto; width: 100%; max-width: 220px; }
+    .clubpartner-tekst { text-align: center; align-items: center; }
+    .clubpartner-tekst h3 { font-size: 1.5rem; }
+    .clubpartner-tekst p  { font-size: 0.97rem; }
 }

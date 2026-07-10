@@ -4,10 +4,16 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, serverTimestamp }
+import { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, deleteDoc, doc, serverTimestamp, onSnapshot }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { isAdmin as _isAdmin, hasPermission, isTijdelijk as _isTijdelijk } from './vvs-user-helpers.js';
 
-const PAYCONIQ_MERCHANT_ID = '6311028018dada62cdf95ea2';
+// Cloud Function URL
+const BANCONTACT_FUNCTION_URL = 'https://europe-west1-vvs-rotselaar-db.cloudfunctions.net/createBancontactPayment';
+
+// Houdt de actieve Firestore listener bij zodat we die kunnen stoppen
+// als de modal gesloten wordt
+let _qrUnsubscribe = null;
 
 // ═══════════════════════════════════════════════
 // GLOBAL STATE
@@ -18,18 +24,18 @@ let isLoggedIn      = false;
 let isAdmin         = false;   // alleen admin ziet stats
 
 const drankjes = {
-    'Primus':         { prijs:  4.00, count: 0, img: 'assets/rockwerchter/Primus.png' },
-    'Mystic':         { prijs:  4.00, count: 0, img: 'assets/rockwerchter/Mystic.png' },
-    'Stella 0.0':     { prijs:  3.30, count: 0, img: 'assets/rockwerchter/Stella00.png' },
-    'Cava of Wijn':   { prijs:  5.00, count: 0, img: 'assets/rockwerchter/CavaWijn.png' },
-    'Plat water':     { prijs:  3.30, count: 0, img: 'assets/rockwerchter/PlatWater.png' },
-    'Bruisend water': { prijs:  3.30, count: 0, img: 'assets/rockwerchter/BruisendWater.png' },
-    'Cola':           { prijs:  3.30, count: 0, img: 'assets/rockwerchter/Cola.png' },
-    'Cola Zero':      { prijs:  3.30, count: 0, img: 'assets/rockwerchter/ColaZero.png' },
-    'Fanta':          { prijs:  3.30, count: 0, img: 'assets/rockwerchter/Fanta.png' },
-    'Fuzetea':        { prijs:  3.30, count: 0, img: 'assets/rockwerchter/Fuzetea.png' },
-    'Chips':          { prijs:  3.30, count: 0, img: 'assets/rockwerchter/Chips.png' },
-    'Cup Refund':     { prijs: -0.70, count: 0, img: 'assets/rockwerchter/CupRefund.png' }
+    'Primus':         { prijs:  4.00, count: 0, img: '' },
+    'Mystic':         { prijs:  4.00, count: 0, img: '' },
+    'Stella 0.0':     { prijs:  3.30, count: 0, img: '' },
+    'Cava of Wijn':   { prijs:  5.00, count: 0, img: '' },
+    'Plat water':     { prijs:  3.30, count: 0, img: '' },
+    'Bruisend water': { prijs:  3.30, count: 0, img: '' },
+    'Cola':           { prijs:  3.30, count: 0, img: '' },
+    'Cola Zero':      { prijs:  3.30, count: 0, img: '' },
+    'Fanta':          { prijs:  3.30, count: 0, img: '' },
+    'Fuzetea':        { prijs:  3.30, count: 0, img: '' },
+    'Chips':          { prijs:  3.30, count: 0, img: '' },
+    'Cup Refund':     { prijs: -0.70, count: 0, img: '' }
 };
 
 // ═══════════════════════════════════════════════
@@ -44,50 +50,32 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user; isLoggedIn = true;
         try {
-            const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-            if (!snap.empty) {
-                currentUserData = snap.docs[0].data();
-                const rol      = (currentUserData.rol      || '').toLowerCase();
-                const categorie = (currentUserData.categorie || '').toLowerCase();
-                const rechten  = currentUserData.rechten || [];
-                const toegang  = currentUserData.toegang || [];
-                isAdmin = rol === 'admin' || rol === 'bestuurslid';
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+                currentUserData = userSnap.data();
+                // v2 schema: permissions[]
+                isAdmin = _isAdmin(currentUserData);
 
                 // Toegangslogica:
-                //   - Tijdelijk account (rol === 'tijdelijk' of categorie === 'extern'):
-                //     toegang als toegang[] 'rockwerchter' OF 'werken' bevat
-                //     (werken = werklijst-toegang voor het event → impliceert ook drankkaart)
-                //   - Alle andere ingelogde accounts (speler, admin, bestuurslid):
-                //     altijd toegang
-                const isTijdelijk = rol === 'tijdelijk' || categorie === 'extern';
+                //   - Tijdelijk/extern account: toegang als permissions[] 'rockwerchter' OF 'werken' bevat
+                //   - Alle andere ingelogde accounts (speler, admin): altijd toegang
+                const isTijdelijk = _isTijdelijk(currentUserData);
                 const heeftToegang = isTijdelijk
-                    ? (toegang.includes('rockwerchter') || toegang.includes('werken'))
+                    ? (hasPermission(currentUserData, 'rockwerchter') || hasPermission(currentUserData, 'werken'))
                     : true;
 
                 $id('loginLink').textContent = 'PROFIEL';
 
                 if (!heeftToegang) {
-                    // Klein informatie-kadertje, zelfde stijl als login-banner
-                    $id('orderSummary')   && ($id('orderSummary').style.display   = 'none');
+                    // Account zonder toegang: mag drankkaart bekijken en optellen maar niet betalen
+                    $id('orderSummary')   && ($id('orderSummary').style.display   = 'block');
                     $id('paymentButtons') && ($id('paymentButtons').style.display = 'none');
-
-                    const banner = $id('loginBanner');
-                    if (banner) {
-                        banner.className = 'login-banner';
-                        banner.innerHTML = `
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" style="flex-shrink:0">
-                                <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                            </svg>
-                            <span>Dit account heeft geen toegang tot de drankkaart. Neem contact op met de beheerder.</span>`;
-                        banner.style.display = 'flex';
-                    }
                     // Contact altijd zichtbaar voor accounts zonder toegang
                     $id('contact') && ($id('contact').style.display = 'flex');
                     return;
                 }
 
-                // Volledige toegang: verberg banner + contact, toon menu
-                $id('loginBanner').style.display  = 'none';
+                // Volledige toegang: verberg contact, toon menu
                 $id('orderSummary').style.display  = 'block';
                 $id('paymentButtons').style.display = 'flex';
                 $id('contact') && ($id('contact').style.display = 'none');
@@ -108,9 +96,8 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 function guestMode() {
-    document.getElementById('loginBanner').style.display    = 'flex';
-    document.getElementById('orderSummary').style.display   = 'none';
-    document.getElementById('paymentButtons').style.display = 'none';
+    document.getElementById('orderSummary').style.display   = 'block';  // gasten mogen de drankkaart volledig gebruiken
+    document.getElementById('paymentButtons').style.display = 'none';   // enkel betalen is voorbehouden aan ingelogde gebruikers
     document.getElementById('contact').style.display        = 'flex';
     const bestBtn = document.getElementById('bestellingenBtn');
     if (bestBtn) bestBtn.style.display = 'none';
@@ -177,11 +164,6 @@ function createDrankCard(naam, d) {
         <p class="drank-naam">${naam}</p>
         <p class="drank-prijs">${prijs}</p>`;
     card.addEventListener('click', () => {
-        if (!isLoggedIn) {
-            card.classList.add('shake');
-            setTimeout(() => card.classList.remove('shake'), 600);
-            return;
-        }
         voegToe(naam);
     });
     return card;
@@ -191,7 +173,6 @@ function createDrankCard(naam, d) {
 // BESTELLING LOGICA
 // ═══════════════════════════════════════════════
 function voegToe(naam, n = 1) {
-    if (!isLoggedIn) return;
     // Dynamische vereiste-check: items die in vereistItems staan moeten aanwezig zijn (OR-logica)
     // vereistItems = array van item-namen waarvan minstens 1 aanwezig moet zijn per refund
     const vereistItems = drankjes[naam]?.vereistItems || (drankjes[naam]?.vereistItem ? [drankjes[naam].vereistItem] : []);
@@ -209,13 +190,12 @@ function voegToe(naam, n = 1) {
 }
 
 function verwijder(naam) {
-    if (!isLoggedIn || drankjes[naam].count === 0) return;
+    if (drankjes[naam].count === 0) return;
     drankjes[naam].count--;
     clampRefunds(naam); sync(naam);
 }
 
 function verwijderAlles(naam) {
-    if (!isLoggedIn) return;
     drankjes[naam].count = 0;
     clampRefunds(naam); sync(naam);
 }
@@ -317,9 +297,25 @@ async function slaOp(methode, extra = {}) {
             aantalItems += drankjes[n].count;
         }
     }
+
+    // Zorg dat we altijd de meest recente naam hebben.
+    // Als currentUserData nog niet geladen is (timing), haal het opnieuw op.
+    let userName = currentUserData?.name;
+    if (!userName && currentUser?.uid) {
+        try {
+            const freshSnap = await getDoc(doc(db, 'users', currentUser.uid));
+            if (freshSnap.exists()) {
+                currentUserData = freshSnap.data();
+                userName = currentUserData.name;
+            }
+        } catch (_) {}
+    }
+    // Laatste fallback: Firebase Auth displayName
+    if (!userName) userName = currentUser?.displayName || 'Onbekend';
+
     const bestellingDoc = {
         userId:        currentUser?.uid ?? 'gast',
-        userName:      currentUserData?.naam ?? 'Onbekend',
+        userName,
         items, aantalItems,
         totaal:        +getTotaal().toFixed(2),
         betaalmethode: methode,
@@ -343,9 +339,62 @@ document.querySelectorAll('.rw-modal-backdrop').forEach(bd =>
 );
 
 // ═══════════════════════════════════════════════
-// 1) KAART – stap 1
+// 1) KAART
 // ═══════════════════════════════════════════════
-let geselecteerdeTerminal = null;
+// TIJDELIJK UITGESCHAKELD: terminal-selectie en automatische koppeling
+// met de terminals is voor dit evenement nog niet in orde. In plaats
+// daarvan springt "Kaart" direct naar één enkele bevestigingsstap.
+//
+// Om de terminal-flow later terug te activeren:
+//   1. Uncomment het "kaartModal" blok in rockwerchter.html
+//   2. Verwijder de huidige kaartBtn-listener hieronder en uncomment
+//      het volledige blok onder "ORIGINELE TERMINAL-FLOW" verderop in dit bestand.
+
+let geselecteerdeTerminal = null; // blijft bestaan voor compatibiliteit met slaOp/exports
+
+document.getElementById('kaartBtn').addEventListener('click', () => {
+    // Spring direct naar de bevestigingsmodal — geen terminal-keuze nodig
+    document.getElementById('terminalWachtInfo').innerHTML = '';
+    document.getElementById('kaartBevestigTotaal').textContent = `Te betalen: ${fmt(getTotaal())}`;
+    document.getElementById('kaartBevestigStatus').style.display = 'none';
+    document.getElementById('kaartGelukt').disabled  = false;
+    document.getElementById('kaartMislukt').disabled = false;
+    document.getElementById('kaartGelukt').textContent = '\u2713 Betaling gelukt';
+    openModal('kaartBevestigModal');
+});
+
+// Bevestiging → sla op (1x klikken volstaat)
+document.getElementById('kaartGelukt').addEventListener('click', async () => {
+    const btnOk  = document.getElementById('kaartGelukt');
+    const btnNok = document.getElementById('kaartMislukt');
+    const st     = document.getElementById('kaartBevestigStatus');
+    btnOk.disabled = true; btnNok.disabled = true;
+    btnOk.textContent = 'Opslaan...';
+    try {
+        const id = await slaOp('kaart', { status: 'geslaagd' });
+        st.className = 'modal-status success';
+        st.innerHTML = `\u2713 Betaling geregistreerd! <small>(ID: ${id})</small>`;
+        st.style.display = 'block';
+        btnOk.textContent = '\u2713 Geregistreerd';
+        setTimeout(() => { closeModal('kaartBevestigModal'); btnOk.textContent = '\u2713 Betaling gelukt'; resetNaBetaling(); }, 2000);
+    } catch {
+        st.className = 'modal-status error';
+        st.textContent = 'Fout bij opslaan. Probeer opnieuw.';
+        st.style.display = 'block';
+        btnOk.disabled = false; btnNok.disabled = false;
+        btnOk.textContent = '\u2713 Betaling gelukt';
+    }
+});
+
+// Geannuleerd → sluit, bestelling intact
+document.getElementById('kaartMislukt').addEventListener('click', () => closeModal('kaartBevestigModal'));
+
+/* ═══════════════════════════════════════════════
+   ORIGINELE TERMINAL-FLOW (uitgeschakeld)
+   Uncomment dit blok + het kaartModal HTML-blok om
+   de terminal-selectie weer te activeren.
+   Verwijder dan ook de vereenvoudigde kaartBtn-listener hierboven.
+// ═══════════════════════════════════════════════
 
 document.getElementById('kaartBtn').addEventListener('click', () => {
     document.getElementById('kaartTotaal').textContent = `Te betalen: ${fmt(getTotaal())}`;
@@ -366,7 +415,6 @@ document.querySelectorAll('.terminal-btn').forEach(btn =>
     })
 );
 
-// Stap 1 → stap 2: GEEN opslag, enkel modal wisselen
 document.getElementById('kaartVerzend').addEventListener('click', () => {
     closeModal('kaartModal');
     document.getElementById('terminalWachtInfo').innerHTML =
@@ -380,7 +428,6 @@ document.getElementById('kaartVerzend').addEventListener('click', () => {
     openModal('kaartBevestigModal');
 });
 
-// Stap 2 – gelukt → sla op
 document.getElementById('kaartGelukt').addEventListener('click', async () => {
     const btnOk  = document.getElementById('kaartGelukt');
     const btnNok = document.getElementById('kaartMislukt');
@@ -403,42 +450,138 @@ document.getElementById('kaartGelukt').addEventListener('click', async () => {
     }
 });
 
-// Stap 2 – geannuleerd → sluit, bestelling intact
 document.getElementById('kaartMislukt').addEventListener('click', () => closeModal('kaartBevestigModal'));
 
+═══════════════════════════════════════════════ */
+
 // ═══════════════════════════════════════════════
-// 2) PAYCONIQ
+// 2) BANCONTACT PRO – met automatische bevestiging
 // ═══════════════════════════════════════════════
-document.getElementById('qrBtn').addEventListener('click', () => {
+function _stopQrListener() {
+    if (_qrUnsubscribe) { _qrUnsubscribe(); _qrUnsubscribe = null; }
+}
+
+document.getElementById('qrBtn').addEventListener('click', async () => {
     const totaal = getTotaal();
     const centen = Math.round(totaal * 100);
     document.getElementById('qrTotaal').textContent = `Te betalen: ${fmt(totaal)}`;
-    document.getElementById('qrStatus').style.display = 'none';
-    const url = `https://payconiq.com/merchant/1/${PAYCONIQ_MERCHANT_ID}?amount=${centen}&description=VVS+Rockwerchter`;
-    const canvas = document.getElementById('qrCanvas');
-    if (typeof QRCode !== 'undefined') {
-        QRCode.toCanvas(canvas, url, { width: 220, margin: 2, color: { dark: '#1a1a1a', light: '#ffffff' } },
-            err => { if (err) console.error('QR fout:', err); });
-    }
-    openModal('qrModal');
-});
-document.getElementById('qrModalClose').addEventListener('click',  () => closeModal('qrModal'));
-document.getElementById('qrModalCancel').addEventListener('click', () => closeModal('qrModal'));
 
+    const st          = document.getElementById('qrStatus');
+    const qrImg       = document.getElementById('qrCanvas');
+    const qrLoader    = document.getElementById('qrLoader');
+    const bevestigBtn = document.getElementById('qrBevestig');
+
+    // Reset UI — toon loader, verberg QR
+    st.style.display        = 'none';
+    bevestigBtn.disabled    = true;
+    bevestigBtn.textContent = '⏳ Wachten op betaling…';
+    qrImg.src               = '';
+    qrImg.style.display     = 'none';
+    qrLoader.style.display  = 'block';
+    _stopQrListener();
+    openModal('qrModal');
+
+    try {
+        // 1) Maak betaling aan via Cloud Function
+        const response = await fetch(BANCONTACT_FUNCTION_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: centen })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || `Fout (${response.status})`);
+
+        // 2) Toon QR afbeelding van Bancontact — loader verdwijnt zodra afbeelding geladen is
+        qrImg.onload = () => {
+            qrLoader.style.display = 'none';
+            qrImg.style.display    = 'block';
+        };
+        qrImg.src = data.qrUrl;
+
+        const paymentId = data.paymentId;
+
+        // 3) Luister realtime naar Firestore voor de betalingsstatus
+        _qrUnsubscribe = onSnapshot(
+            doc(db, 'rw_payments', paymentId),
+            async (snap) => {
+                if (!snap.exists()) return;
+                const status = snap.data().status;
+
+                if (status === 'SUCCEEDED') {
+                    _stopQrListener();
+
+                    // Sla de bestelling op in Firestore
+                    const bestellingId = await slaOp('bancontact', { bancontactPaymentId: paymentId, status: 'geslaagd' });
+
+                    st.className     = 'modal-status success';
+                    st.innerHTML     = `✓ Betaling ontvangen! <small>(ID: ${bestellingId})</small>`;
+                    st.style.display = 'block';
+                    bevestigBtn.style.display = 'none';
+
+                    // Verberg QR en loader, toon vinkje
+                    qrImg.style.display    = 'none';
+                    qrLoader.style.display = 'none';
+
+                    setTimeout(() => {
+                        closeModal('qrModal');
+                        qrImg.style.display     = 'block';
+                        qrLoader.style.display  = 'none';
+                        bevestigBtn.style.display = 'block';
+                        bevestigBtn.textContent   = '✓ Betaling bevestigen';
+                        bevestigBtn.disabled      = false;
+                        resetNaBetaling();
+                    }, 3000);
+
+                } else if (status === 'FAILED' || status === 'CANCELLED' || status === 'EXPIRED') {
+                    _stopQrListener();
+                    st.className     = 'modal-status error';
+                    st.textContent   = `Betaling ${status.toLowerCase()}. Probeer opnieuw.`;
+                    st.style.display = 'block';
+                    bevestigBtn.disabled    = false;
+                    bevestigBtn.textContent = '✓ Betaling bevestigen';
+                }
+            }
+        );
+
+    } catch (e) {
+        qrLoader.style.display = 'none';
+        qrImg.style.display    = 'none';
+        st.className     = 'modal-status error';
+        st.textContent   = `Kon QR niet laden: ${e.message}`;
+        st.style.display = 'block';
+        bevestigBtn.disabled    = false;
+        bevestigBtn.textContent = '✓ Betaling bevestigen';
+        console.error('Bancontact fout:', e);
+    }
+});
+
+document.getElementById('qrModalClose').addEventListener('click',  () => { _stopQrListener(); closeModal('qrModal'); });
+document.getElementById('qrModalCancel').addEventListener('click', () => { _stopQrListener(); closeModal('qrModal'); });
+
+// Manuele bevestiging als fallback (als callback uitblijft)
 document.getElementById('qrBevestig').addEventListener('click', async () => {
     const btn = document.getElementById('qrBevestig');
     const st  = document.getElementById('qrStatus');
+    _stopQrListener();
     btn.disabled = true; btn.textContent = 'Opslaan...';
     try {
-        const id = await slaOp('payconiq');
+        const id = await slaOp('bancontact', { status: 'manueel bevestigd' });
         st.className = 'modal-status success';
-        st.innerHTML = `\u2713 Payconiq bevestigd! <small>(ID: ${id})</small>`;
+        st.innerHTML = `✓ Betaling bevestigd! <small>(ID: ${id})</small>`;
         st.style.display = 'block';
-        btn.textContent = '\u2713 Bevestigd';
-        setTimeout(() => { closeModal('qrModal'); btn.textContent = '\u2713 Betaling bevestigen'; btn.disabled = false; resetNaBetaling(); }, 2000);
+        btn.textContent = '✓ Bevestigd';
+        setTimeout(() => {
+            closeModal('qrModal');
+            btn.textContent = '✓ Betaling bevestigen';
+            btn.disabled = false;
+            resetNaBetaling();
+        }, 2000);
     } catch {
-        st.className = 'modal-status error'; st.textContent = 'Fout bij opslaan. Probeer opnieuw.'; st.style.display = 'block';
-        btn.disabled = false; btn.textContent = '\u2713 Betaling bevestigen';
+        st.className = 'modal-status error';
+        st.textContent = 'Fout bij opslaan. Probeer opnieuw.';
+        st.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = '✓ Betaling bevestigen';
     }
 });
 
@@ -974,7 +1117,7 @@ const RW_TOUR_STEPS = [
     {
         icon: '',
         title: 'Betalen met kaart',
-        desc: 'Klik op <strong>"Kaart"</strong> om de betaling via bancontact/terminal te verwerken. Je kiest de juiste terminal uit de lijst en bevestigt zodra de klant betaald heeft.',
+        desc: 'Klik op <strong>"Kaart"</strong> om de betaling via bancontact/terminal te verwerken. Bevestig zodra de klant betaald heeft.',
         target: '#kaartBtn',
     },
 

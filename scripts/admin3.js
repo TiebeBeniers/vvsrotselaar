@@ -54,8 +54,8 @@ const DEFAULT_PRIVACY_SECTIONS = [
 onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
     try {
-        const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-        if (snap.empty || snap.docs[0].data().rol !== 'admin') {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (!userSnap.exists() || !(userSnap.data().permissions || []).includes('admin')) {
             window.location.href = 'index.html'; return;
         }
         initPage();
@@ -640,9 +640,9 @@ async function initMailTab() {
         const snap = await getDocs(collection(db, 'users'));
         snap.forEach(d => {
             const u = d.data();
-            if (u.email) allUsers.push({ uid: u.uid || d.id, naam: u.naam || '?', email: u.email, categorie: u.categorie || '', ploegen: u.ploegen || [] });
+            if (u.email) allUsers.push({ uid: u.uid || d.id, naam: u.name || '?', email: u.email, team: u.team || [] });
         });
-        allUsers.sort((a, b) => a.naam.localeCompare(b.naam));
+        allUsers.sort((a, b) => (a.naam || a.name || '').localeCompare(b.naam || b.name || ''));
     } catch (e) {
         console.error('Gebruikers laden mislukt:', e);
     }
@@ -657,9 +657,9 @@ async function initMailTab() {
                 recipientList.dataset.loaded = '1';
                 recipientList.innerHTML = allUsers.map(u => `
                     <label class="mail-user-label">
-                        <input type="checkbox" class="mail-user-cb" value="${u.email}" data-naam="${u.naam}">
-                        <span>${u.naam}</span>
-                        <span class="mail-user-cat">${(u.ploegen.length > 1 ? u.ploegen : [u.categorie]).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ')}</span>
+                        <input type="checkbox" class="mail-user-cb" value="${u.email}" data-naam="${u.naam || u.name}">
+                        <span>${u.naam || u.name}</span>
+                        <span class="mail-user-cat">${(u.team || []).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' + ')}</span>
                     </label>`).join('');
             }
         });
@@ -699,7 +699,7 @@ async function initMailTab() {
             toAddresses = allUsers.map(u => u.email);
         } else if (type === 'veteranen' || type === 'zaterdag' || type === 'zondag') {
             toAddresses = allUsers
-                .filter(u => (u.ploegen.length > 0 ? u.ploegen : [u.categorie]).includes(type))
+                .filter(u => (u.team || []).includes(type))
                 .map(u => u.email);
         } else if (type === 'specific') {
             toAddresses = Array.from(document.querySelectorAll('.mail-user-cb:checked')).map(cb => cb.value);
@@ -745,7 +745,7 @@ async function initMailTab() {
             showToast('Fout bij verzenden: ' + e.message, 'error');
         } finally {
             sendBtn.disabled    = false;
-            sendBtn.textContent = '&#9993; Versturen';
+            sendBtn.textContent = 'Versturen';
         }
     });
 

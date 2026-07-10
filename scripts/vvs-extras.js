@@ -123,16 +123,21 @@
                 setTimeout(() => el.classList.add('vvs-visible'), delay);
                 observer.unobserve(el);
             });
-        }, { threshold: 0.06, rootMargin: '0px 0px -30px 0px' });
+        }, { threshold: 0, rootMargin: '0px 0px 0px 0px' });
 
         function tagAndObserve() {
             SELECTORS.forEach((sel) => {
                 document.querySelectorAll(sel).forEach((el, i) => {
                     if (el.dataset.vvsFade !== undefined) return; // al verwerkt
                     el.dataset.vvsFade = '1';
-                    // Stagger per groep, max 300ms
                     el.dataset.vvsFadeDelay = String(Math.min(i * 55, 300));
-                    observer.observe(el);
+                    const rect = el.getBoundingClientRect();
+                    if (rect.top < window.innerHeight && rect.bottom > 0) {
+                        setTimeout(() => el.classList.add('vvs-visible'),
+                            parseInt(el.dataset.vvsFadeDelay || '0', 10));
+                    } else {
+                        observer.observe(el);
+                    }
                 });
             });
         }
@@ -142,6 +147,19 @@
         // Herbekijk als Firebase content dynamisch geladen wordt
         const mutObs = new MutationObserver(tagAndObserve);
         mutObs.observe(document.body, { childList: true, subtree: true });
+
+        // Harde fallback: forceer alle nog onzichtbare elementen zichtbaar
+        // Vangt Firefox-bugs op waarbij IntersectionObserver niet triggert
+        setTimeout(() => {
+            document.querySelectorAll('[data-vvs-fade]:not(.vvs-visible)').forEach(el => {
+                el.classList.add('vvs-visible');
+            });
+        }, 1500);
+        setTimeout(() => {
+            document.querySelectorAll('[data-vvs-fade]:not(.vvs-visible)').forEach(el => {
+                el.classList.add('vvs-visible');
+            });
+        }, 3000);
     })();
 
 
