@@ -873,10 +873,16 @@
                         <textarea id="evenementInschrijfBeschrijving" rows="3" placeholder="bv. Gratis frietjes voor leden. Familie welkom voor &euro;20 p.p., kinderen t.e.m. 12 jaar gratis."></textarea>
                         <small>Wordt getoond in het inschrijfvenster van de leden</small>
                     </div>
-                    <div class="form-section-label" style="margin-bottom:0.5rem;">Extra velden inschrijfformulier <small style="font-weight:400;color:#888;">(optioneel)</small></div>
-                    <div id="extraVeldenList"></div>
-                    <button type="button" class="action-btn" id="addExtraVeldBtn" style="margin-top:0.5rem;width:100%;">+ Veld toevoegen</button>
-
+                    <div class="form-section-label" style="margin-bottom:0.5rem;">Inschrijfformulier — extra vragen <small style="font-weight:400;color:#888;">(optioneel)</small></div>
+                    <p style="font-size:0.85rem;color:var(--text-gray);margin-bottom:0.75rem;">
+                        Groepeer vragen in secties. Bv. een sectie <strong>"Extra personen meebrengen"</strong> (met prijs per persoon) voor de Bekerfinale, of een sectie <strong>"Eten"</strong> met een veld per gerecht voor het ledenfeest.
+                    </p>
+                    <div id="inschrijfSectiesList"></div>
+                    <div class="sectie-add-row">
+                        <button type="button" class="action-btn" id="addSectiePersonenBtn">+ Sectie "Extra personen"</button>
+                        <button type="button" class="action-btn secondary" id="addSectieEtenBtn">+ Sectie "Keuzelijst / Eten"</button>
+                        <button type="button" class="action-btn" id="addSectieLeegBtn" style="background:var(--text-gray);">+ Lege sectie</button>
+                    </div>
                 </div>
                 <input type="hidden" id="evenementId">
                 <div class="modal-actions">

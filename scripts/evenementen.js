@@ -242,9 +242,8 @@ function buildInschrijfWrap(ev) {
     wrap.className = 'inschrijf-btn-wrap';
     wrap.dataset.evenementId = ev.id;
     wrap.dataset.max = ev.maxDeelnemers || '';
-    wrap.dataset.extraVelden = JSON.stringify(ev.extraVelden || []);
+    wrap.dataset.secties = JSON.stringify(getEffectieveSecties(ev));
     wrap.dataset.inschrijfBeschrijving = ev.inschrijfBeschrijving || '';
-    wrap.dataset.extraWijzigbaar = ev.extraWijzigbaar ? 'true' : 'false';
     const btn = document.createElement('button');
     btn.className   = 'inschrijf-btn';
     btn.disabled    = true;
@@ -253,32 +252,16 @@ function buildInschrijfWrap(ev) {
     return wrap;
 }
 
-// Format a date range: "di 18 mei" or "di 18 mei – vr 21 mei 2025"
-function formatDateRange(ev) {
-    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', {
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-    });
-    if (!ev.eindDatum) return startFmt;
-    const eindDt = new Date(ev.eindDatum + 'T12:00');
-    const eindFmt = eindDt.toLocaleDateString('nl-BE', {
-        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-    });
-    return startFmt + ' — ' + eindFmt;
-}
-
-function formatDateRangeLong(ev) {
-    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', opts);
-    if (!ev.eindDatum) return startFmt;
-    const eindDt = new Date(ev.eindDatum + 'T12:00');
-    const eindFmt = eindDt.toLocaleDateString('nl-BE', opts);
-    return startFmt + ' — ' + eindFmt;
-}
-
-
-function htmlEsc(str) {
-    if (!str) return '';
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// Backwards compat: oude evenementen met platte extraVelden krijgen 1 automatische sectie
+function getEffectieveSecties(ev) {
+    if (Array.isArray(ev.inschrijfSecties) && ev.inschrijfSecties.length > 0) return ev.inschrijfSecties;
+    if (Array.isArray(ev.extraVelden) && ev.extraVelden.length > 0) {
+        return [{
+            id: 'sectie_legacy', titel: 'Extra personen meebrengen', beschrijving: '',
+            verplicht: false, telAlsPersonen: true, velden: ev.extraVelden
+        }];
+    }
+    return [];
 }
 
 // ── Inschrijvingen ────────────────────────────────────────────────────
@@ -304,19 +287,16 @@ async function updateInschrijfButton(wrap) {
 
         btn.onclick = null;
 
-        // Verwijder altijd een eventuele btn-row van een vorige toestand en
-        // zorg dat btn terug een directe child van wrap is.
         const existingRow = wrap.querySelector('.inschrijf-btn-row');
         if (existingRow) {
-            wrap.insertBefore(btn, existingRow); // btn uit de row halen
+            wrap.insertBefore(btn, existingRow);
             existingRow.remove();
         }
 
-        if (isIn) {
-            const extraVelden = JSON.parse(wrap.dataset.extraVelden || '[]');
-            const heeftWijzigbareVelden = extraVelden.some(v => v.wijzigbaar);
+        const secties = JSON.parse(wrap.dataset.secties || '[]');
+        const heeftWijzigbareVelden = secties.some(s => (s.velden || []).some(v => v.wijzigbaar));
 
-            // Bouw een flex-rij met ingeschreven-knop (+ evt. extra-knop)
+        if (isIn) {
             const row = document.createElement('div');
             row.className = 'inschrijf-btn-row';
 
@@ -366,15 +346,18 @@ function getOrCreateModal() {
     return modal;
 }
 
-function buildVeldenHtml(extraVelden, bestaandeAntwoorden = []) {
-    if (!extraVelden.length) return '';
-    return `
+function buildSectiesHtml(secties, bestaandeAntwoorden = []) {
+    if (!secties.length) return '';
+    return secties.map(sec => {
+        if (!sec.velden || sec.velden.length === 0) return '';
+        return `
         <div class="inschrijf-popup-extra-sectie">
             <div class="inschrijf-popup-extra-header">
-                <span>Extra personen meebrengen</span>
-                <span class="inschrijf-popup-optioneel">optioneel</span>
+                <span>${htmlEsc(sec.titel || 'Extra vragen')}</span>
+                <span class="inschrijf-popup-optioneel ${sec.verplicht ? 'verplicht' : ''}">${sec.verplicht ? 'verplicht' : 'optioneel'}</span>
             </div>
-            ${extraVelden.map(v => {
+            ${sec.beschrijving ? `<p class="inschrijf-sectie-beschrijving">${htmlEsc(sec.beschrijving)}</p>` : ''}
+            ${sec.velden.map(v => {
                 const bestaand = bestaandeAntwoorden.find(a => a.veldId === v.id);
                 const waarde = bestaand ? (parseInt(bestaand.waarde) || 0) : 0;
                 return `
@@ -396,6 +379,7 @@ function buildVeldenHtml(extraVelden, bestaandeAntwoorden = []) {
                 </div>`;
             }).join('')}
         </div>`;
+    }).join('');
 }
 
 function clampPositiveInt(inp) {
@@ -413,7 +397,6 @@ function bindVeldControls(modal) {
             inp.dispatchEvent(new Event('input'));
         });
     });
-    // Enforce positive integers on manual input
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp => {
         inp.addEventListener('blur', () => clampPositiveInt(inp));
         inp.addEventListener('keydown', (e) => {
@@ -422,25 +405,30 @@ function bindVeldControls(modal) {
     });
 }
 
-function updateSamenvatting(modal, extraVelden, isBewerken = false) {
-    const totalDiv = modal.querySelector('#inschrijfPopupSamenvatting');
+function updateSamenvatting(modal, secties, isBewerken = false) {
+    const totalDiv  = modal.querySelector('#inschrijfPopupSamenvatting');
     const kostenDiv = modal.querySelector('#inschrijfPopupKosten');
-    let totaalExtra = 0;
-    let totaalKosten = 0;
 
+    const veldMeta = {};
+    secties.forEach(sec => (sec.velden || []).forEach(v => {
+        veldMeta[v.id] = { telAlsPersonen: sec.telAlsPersonen !== false, pricePerUnit: v.pricePerUnit || 0 };
+    }));
+
+    let totaalPersonen = 0;
+    let totaalKosten = 0;
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp => {
         const aantal = parseInt(inp.value) || 0;
-        const prijs  = parseFloat(inp.dataset.prijs) || 0;
-        totaalExtra += aantal;
-        totaalKosten += aantal * prijs;
+        const meta = veldMeta[inp.dataset.veldId] || { telAlsPersonen: true, pricePerUnit: parseFloat(inp.dataset.prijs) || 0 };
+        if (meta.telAlsPersonen) totaalPersonen += aantal;
+        totaalKosten += aantal * meta.pricePerUnit;
     });
 
     if (totalDiv) {
-        if (totaalExtra === 0) {
+        if (totaalPersonen === 0) {
             totalDiv.textContent = isBewerken ? 'Geen extra personen' : 'Alleen jezelf — geen extra personen';
             totalDiv.className = 'inschrijf-popup-samenvatting neutraal';
         } else {
-            totalDiv.textContent = `Jezelf + ${totaalExtra} extra persoon${totaalExtra > 1 ? 'en' : ''} = ${totaalExtra + 1} personen in totaal`;
+            totalDiv.textContent = `Jezelf + ${totaalPersonen} extra persoon${totaalPersonen > 1 ? 'en' : ''} = ${totaalPersonen + 1} personen in totaal`;
             totalDiv.className = 'inschrijf-popup-samenvatting actief';
         }
     }
@@ -448,20 +436,33 @@ function updateSamenvatting(modal, extraVelden, isBewerken = false) {
     if (kostenDiv) {
         if (totaalKosten > 0) {
             kostenDiv.style.display = 'block';
-            kostenDiv.textContent = `Te betalen voor extra personen: €${totaalKosten.toFixed(2)}`;
+            kostenDiv.textContent = `Te betalen: €${totaalKosten.toFixed(2)}`;
         } else {
             kostenDiv.style.display = 'none';
         }
     }
 }
 
+function valideerVerplichteSecties(modal, secties) {
+    for (const sec of secties) {
+        if (!sec.verplicht) continue;
+        const som = (sec.velden || []).reduce((acc, v) => {
+            const inp = modal.querySelector(`#inp_${v.id}`);
+            return acc + (parseInt(inp?.value) || 0);
+        }, 0);
+        if (som === 0) return `Vul minstens één aantal in bij "${sec.titel}".`;
+    }
+    return null;
+}
+
 // ── Inschrijven popup ──────────────────────────────────────────────────
 function openInschrijfPopup(wrap) {
     const evenementId     = wrap.dataset.evenementId;
-    const extraVelden     = JSON.parse(wrap.dataset.extraVelden || '[]');
+    const secties         = JSON.parse(wrap.dataset.secties || '[]');
     const inschrijfBeschr = wrap.dataset.inschrijfBeschrijving || '';
     const modal = getOrCreateModal();
-    const veldenHtml = extraVelden.length ? buildVeldenHtml(extraVelden) : '';
+    const sectiesHtml = buildSectiesHtml(secties);
+    const heeftPersonenSectie = secties.some(s => s.telAlsPersonen !== false && (s.velden || []).length > 0);
 
     modal.innerHTML = `
         <div class="inschrijf-popup-card">
@@ -471,8 +472,8 @@ function openInschrijfPopup(wrap) {
                 <span class="inschrijf-popup-check">✓</span>
                 <span>Jij schrijft jezelf in</span>
             </div>
-            ${veldenHtml}
-            ${veldenHtml ? `<div id="inschrijfPopupSamenvatting" class="inschrijf-popup-samenvatting neutraal">Alleen jezelf — geen extra personen</div>` : ''}
+            ${sectiesHtml}
+            ${heeftPersonenSectie ? `<div id="inschrijfPopupSamenvatting" class="inschrijf-popup-samenvatting neutraal">Alleen jezelf — geen extra personen</div>` : ''}
             <div id="inschrijfPopupKosten" class="inschrijf-popup-kosten" style="display:none;"></div>
             <div id="inschrijfPopupStatus"></div>
             <div class="inschrijf-popup-actions">
@@ -484,7 +485,7 @@ function openInschrijfPopup(wrap) {
     modal.style.display = 'flex';
     bindVeldControls(modal);
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp =>
-        inp.addEventListener('input', () => updateSamenvatting(modal, extraVelden))
+        inp.addEventListener('input', () => updateSamenvatting(modal, secties))
     );
     modal.querySelector('#inschrijfPopupCancel').onclick = () => { modal.style.display = 'none'; };
     modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
@@ -492,6 +493,10 @@ function openInschrijfPopup(wrap) {
     modal.querySelector('#inschrijfPopupConfirm').onclick = async () => {
         const confirmBtn = modal.querySelector('#inschrijfPopupConfirm');
         const statusDiv  = modal.querySelector('#inschrijfPopupStatus');
+
+        const validatieFout = valideerVerplichteSecties(modal, secties);
+        if (validatieFout) { statusDiv.textContent = validatieFout; return; }
+
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Bezig...';
         statusDiv.textContent = '';
@@ -529,31 +534,33 @@ function openInschrijfPopup(wrap) {
 // ── Extra's bewerken popup (na inschrijving) ───────────────────────────
 async function openBewerkExtrasPopup(wrap) {
     const evenementId = wrap.dataset.evenementId;
-    const extraVelden = JSON.parse(wrap.dataset.extraVelden || '[]');
-    const modal       = getOrCreateModal();
+    const alleSecties = JSON.parse(wrap.dataset.secties || '[]');
+    // Alleen secties/velden tonen die achteraf wijzigbaar zijn
+    const secties = alleSecties
+        .map(s => ({ ...s, velden: (s.velden || []).filter(v => v.wijzigbaar) }))
+        .filter(s => s.velden.length > 0);
+    const modal = getOrCreateModal();
 
     modal.innerHTML = `<div class="inschrijf-popup-card"><p>Laden...</p></div>`;
     modal.style.display = 'flex';
 
-    // Haal bestaande antwoorden op
     let bestaandeAntwoorden = [];
     try {
         const snap = await getDoc(doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid));
         if (snap.exists()) bestaandeAntwoorden = snap.data().extraAntwoorden || [];
     } catch (_) {}
 
-    // Only show velden that are marked as wijzigbaar
-    const wijzigbareVelden = extraVelden.filter(v => v.wijzigbaar);
-    const veldenHtml = buildVeldenHtml(wijzigbareVelden, bestaandeAntwoorden);
+    const sectiesHtml = buildSectiesHtml(secties, bestaandeAntwoorden);
+    const heeftPersonenSectie = secties.some(s => s.telAlsPersonen !== false && (s.velden || []).length > 0);
 
     modal.innerHTML = `
         <div class="inschrijf-popup-card">
-            <h3>Extra personen aanpassen</h3>
+            <h3>Extra's aanpassen</h3>
             <p class="inschrijf-popup-beschrijving" style="margin-bottom:1rem;">
-                Je bent al ingeschreven. Pas hier het aantal extra personen aan.
+                Je bent al ingeschreven. Pas hier de aantallen aan.
             </p>
-            ${veldenHtml}
-            <div id="inschrijfPopupSamenvatting" class="inschrijf-popup-samenvatting neutraal">Laden...</div>
+            ${sectiesHtml}
+            ${heeftPersonenSectie ? `<div id="inschrijfPopupSamenvatting" class="inschrijf-popup-samenvatting neutraal">Laden...</div>` : ''}
             <div id="inschrijfPopupKosten" class="inschrijf-popup-kosten" style="display:none;"></div>
             <div id="inschrijfPopupStatus"></div>
             <div class="inschrijf-popup-actions">
@@ -565,9 +572,9 @@ async function openBewerkExtrasPopup(wrap) {
     modal.style.display = 'flex';
     bindVeldControls(modal);
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp =>
-        inp.addEventListener('input', () => updateSamenvatting(modal, extraVelden, true))
+        inp.addEventListener('input', () => updateSamenvatting(modal, secties, true))
     );
-    updateSamenvatting(modal, extraVelden, true);
+    updateSamenvatting(modal, secties, true);
 
     modal.querySelector('#inschrijfPopupCancel').onclick = () => { modal.style.display = 'none'; };
     modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };
@@ -575,14 +582,20 @@ async function openBewerkExtrasPopup(wrap) {
     modal.querySelector('#inschrijfPopupConfirm').onclick = async () => {
         const confirmBtn = modal.querySelector('#inschrijfPopupConfirm');
         const statusDiv  = modal.querySelector('#inschrijfPopupStatus');
+
+        const validatieFout = valideerVerplichteSecties(modal, secties);
+        if (validatieFout) { statusDiv.textContent = validatieFout; return; }
+
         confirmBtn.disabled = true;
         confirmBtn.textContent = 'Bezig...';
         statusDiv.textContent = '';
 
-        const extraAntwoorden = [];
+        // Start van bestaande antwoorden, overschrijf enkel de wijzigbare velden
+        const antwoordenMap = new Map(bestaandeAntwoorden.map(a => [a.veldId, a.waarde]));
         modal.querySelectorAll('.inschrijf-popup-input').forEach(inp => {
-            extraAntwoorden.push({ veldId: inp.dataset.veldId, waarde: inp.value || '0' });
+            antwoordenMap.set(inp.dataset.veldId, inp.value || '0');
         });
+        const extraAntwoorden = Array.from(antwoordenMap, ([veldId, waarde]) => ({ veldId, waarde }));
 
         try {
             await setDoc(doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid),

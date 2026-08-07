@@ -15,6 +15,14 @@
         .then(reg => {
           console.log('[PWA] Service Worker geregistreerd:', reg.scope);
 
+          // Luister naar KIOSK_RELOAD bericht van de SW
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data?.type === 'KIOSK_RELOAD') {
+              // Kleine delay zodat de Firestore onSnapshot ook al verwerkt is
+              setTimeout(() => window.location.reload(), 300);
+            }
+          });
+
           // Detecteer nieuwe versie op de achtergrond
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
@@ -242,6 +250,12 @@
   // ── 6. Update-banner (nieuwe versie beschikbaar) ─────────
 
   function showUpdateBanner() {
+    // Niet storen tijdens het serveren op het vergrendelde kiosk-toestel.
+    if (window.__vvsKioskLocked) {
+      console.log('[PWA] Update-banner onderdrukt (kiosk-modus actief)');
+      return;
+    }
+
     // Verwijder vorige banner als die er nog is
     document.getElementById('vvs-pwa-banner')?.remove();
 
@@ -271,5 +285,45 @@
   if (isInStandaloneMode()) {
     document.documentElement.classList.add('pwa-standalone');
   }
+
+  // ── 8. Kiosk-modus (enkel binnen de geïnstalleerde app) ──────
+  //      De browserversie van de site blijft ALTIJD volledig normaal werken.
+  //      Enkel wanneer de app standalone draait (toegevoegd aan startscherm) en
+  //      een ingelogde gebruiker de instelling 'settings/kiosk' actief heeft staan,
+  //      wordt er automatisch doorgestuurd naar rockwerchter.html.
+
+  window.__vvsKioskLocked = false;
+
+  (function kioskGuard() {
+    if (!isInStandaloneMode()) return; // browser-tab: nooit ingrijpen
+
+    const KIOSK_PAGE = 'rockwerchter.html';
+
+    Promise.all([
+      import('./firebase-config.js'),
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js'),
+      import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js')
+    ]).then(([{ auth, db }, { onAuthStateChanged }, { doc, getDoc }]) => {
+      onAuthStateChanged(auth, async (user) => {
+        if (!user) return; // niet ingelogd → normale app, geen ingreep
+
+        try {
+          const snap = await getDoc(doc(db, 'settings', 'kiosk'));
+          if (!snap.exists() || !snap.data()?.actief) return;
+
+          const huidigePagina = location.pathname.split('/').pop() || 'index.html';
+          if (huidigePagina !== KIOSK_PAGE) {
+            location.replace(KIOSK_PAGE);
+          } else {
+            window.__vvsKioskLocked = true;
+            // Onderdruk een eventuele update-banner: niet storen tijdens het serveren.
+            document.getElementById('vvs-pwa-banner')?.remove();
+          }
+        } catch (e) {
+          console.warn('[Kiosk] Kon instellingen niet laden:', e);
+        }
+      });
+    }).catch(e => console.warn('[Kiosk] Guard kon niet initialiseren:', e));
+  })();
 
 })();

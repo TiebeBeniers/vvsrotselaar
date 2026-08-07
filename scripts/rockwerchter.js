@@ -245,6 +245,85 @@ function updatePayBtns() {
     ['kaartBtn','qrBtn','cashBtn'].forEach(id => {
         const b = document.getElementById(id); if (b) b.disabled = !ok;
     });
+    // Payconiq heeft altijd een live verbinding nodig om de QR-code te genereren en te pollen.
+    const qr = document.getElementById('qrBtn');
+    if (qr && !navigator.onLine) {
+        qr.disabled = true;
+        qr.title = 'Geen internetverbinding — Payconiq is nu niet beschikbaar';
+    } else if (qr) {
+        qr.title = '';
+    }
+}
+
+// ═══════════════════════════════════════════════
+// OFFLINE-STATUS BANNER
+// ═══════════════════════════════════════════════
+function updateOfflineBanner() {
+    const banner = document.getElementById('rwOfflineBanner');
+    if (!banner) return;
+    banner.style.display = navigator.onLine ? 'none' : 'flex';
+    updatePayBtns();
+}
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+document.addEventListener('DOMContentLoaded', updateOfflineBanner);
+updateOfflineBanner();
+
+// ═══════════════════════════════════════════════
+// KIOSK-MODUS: navigatie vergrendelen
+// (enkel wanneer de site als geïnstalleerde app draait — de browserversie
+//  blijft altijd volledig normaal werken, zie ook scripts/pwa.js)
+// ═══════════════════════════════════════════════
+function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+
+function applyKioskLock(actief) {
+    const header = document.querySelector('.main-header');
+    if (header) header.toggleAttribute('data-kiosk-locked', actief);
+
+    // Verwijder altijd een bestaande badge eerst
+    document.getElementById('rwKioskBadge')?.remove();
+
+    if (actief) {
+        window.__vvsKioskLocked = true;
+
+        // Toon badge gedurende 5s dan slide-up weg
+        const badge = document.createElement('div');
+        badge.id        = 'rwKioskBadge';
+        badge.className = 'rw-kiosk-badge';
+        badge.textContent = '🔒 Kiosk-modus actief — Rock Werchter drankstand';
+        document.body.prepend(badge);
+
+        // Na 5s: slide omhoog en verwijder
+        setTimeout(() => {
+            badge.classList.add('rw-kiosk-badge--hide');
+            badge.addEventListener('transitionend', () => badge.remove(), { once: true });
+        }, 5000);
+
+        // Blokkeer de browser-terugknop zodat je niet per ongeluk wegnavigeert
+        history.pushState(null, '', location.href);
+        window.onpopstate = () => history.pushState(null, '', location.href);
+    } else {
+        window.__vvsKioskLocked = false;
+        window.onpopstate = null;
+    }
+}
+
+if (isStandaloneApp()) {
+    let _prevKioskState = null;
+    onSnapshot(doc(db, 'settings', 'kiosk'), (snap) => {
+        const actief = !!snap.data()?.actief;
+        applyKioskLock(actief);
+
+        // Als de kiosk-status VERANDERD is (aan of uit), vraag de SW om alle
+        // open clients (andere tabs/apparaten) te refreshen
+        if (_prevKioskState !== null && _prevKioskState !== actief) {
+            navigator.serviceWorker?.controller?.postMessage({ type: 'KIOSK_RELOAD' });
+        }
+        _prevKioskState = actief;
+    }, (err) => console.warn('[Kiosk] Kon status niet live volgen:', err));
 }
 
 function updateOverzicht() {

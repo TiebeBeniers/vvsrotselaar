@@ -2734,7 +2734,42 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 function startRwTab() {
     if (!rwItemsLoaded) { rwItemsLoaded = true; startRwItemsListener(); }
     loadRwBestellingen();
+    loadKioskSetting();
 }
+
+// ── Kiosk-modus (enkel geïnstalleerde app, zie scripts/pwa.js + scripts/rockwerchter.js) ──
+async function loadKioskSetting() {
+    const toggle  = document.getElementById('kioskActief');
+    const warning = document.getElementById('kioskWarning');
+    if (!toggle) return;
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'kiosk'));
+        const actief = !!snap.data()?.actief;
+        toggle.checked = actief;
+        if (warning) warning.style.display = actief ? 'block' : 'none';
+    } catch (e) {
+        console.error('Error loading kiosk setting:', e);
+    }
+}
+
+document.getElementById('kioskActief')?.addEventListener('change', async (e) => {
+    const actief  = e.target.checked;
+    const warning = document.getElementById('kioskWarning');
+    e.target.disabled = true;
+    try {
+        await setDoc(doc(db, 'settings', 'kiosk'), {
+            actief,
+            gewijzigdOp: serverTimestamp(),
+            gewijzigdDoor: auth.currentUser?.uid ?? null
+        }, { merge: true });
+        if (warning) warning.style.display = actief ? 'block' : 'none';
+    } catch (err) {
+        e.target.checked = !actief; // rollback bij fout
+        showToast('❌ Fout bij opslaan: ' + err.message, 'error');
+    } finally {
+        e.target.disabled = false;
+    }
+});
 
 function startRwItemsListener() {
     if (unsubRwItems) unsubRwItems();

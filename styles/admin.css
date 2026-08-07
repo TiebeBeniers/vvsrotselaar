@@ -2013,6 +2013,73 @@ html.dark .detail-stat-card {
     margin-top: 0.2rem;
 }
 
+/* ── Inschrijfsecties (evenement modal) ── */
+.sectie-add-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.inschrijf-sectie-row {
+    background: var(--white);
+    border: 2px solid var(--primary-blue);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+}
+
+.inschrijf-sectie-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+}
+
+.sectie-titel {
+    flex: 1;
+    padding: 0.6rem 0.85rem;
+    border: 1.5px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-family: inherit;
+    color: var(--primary-blue);
+    background: var(--off-white);
+}
+.sectie-titel:focus { outline: none; border-color: var(--primary-blue); }
+
+.sectie-remove-btn { flex-shrink: 0; white-space: nowrap; }
+
+.sectie-verplicht-label {
+    display: flex;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.sectie-velden-list {
+    margin: 0.75rem 0 0.5rem;
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--border-color);
+}
+
+.sectie-add-veld-btn { width: 100%; margin-top: 0.25rem; }
+
+html.dark .inschrijf-sectie-row { background: var(--white); border-color: var(--light-blue); }
+html.dark .sectie-titel { background: var(--off-white); color: var(--light-blue); }
+
+/* Groeperingslabel in inschrijvingen-samenvatting (admin modal) */
+.inschrijf-sectie-label {
+    flex-basis: 100%;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-gray);
+    margin: 0.75rem 0 0.35rem;
+}
+.inschrijf-sectie-label:first-child { margin-top: 0; }
+
 /* ── Extra veld row redesign (point 4+5) ── */
 .extra-veld-row {
     position: relative;

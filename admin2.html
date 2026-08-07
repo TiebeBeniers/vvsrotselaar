@@ -221,8 +221,33 @@
             <!-- ══ Rock Werchter tab ══════════════════════════════════════════════ -->
             <div class="tab-content" id="rockwerchterTab">
 
-                <!-- Items beheren -->
+                <!-- Kiosk-modus -->
                 <div class="section-header">
+                    <h3>Kiosk-modus (app)</h3>
+                </div>
+                <p class="wl-admin-hint">
+                    Vergrendelt enkel de <strong>geïnstalleerde app-versie</strong> (PWA) op deze Rock Werchter-pagina
+                    voor iedereen die ingelogd is — de gewone website in de browser blijft altijd normaal werken.
+                    Niet-ingelogde bezoekers zien gewoon de normale app; loggen ze in terwijl dit actief staat,
+                    dan worden ze automatisch naar deze pagina gestuurd.
+                </p>
+                <div class="toggle-setting-row">
+                    <div class="toggle-setting-label">
+                        <strong>Kiosk-modus actief</strong>
+                        <small>Ingelogde gebruikers komen in de app altijd hier uit en kunnen niet wegnavigeren</small>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="kioskActief">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div id="kioskWarning" style="display:none;margin-top:1rem;padding:0.9rem 1.1rem;border-radius:8px;background:#FEF3C7;border:1px solid #FCD34D;color:#854D0E;font-size:0.9rem;">
+                    &#9888; Kiosk-modus staat momenteel <strong>actief</strong>. Gebruik voor dit paneel altijd een
+                    ander toestel of browser dan het vergrendelde kiosk-toestel.
+                </div>
+
+                <!-- Items beheren -->
+                <div class="section-header" style="margin-top:2rem;">
                     <h3>Drankkaart Items</h3>
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                         <button class="add-btn" onclick="window.location.href='rockwerchter.html'">Naar Drankkaart</button>

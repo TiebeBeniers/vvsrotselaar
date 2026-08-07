@@ -551,3 +551,13 @@ html.dark .inschrijf-popup-input     { background: var(--white); color: var(--te
     vertical-align: middle;
     margin-left: 6px;
 }
+
+.inschrijf-popup-optioneel.verplicht { background: var(--danger); }
+
+.inschrijf-sectie-beschrijving {
+    font-size: 0.85rem;
+    color: var(--text-gray);
+    margin: -0.4rem 0 0.9rem;
+    line-height: 1.5;
+}
+html.dark .inschrijf-sectie-beschrijving { color: var(--text-gray); }

@@ -3,8 +3,8 @@
 // ============================================================
 
 const BASE        = '';
-const CACHE_NAME  = 'vvs-static-v27'; //Last updated 06/07/2026 - 21:00
-const PAGES_CACHE = 'vvs-pages-v27';
+const CACHE_NAME  = 'vvs-static-v33'; //Last updated 07/08/2026 - 23:30
+const PAGES_CACHE = 'vvs-pages-v33';
 const OFFLINE_URL = BASE + '/offline.html';
 
 const STATIC_ASSETS = [
@@ -115,5 +115,18 @@ async function networkFirstHtml(request) {
 }
 
 self.addEventListener('message', event => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+
+  // Kiosk toggle: refresh alle open clients (tabs/apparaten) meteen
+  if (event.data?.type === 'KIOSK_RELOAD') {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+      clients.forEach(client => {
+        // Stuur het bericht door naar elke open tab/venster
+        client.postMessage({ type: 'KIOSK_RELOAD' });
+      });
+    });
+  }
 });

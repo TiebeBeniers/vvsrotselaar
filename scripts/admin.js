@@ -1875,7 +1875,7 @@ if (addEvenementBtn) {
         evenementForm.reset();
         const opties = document.getElementById('inschrijfOpties');
         if (opties) opties.style.display = 'none';
-        loadExtraVelden([]);
+        loadInschrijfSecties({});              // ← was loadExtraVelden([])
         evenementModal.classList.add('active');
     });
 }
@@ -1899,11 +1899,16 @@ if (evenementInschrijvingenCb) {
     });
 }
 
-let extraVeldenCounter = 0;
+// ===============================================
+// INSCHRIJFSECTIES (extra vragen op inschrijfformulier)
+// ===============================================
 
-function addExtraVeldRow(data = {}) {
-    extraVeldenCounter++;
-    const id = data.id || ('veld_' + extraVeldenCounter);
+let sectieCounter = 0;
+let veldCounter = 0;
+
+function createVeldRow(veldenListEl, data = {}) {
+    veldCounter++;
+    const id = data.id || ('veld_' + Date.now() + '_' + veldCounter);
     const div = document.createElement('div');
     div.className = 'extra-veld-row';
     div.dataset.veldId = id;
@@ -1911,12 +1916,12 @@ function addExtraVeldRow(data = {}) {
     div.innerHTML = `
         <div class="extra-veld-row-header">
             <span class="extra-veld-row-title">Veld</span>
-            <button class="modal-close-x" id="memberDetailClose">&times;</button>
+            <button type="button" class="remove-veld-btn">Verwijder</button>
         </div>
         <div class="form-row">
             <div class="form-group" style="flex:2;">
                 <label>Label *</label>
-                <input type="text" class="veld-label" placeholder="bv. Aantal volwassenen" value="${data.label || ''}" required>
+                <input type="text" class="veld-label" placeholder="bv. Kip met look — of: Volwassenen" value="${data.label || ''}" required>
             </div>
             <div class="form-group" style="flex:1;">
                 <label>Prijs p.p. (€)</label>
@@ -1938,15 +1943,113 @@ function addExtraVeldRow(data = {}) {
             </label>
         </div>
     `;
-    div.querySelector('.modal-close-x').addEventListener('click', () => {
-        if (confirm('Ben je zeker dat je dit veld wilt verwijderen?')) {
-            div.remove();
-        }
+    div.querySelector('.remove-veld-btn').addEventListener('click', () => {
+        if (confirm('Dit veld verwijderen?')) div.remove();
     });
-    document.getElementById('extraVeldenList').appendChild(div);
+    veldenListEl.appendChild(div);
+    return div;
 }
 
-document.getElementById('addExtraVeldBtn')?.addEventListener('click', () => addExtraVeldRow());
+function createSectieRow(data = {}) {
+    sectieCounter++;
+    const id = data.id || ('sectie_' + Date.now() + '_' + sectieCounter);
+    const div = document.createElement('div');
+    div.className = 'inschrijf-sectie-row';
+    div.dataset.sectieId = id;
+    div.innerHTML = `
+        <div class="inschrijf-sectie-header">
+            <input type="text" class="sectie-titel" placeholder="bv. Extra personen meebrengen" value="${(data.titel || '').replace(/"/g,'&quot;')}">
+            <button type="button" class="action-btn delete sectie-remove-btn">Verwijder sectie</button>
+        </div>
+        <div class="form-group">
+            <label>Toelichting bij sectie <small style="font-weight:400;">(optioneel — getoond boven de velden)</small></label>
+            <input type="text" class="sectie-beschrijving" placeholder="bv. Geef door hoeveel van elk gerecht je (en je gezelschap) wil" value="${(data.beschrijving || '').replace(/"/g,'&quot;')}">
+        </div>
+        <label class="admin-team-cb-label sectie-verplicht-label">
+            <input type="checkbox" class="sectie-verplicht" ${data.verplicht ? 'checked' : ''}> Verplicht invullen (lid moet minstens 1 stuk in totaal opgeven)
+        </label>
+        <label class="admin-team-cb-label sectie-verplicht-label">
+            <input type="checkbox" class="sectie-telpersonen" ${data.telAlsPersonen ? 'checked' : ''}> Aantallen tellen mee als extra aanwezige personen <small style="font-weight:400;color:var(--text-gray);">(uitschakelen bij bv. eten-keuzes)</small>
+        </label>
+        <div class="sectie-velden-list"></div>
+        <button type="button" class="action-btn sectie-add-veld-btn">+ Veld toevoegen aan deze sectie</button>
+    `;
+    div.querySelector('.sectie-remove-btn').addEventListener('click', () => {
+        if (confirm('Deze volledige sectie (met alle velden) verwijderen?')) div.remove();
+    });
+    const veldenList = div.querySelector('.sectie-velden-list');
+    div.querySelector('.sectie-add-veld-btn').addEventListener('click', () => createVeldRow(veldenList));
+    (data.velden || []).forEach(v => createVeldRow(veldenList, v));
+    document.getElementById('inschrijfSectiesList').appendChild(div);
+    return div;
+}
+
+function getInschrijfSecties() {
+    const secties = [];
+    document.querySelectorAll('#inschrijfSectiesList .inschrijf-sectie-row').forEach(sDiv => {
+        const titel = sDiv.querySelector('.sectie-titel')?.value.trim();
+        const beschrijving = sDiv.querySelector('.sectie-beschrijving')?.value.trim() || '';
+        const verplicht = sDiv.querySelector('.sectie-verplicht')?.checked || false;
+        const telAlsPersonen = sDiv.querySelector('.sectie-telpersonen')?.checked || false;
+        const velden = [];
+        sDiv.querySelectorAll('.sectie-velden-list .extra-veld-row').forEach(vDiv => {
+            const label = vDiv.querySelector('.veld-label')?.value.trim();
+            if (!label) return;
+            const pricePerUnit = parseFloat(vDiv.querySelector('.veld-prijs')?.value) || 0;
+            const toelichting = vDiv.querySelector('.veld-toelichting')?.value.trim() || '';
+            const wijzigbaar = vDiv.querySelector('.veld-wijzigbaar')?.checked || false;
+            velden.push({ id: vDiv.dataset.veldId, label, pricePerUnit, toelichting, wijzigbaar });
+        });
+        if (!titel && velden.length === 0) return; // lege sectie negeren
+        secties.push({ id: sDiv.dataset.sectieId, titel: titel || 'Extra vragen', beschrijving, verplicht, telAlsPersonen, velden });
+    });
+    return secties;
+}
+
+function loadInschrijfSecties(evenement) {
+    document.getElementById('inschrijfSectiesList').innerHTML = '';
+    sectieCounter = 0;
+    veldCounter = 0;
+    let secties = evenement.inschrijfSecties;
+    if (!Array.isArray(secties) || secties.length === 0) {
+        // Backwards compat: oude evenementen met platte extraVelden
+        if (Array.isArray(evenement.extraVelden) && evenement.extraVelden.length > 0) {
+            secties = [{
+                id: 'sectie_legacy',
+                titel: 'Extra personen meebrengen',
+                beschrijving: '',
+                verplicht: false,
+                telAlsPersonen: true,
+                velden: evenement.extraVelden
+            }];
+        } else {
+            secties = [];
+        }
+    }
+    secties.forEach(s => createSectieRow(s));
+}
+
+document.getElementById('addSectiePersonenBtn')?.addEventListener('click', () => {
+    const div = createSectieRow({
+        titel: 'Extra personen meebrengen',
+        beschrijving: 'Geef door hoeveel extra personen (vrienden/familie) je meebrengt.',
+        verplicht: false,
+        telAlsPersonen: true,
+    });
+    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'Volwassenen', pricePerUnit: 0, toelichting: '' });
+});
+
+document.getElementById('addSectieEtenBtn')?.addEventListener('click', () => {
+    const div = createSectieRow({
+        titel: 'Eten',
+        beschrijving: 'Geef door hoeveel van elk gerecht je (en je gezelschap samen) wil.',
+        verplicht: true,
+        telAlsPersonen: false,
+    });
+    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'bv. Kip met look', pricePerUnit: 0, toelichting: '' });
+});
+
+document.getElementById('addSectieLeegBtn')?.addEventListener('click', () => createSectieRow());
 
 function getExtraVelden() {
     const rows = document.querySelectorAll('#extraVeldenList .extra-veld-row');
@@ -1990,7 +2093,10 @@ if (evenementForm) {
         const maxDeelnemers = maxDeelnemersField && maxDeelnemersField.value
             ? parseInt(maxDeelnemersField.value) : null;
         const inschrijfBeschrijving = document.getElementById('evenementInschrijfBeschrijving')?.value.trim() || '';
-        const extraVelden = inschrijvingenAan ? getExtraVelden() : [];
+        const inschrijfSecties = inschrijvingenAan ? getInschrijfSecties() : [];
+        const extraVelden = inschrijfSecties.flatMap(s =>
+            (s.velden || []).map(v => ({ ...v, telAlsPersonen: s.telAlsPersonen }))
+        );
 
         const evenementData = {
             datum,
@@ -2005,7 +2111,8 @@ if (evenementForm) {
             inschrijvingenAan,
             ...(maxDeelnemers !== null && { maxDeelnemers }),
             inschrijfBeschrijving,
-            extraVelden,
+            inschrijfSecties,   // ← nieuw: gestructureerd, voor weergave
+            extraVelden,        // ← blijft bestaan: platte lijst, voor samenvattingen/tellingen
             createdAt: serverTimestamp()
         };
         
@@ -2175,7 +2282,7 @@ function editEvenement(evenement) {
     if (maxField) maxField.value = evenement.maxDeelnemers || '';
     const inschrijfBeschrijvingField = document.getElementById('evenementInschrijfBeschrijving');
     if (inschrijfBeschrijvingField) inschrijfBeschrijvingField.value = evenement.inschrijfBeschrijving || '';
-    loadExtraVelden(evenement.extraVelden || []);
+    loadInschrijfSecties(evenement);
 
     evenementModal.classList.add('active');
 }
@@ -2224,6 +2331,8 @@ async function loadInschrijvingenCount(evenementId, extraVelden = []) {
             let totaalExtra = 0;
             snap.forEach(d => {
                 (d.data().extraAntwoorden || []).forEach(ant => {
+                    const veld = extraVelden.find(v => v.id === ant.veldId);
+                    if (veld && veld.telAlsPersonen === false) return; // telt niet mee (bv. eten)
                     totaalExtra += parseInt(ant.waarde) || 0;
                 });
             });
@@ -2271,7 +2380,7 @@ async function openInschrijvingenModal(evenement) {
                 if (!veld) return;
                 const aantal = parseInt(ant.waarde) || 0;
                 veldTotalen[ant.veldId] = (veldTotalen[ant.veldId] || 0) + aantal;
-                totaalExtraPersonen += aantal;
+                if (veld.telAlsPersonen !== false) totaalExtraPersonen += aantal;
                 totaalKosten += aantal * (veld.pricePerUnit || 0);
             });
         });
@@ -2282,15 +2391,26 @@ async function openInschrijvingenModal(evenement) {
             const maxBadge = evenement.maxDeelnemers
                 ? `<span style="color:#888;font-size:0.9rem;"> / ${evenement.maxDeelnemers} leden</span>` : '';
 
-            let veldenHtml = extraVelden.map(v => {
-                const tot = veldTotalen[v.id] || 0;
-                const kost = tot * (v.pricePerUnit || 0);
-                return `<div class="inschrijf-stat-card">
-                    <div class="inschrijf-stat-value">${tot}</div>
-                    <div class="inschrijf-stat-label">${v.label}</div>
-                    ${v.pricePerUnit > 0 ? `<div class="inschrijf-stat-sub">€${kost.toFixed(2)}</div>` : ''}
-                </div>`;
-            }).join('');
+            // Groepeer velden-kaarten per sectie (indien beschikbaar), anders 1 vlakke rij
+            const secties = (evenement.inschrijfSecties && evenement.inschrijfSecties.length)
+                ? evenement.inschrijfSecties
+                : (extraVelden.length ? [{ titel: null, velden: extraVelden }] : []);
+
+            let veldenHtml = '';
+            secties.forEach(sec => {
+                const secVelden = sec.velden || [];
+                if (secVelden.length === 0) return;
+                if (sec.titel) veldenHtml += `<div class="inschrijf-sectie-label">${sec.titel}</div>`;
+                veldenHtml += secVelden.map(v => {
+                    const tot = veldTotalen[v.id] || 0;
+                    const kost = tot * (v.pricePerUnit || 0);
+                    return `<div class="inschrijf-stat-card">
+                        <div class="inschrijf-stat-value">${tot}</div>
+                        <div class="inschrijf-stat-label">${v.label}</div>
+                        ${v.pricePerUnit > 0 ? `<div class="inschrijf-stat-sub">€${kost.toFixed(2)}</div>` : ''}
+                    </div>`;
+                }).join('');
+            });
 
             samenvatting.innerHTML = `
                 <div class="inschrijf-stats-row">
@@ -3773,9 +3893,9 @@ const TOUR_STEPS = [
         onLeave() { /* modal blijft open voor volgende stap */ },
     },
     {
-        icon: '', title: 'Extra velden',
-        desc: 'Via <strong>"+ Veld toevoegen"</strong> voeg je extra vragen toe aan het inschrijfformulier. Ideaal voor bijhorende vragen, zoals: "Neem je vrienden/familie mee?".',
-        tab: 'evenementen', target: '#addExtraVeldBtn',
+        icon: '', title: 'Secties met extra vragen',
+        desc: 'Via de knoppen onderaan voeg je een <strong>sectie</strong> toe aan het inschrijfformulier — bv. "Extra personen meebrengen" of "Eten". Elke sectie kan eigen velden hebben (met prijs), een verplichte/optionele status, en je kiest of de aantallen meetellen als extra aanwezige personen.',
+        tab: 'evenementen', target: '.sectie-add-row',
         onEnter() { _tourEnableInschrijvingen(); },
         onLeave() { _tourCloseEvenementModal(); },
     },

@@ -9,6 +9,59 @@
 }
 .rockwerchter-container { max-width: 800px; margin: 0 auto; }
 
+/* ── Offline banner ── */
+.rw-offline-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: #fff3cd;
+    color: #7a5c00;
+    border: 2px solid #ffe08a;
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1.25rem;
+    font-weight: 600;
+    font-size: 0.92rem;
+    line-height: 1.4;
+    animation: rwBannerIn 0.25s ease;
+}
+@keyframes rwBannerIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+html.dark .rw-offline-banner {
+    background: #3a2f00;
+    color: #ffd866;
+    border-color: #5c4a00;
+}
+
+/* ── Kiosk-modus (enkel in de geïnstalleerde app) ── */
+.rw-kiosk-badge {
+    transition: transform 0.4s ease, opacity 0.4s ease;
+    position: sticky;
+    top: 0;
+    z-index: 2000;
+    background: var(--primary-blue);
+    color: #fff;
+    text-align: center;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+}
+
+.rw-kiosk-badge--hide {
+    transform: translateY(-110%);
+    opacity: 0;
+    pointer-events: none;
+}
+.main-header[data-kiosk-locked] .nav-section { display: none; }
+.main-header[data-kiosk-locked] .title-section a {
+    pointer-events: none;
+    cursor: default;
+}
+
 /* ── Drankjes ── */
 .drankjes-section { margin-bottom: 1.5rem; }
 .drankjes-section h2 {
