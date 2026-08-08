@@ -2013,6 +2013,63 @@ html.dark .detail-stat-card {
     margin-top: 0.2rem;
 }
 
+/* ── Reorder-knopjes (secties + velden) ── */
+.row-actions { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.reorder-btn {
+    width: 30px; height: 30px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--off-white);
+    color: var(--text-gray);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.reorder-btn:hover { background: var(--primary-blue); color: #fff; border-color: var(--primary-blue); }
+.reorder-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+html.dark .reorder-btn { background: #252840; }
+
+/* ── Eenheid select in veld-rij ── */
+.veld-eenheid-custom { width: 100%; }
+
+/* ── Inschrijvingen: rijen met chips ── */
+.inschrijving-row {
+    display: flex; align-items: flex-start; gap: 0.75rem;
+    padding: 0.75rem 0; border-bottom: 1px solid #f0f0f0;
+}
+html.dark .inschrijving-row { border-color: var(--border-color); }
+.insrow-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: #e3f2fd; color: #1565c0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+}
+.insrow-body { flex: 1; min-width: 0; }
+.insrow-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.insrow-naam { color: var(--text-dark); }
+.insrow-email { color: #888; font-size: 0.85rem; }
+.insrow-datum { color: #aaa; font-size: 0.8rem; }
+.insrow-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.45rem; }
+.insrow-chip {
+    display: inline-block;
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 2px 10px;
+    font-size: 0.78rem;
+    color: var(--text-dark);
+}
+.insrow-totaal {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-gray);
+}
+.insrow-totaal strong { color: #2e7d32; }
+
+/* ── "Gratis" label in admin samenvatting ── */
+.inschrijf-stat-sub.gratis-sub { color: #2e7d32; font-weight: 700; }
+
 /* ── Inschrijfsecties (evenement modal) ── */
 .sectie-add-row {
     display: flex;

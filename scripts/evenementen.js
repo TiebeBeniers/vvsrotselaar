@@ -244,12 +244,62 @@ function buildInschrijfWrap(ev) {
     wrap.dataset.max = ev.maxDeelnemers || '';
     wrap.dataset.secties = JSON.stringify(getEffectieveSecties(ev));
     wrap.dataset.inschrijfBeschrijving = ev.inschrijfBeschrijving || '';
+
+    const locked = isInschrijvingLocked(ev);
+    wrap.dataset.locked = locked ? '1' : '';
+
+    const dagen = parseInt(ev.inschrijfSluitDagenVoor);
+    if (!locked && dagen > 0 && ev.dateTime) {
+        const lockMoment = new Date(ev.dateTime.getTime() - dagen * 86400000);
+        const hint = document.createElement('p');
+        hint.className = 'inschrijf-sluit-hint';
+        hint.textContent = `⏳ Inschrijven/wijzigen mogelijk tot ${lockMoment.toLocaleDateString('nl-BE', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+        wrap.appendChild(hint);
+    }
+
     const btn = document.createElement('button');
     btn.className   = 'inschrijf-btn';
     btn.disabled    = true;
     btn.textContent = 'Laden...';
     wrap.appendChild(btn);
     return wrap;
+}
+
+// Vanaf X dagen vóór de startdatum: geen nieuwe inschrijvingen, uitschrijvingen
+// of wijzigingen meer mogelijk (bv. om een definitief aantal door te geven aan een traiteur).
+function isInschrijvingLocked(ev) {
+    const dagen = parseInt(ev.inschrijfSluitDagenVoor);
+    if (!dagen || isNaN(dagen) || dagen <= 0) return false;
+    if (!ev.dateTime) return false;
+    const lockMoment = new Date(ev.dateTime.getTime() - dagen * 86400000);
+    return new Date() >= lockMoment;
+}
+
+// Format a date range: "di 18 mei" of "di 18 mei – vr 21 mei 2025"
+function formatDateRange(ev) {
+    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
+    if (!ev.eindDatum) return startFmt;
+    const eindDt = new Date(ev.eindDatum + 'T12:00');
+    const eindFmt = eindDt.toLocaleDateString('nl-BE', {
+        weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+    });
+    return startFmt + ' — ' + eindFmt;
+}
+
+function formatDateRangeLong(ev) {
+    const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const startFmt = ev.dateTime.toLocaleDateString('nl-BE', opts);
+    if (!ev.eindDatum) return startFmt;
+    const eindDt = new Date(ev.eindDatum + 'T12:00');
+    const eindFmt = eindDt.toLocaleDateString('nl-BE', opts);
+    return startFmt + ' — ' + eindFmt;
+}
+
+function htmlEsc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // Backwards compat: oude evenementen met platte extraVelden krijgen 1 automatische sectie
@@ -281,10 +331,6 @@ async function updateInschrijfButton(wrap) {
         const mySnap = await getDoc(myRef);
         const isIn   = mySnap.exists();
 
-        const allSnap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
-        const total   = allSnap.size;
-        const vol     = maxD && total >= maxD && !isIn;
-
         btn.onclick = null;
 
         const existingRow = wrap.querySelector('.inschrijf-btn-row');
@@ -292,6 +338,18 @@ async function updateInschrijfButton(wrap) {
             wrap.insertBefore(btn, existingRow);
             existingRow.remove();
         }
+
+        // Gesloten periode: geen nieuwe inschrijvingen, uitschrijvingen of wijzigingen meer
+        if (wrap.dataset.locked === '1') {
+            btn.textContent = isIn ? '\u{1F512} Ingeschreven — afgesloten' : '\u{1F512} Inschrijvingen gesloten';
+            btn.className   = 'inschrijf-btn locked';
+            btn.disabled    = true;
+            return;
+        }
+
+        const allSnap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
+        const total   = allSnap.size;
+        const vol     = maxD && total >= maxD && !isIn;
 
         const secties = JSON.parse(wrap.dataset.secties || '[]');
         const heeftWijzigbareVelden = secties.some(s => (s.velden || []).some(v => v.wijzigbaar));
@@ -311,7 +369,7 @@ async function updateInschrijfButton(wrap) {
             if (heeftWijzigbareVelden) {
                 const extraBtn = document.createElement('button');
                 extraBtn.className   = 'inschrijf-extra-btn';
-                extraBtn.textContent = 'Extra\'s';
+                extraBtn.textContent = 'Aanpassen';
                 extraBtn.onclick     = () => openBewerkExtrasPopup(wrap);
                 row.appendChild(extraBtn);
             }
@@ -365,8 +423,8 @@ function buildSectiesHtml(secties, bestaandeAntwoorden = []) {
                     <div class="inschrijf-popup-veld-header">
                         <label>${htmlEsc(v.label)}</label>
                         ${v.pricePerUnit > 0
-                            ? `<span class="inschrijf-prijs-hint">€${Number(v.pricePerUnit).toFixed(2)} p.p.</span>`
-                            : `<span class="inschrijf-prijs-hint gratis">gratis</span>`}
+                            ? `<span class="inschrijf-prijs-hint">€${Number(v.pricePerUnit).toFixed(2)} ${htmlEsc(v.eenheid || 'p.p.')}</span>`
+                            : `<span class="inschrijf-prijs-hint gratis">Gratis</span>`}
                     </div>
                     ${v.toelichting ? `<small>${htmlEsc(v.toelichting)}</small>` : ''}
                     <div class="inschrijf-aantal-control">
@@ -509,10 +567,8 @@ function openInschrijfPopup(wrap) {
         try {
             let naam = currentUser.displayName || currentUser.email;
             try {
-                const usersSnap = await getDocs(collection(db, 'users'));
-                usersSnap.forEach(d => {
-                    if (d.data().uid === currentUser.uid && d.data().naam) naam = d.data().naam;
-                });
+                const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
+                if (userSnap.exists() && userSnap.data().name) naam = userSnap.data().name;
             } catch (_) {}
 
             await setDoc(doc(db, 'evenementen', evenementId, 'inschrijvingen', currentUser.uid), {

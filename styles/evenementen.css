@@ -561,3 +561,14 @@ html.dark .inschrijf-popup-input     { background: var(--white); color: var(--te
     line-height: 1.5;
 }
 html.dark .inschrijf-sectie-beschrijving { color: var(--text-gray); }
+
+.inschrijf-sluit-hint {
+    font-size: 0.8rem;
+    color: var(--text-gray);
+    margin-bottom: 0.6rem;
+}
+
+.inschrijf-btn.locked {
+    background: var(--text-gray);
+    cursor: not-allowed;
+}

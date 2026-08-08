@@ -311,6 +311,21 @@ if (saveAnnouncementBtn) {
 }
 
 // ===============================================
+// HELPERS INSCHRIJVINGEN - EVENEMENTEN
+// ===============================================
+
+function moveSibling(el, dir) {
+    const target = dir === 'up' ? el.previousElementSibling : el.nextElementSibling;
+    if (!target) return;
+    if (dir === 'up') el.parentElement.insertBefore(el, target);
+    else el.parentElement.insertBefore(target, el);
+}
+
+function escAttr(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ===============================================
 // MEMBERS MANAGEMENT
 // ===============================================
 
@@ -1873,6 +1888,7 @@ if (addEvenementBtn) {
         document.getElementById('evenementModalTitle').textContent = 'Nieuw Evenement Aanmaken';
         document.getElementById('evenementId').value = '';
         evenementForm.reset();
+        document.getElementById('evenementSluitDagenVoor').value = '';
         const opties = document.getElementById('inschrijfOpties');
         if (opties) opties.style.display = 'none';
         loadInschrijfSecties({});              // ← was loadExtraVelden([])
@@ -1909,6 +1925,9 @@ let veldCounter = 0;
 function createVeldRow(veldenListEl, data = {}) {
     veldCounter++;
     const id = data.id || ('veld_' + Date.now() + '_' + veldCounter);
+    const presets = ['p.p.', 'per stuk', 'per portie'];
+    const eenheidVal = data.eenheid || 'p.p.';
+    const isPreset = presets.includes(eenheidVal);
     const div = document.createElement('div');
     div.className = 'extra-veld-row';
     div.dataset.veldId = id;
@@ -1916,26 +1935,42 @@ function createVeldRow(veldenListEl, data = {}) {
     div.innerHTML = `
         <div class="extra-veld-row-header">
             <span class="extra-veld-row-title">Veld</span>
-            <button type="button" class="remove-veld-btn">Verwijder</button>
+            <div class="row-actions">
+                <button type="button" class="reorder-btn move-up" title="Omhoog">↑</button>
+                <button type="button" class="reorder-btn move-down" title="Omlaag">↓</button>
+                <button type="button" class="remove-veld-btn">Verwijder</button>
+            </div>
         </div>
         <div class="form-row">
-            <div class="form-group" style="flex:2;">
+            <div class="form-group" style="flex:2;min-width:160px;">
                 <label>Label *</label>
-                <input type="text" class="veld-label" placeholder="bv. Kip met look — of: Volwassenen" value="${data.label || ''}" required>
+                <input type="text" class="veld-label" placeholder="bv. Kip met look — of: Volwassenen" value="${escAttr(data.label)}" required>
             </div>
-            <div class="form-group" style="flex:1;">
-                <label>Prijs p.p. (€)</label>
+            <div class="form-group" style="flex:1;min-width:100px;">
+                <label>Prijs (€)</label>
                 <input type="number" class="veld-prijs" min="0" step="0.01" placeholder="0 = gratis" value="${data.pricePerUnit ?? ''}">
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px;">
+                <label>Eenheid</label>
+                <select class="veld-eenheid">
+                    <option value="p.p." ${isPreset && eenheidVal==='p.p.' ? 'selected':''}>per persoon</option>
+                    <option value="per stuk" ${isPreset && eenheidVal==='per stuk' ? 'selected':''}>per stuk</option>
+                    <option value="per portie" ${isPreset && eenheidVal==='per portie' ? 'selected':''}>per portie</option>
+                    <option value="__eigen" ${!isPreset ? 'selected':''}>Eigen tekst…</option>
+                </select>
+                <input type="text" class="veld-eenheid-custom" placeholder="bv. per fles"
+                    value="${!isPreset ? escAttr(eenheidVal) : ''}"
+                    style="margin-top:0.4rem;${!isPreset ? '' : 'display:none;'}">
             </div>
         </div>
         <div class="form-group">
             <label>Toelichting <small style="font-weight:400;">(optioneel)</small></label>
-            <input type="text" class="veld-toelichting" placeholder="bv. t.e.m. 12 jaar gratis" value="${data.toelichting || ''}">
+            <input type="text" class="veld-toelichting" placeholder="bv. t.e.m. 12 jaar gratis" value="${escAttr(data.toelichting)}">
         </div>
         <div class="toggle-setting-row extra-veld-toggle-row">
             <div class="toggle-setting-label">
                 <strong>Achteraf aanpasbaar</strong>
-                <small>Lid kan dit veld na inschrijving nog wijzigen</small>
+                <small>Lid kan dit veld na inschrijving nog wijzigen (tot de eventuele sluitingsdatum)</small>
             </div>
             <label class="toggle-switch">
                 <input type="checkbox" class="veld-wijzigbaar" ${wijzigbaar ? 'checked' : ''}>
@@ -1945,6 +1980,13 @@ function createVeldRow(veldenListEl, data = {}) {
     `;
     div.querySelector('.remove-veld-btn').addEventListener('click', () => {
         if (confirm('Dit veld verwijderen?')) div.remove();
+    });
+    div.querySelector('.move-up').addEventListener('click', () => moveSibling(div, 'up'));
+    div.querySelector('.move-down').addEventListener('click', () => moveSibling(div, 'down'));
+    const eenheidSel = div.querySelector('.veld-eenheid');
+    const eenheidCustom = div.querySelector('.veld-eenheid-custom');
+    eenheidSel.addEventListener('change', () => {
+        eenheidCustom.style.display = eenheidSel.value === '__eigen' ? '' : 'none';
     });
     veldenListEl.appendChild(div);
     return div;
@@ -1958,12 +2000,16 @@ function createSectieRow(data = {}) {
     div.dataset.sectieId = id;
     div.innerHTML = `
         <div class="inschrijf-sectie-header">
-            <input type="text" class="sectie-titel" placeholder="bv. Extra personen meebrengen" value="${(data.titel || '').replace(/"/g,'&quot;')}">
-            <button type="button" class="action-btn delete sectie-remove-btn">Verwijder sectie</button>
+            <input type="text" class="sectie-titel" placeholder="bv. Extra personen meebrengen" value="${escAttr(data.titel)}">
+            <div class="row-actions">
+                <button type="button" class="reorder-btn move-up" title="Sectie omhoog">↑</button>
+                <button type="button" class="reorder-btn move-down" title="Sectie omlaag">↓</button>
+                <button type="button" class="action-btn delete sectie-remove-btn">Verwijder sectie</button>
+            </div>
         </div>
         <div class="form-group">
             <label>Toelichting bij sectie <small style="font-weight:400;">(optioneel — getoond boven de velden)</small></label>
-            <input type="text" class="sectie-beschrijving" placeholder="bv. Geef door hoeveel van elk gerecht je (en je gezelschap) wil" value="${(data.beschrijving || '').replace(/"/g,'&quot;')}">
+            <input type="text" class="sectie-beschrijving" placeholder="bv. Geef door hoeveel van elk gerecht je (en je gezelschap) wil" value="${escAttr(data.beschrijving)}">
         </div>
         <label class="admin-team-cb-label sectie-verplicht-label">
             <input type="checkbox" class="sectie-verplicht" ${data.verplicht ? 'checked' : ''}> Verplicht invullen (lid moet minstens 1 stuk in totaal opgeven)
@@ -1977,6 +2023,8 @@ function createSectieRow(data = {}) {
     div.querySelector('.sectie-remove-btn').addEventListener('click', () => {
         if (confirm('Deze volledige sectie (met alle velden) verwijderen?')) div.remove();
     });
+    div.querySelector('.move-up').addEventListener('click', () => moveSibling(div, 'up'));
+    div.querySelector('.move-down').addEventListener('click', () => moveSibling(div, 'down'));
     const veldenList = div.querySelector('.sectie-velden-list');
     div.querySelector('.sectie-add-veld-btn').addEventListener('click', () => createVeldRow(veldenList));
     (data.velden || []).forEach(v => createVeldRow(veldenList, v));
@@ -1998,9 +2046,13 @@ function getInschrijfSecties() {
             const pricePerUnit = parseFloat(vDiv.querySelector('.veld-prijs')?.value) || 0;
             const toelichting = vDiv.querySelector('.veld-toelichting')?.value.trim() || '';
             const wijzigbaar = vDiv.querySelector('.veld-wijzigbaar')?.checked || false;
-            velden.push({ id: vDiv.dataset.veldId, label, pricePerUnit, toelichting, wijzigbaar });
+            const eenheidSel = vDiv.querySelector('.veld-eenheid');
+            const eenheid = eenheidSel?.value === '__eigen'
+                ? (vDiv.querySelector('.veld-eenheid-custom')?.value.trim() || 'stuk')
+                : (eenheidSel?.value || 'p.p.');
+            velden.push({ id: vDiv.dataset.veldId, label, pricePerUnit, toelichting, wijzigbaar, eenheid });
         });
-        if (!titel && velden.length === 0) return; // lege sectie negeren
+        if (!titel && velden.length === 0) return;
         secties.push({ id: sDiv.dataset.sectieId, titel: titel || 'Extra vragen', beschrijving, verplicht, telAlsPersonen, velden });
     });
     return secties;
@@ -2036,7 +2088,7 @@ document.getElementById('addSectiePersonenBtn')?.addEventListener('click', () =>
         verplicht: false,
         telAlsPersonen: true,
     });
-    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'Volwassenen', pricePerUnit: 0, toelichting: '' });
+    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'Volwassenen', pricePerUnit: 0, toelichting: '', eenheid: 'p.p.' });
 });
 
 document.getElementById('addSectieEtenBtn')?.addEventListener('click', () => {
@@ -2046,7 +2098,7 @@ document.getElementById('addSectieEtenBtn')?.addEventListener('click', () => {
         verplicht: true,
         telAlsPersonen: false,
     });
-    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'bv. Kip met look', pricePerUnit: 0, toelichting: '' });
+    createVeldRow(div.querySelector('.sectie-velden-list'), { label: 'bv. Kip met look', pricePerUnit: 0, toelichting: '', eenheid: 'per stuk' });
 });
 
 document.getElementById('addSectieLeegBtn')?.addEventListener('click', () => createSectieRow());
@@ -2097,6 +2149,9 @@ if (evenementForm) {
         const extraVelden = inschrijfSecties.flatMap(s =>
             (s.velden || []).map(v => ({ ...v, telAlsPersonen: s.telAlsPersonen }))
         );
+        const sluitDagenField = document.getElementById('evenementSluitDagenVoor');
+        const inschrijfSluitDagenVoor = sluitDagenField && sluitDagenField.value
+            ? parseInt(sluitDagenField.value) : null;
 
         const evenementData = {
             datum,
@@ -2113,6 +2168,7 @@ if (evenementForm) {
             inschrijfBeschrijving,
             inschrijfSecties,   // ← nieuw: gestructureerd, voor weergave
             extraVelden,        // ← blijft bestaan: platte lijst, voor samenvattingen/tellingen
+            inschrijfSluitDagenVoor,
             createdAt: serverTimestamp()
         };
         
@@ -2256,6 +2312,9 @@ function editEvenement(evenement) {
     document.getElementById('evenementLocatie').value          = evenement.locatie   || '';
     document.getElementById('evenementBeschrijving').value     = evenement.beschrijving || '';
 
+    const sluitField = document.getElementById('evenementSluitDagenVoor');
+    if (sluitField) sluitField.value = evenement.inschrijfSluitDagenVoor ?? '';
+
     // Afbeelding — gebruik afbeeldingNaam (Firebase Storage URL) als dat beschikbaar is
     const evUrl = evenement.afbeeldingNaam || '';
     const evAfbEl   = document.getElementById('evenementAfbeelding');
@@ -2396,20 +2455,26 @@ async function openInschrijvingenModal(evenement) {
                 ? evenement.inschrijfSecties
                 : (extraVelden.length ? [{ titel: null, velden: extraVelden }] : []);
 
-            let veldenHtml = '';
+            // Elke sectie krijgt haar eigen rij (met eigen label), los van de algemene totalen
+            let sectieRowsHtml = '';
             secties.forEach(sec => {
                 const secVelden = sec.velden || [];
                 if (secVelden.length === 0) return;
-                if (sec.titel) veldenHtml += `<div class="inschrijf-sectie-label">${sec.titel}</div>`;
-                veldenHtml += secVelden.map(v => {
+                const cards = secVelden.map(v => {
                     const tot = veldTotalen[v.id] || 0;
                     const kost = tot * (v.pricePerUnit || 0);
                     return `<div class="inschrijf-stat-card">
                         <div class="inschrijf-stat-value">${tot}</div>
                         <div class="inschrijf-stat-label">${v.label}</div>
-                        ${v.pricePerUnit > 0 ? `<div class="inschrijf-stat-sub">€${kost.toFixed(2)}</div>` : ''}
+                        ${v.pricePerUnit > 0
+                            ? `<div class="inschrijf-stat-sub">€${kost.toFixed(2)}</div>`
+                            : `<div class="inschrijf-stat-sub gratis-sub">Gratis</div>`}
                     </div>`;
                 }).join('');
+                sectieRowsHtml += `
+                    ${sec.titel ? `<div class="inschrijf-sectie-label">${sec.titel}</div>` : ''}
+                    <div class="inschrijf-stats-row">${cards}</div>
+                `;
             });
 
             samenvatting.innerHTML = `
@@ -2418,7 +2483,6 @@ async function openInschrijvingenModal(evenement) {
                         <div class="inschrijf-stat-value">${aantalLeden}${maxBadge}</div>
                         <div class="inschrijf-stat-label">Ingeschreven leden</div>
                     </div>
-                    ${veldenHtml}
                     <div class="inschrijf-stat-card">
                         <div class="inschrijf-stat-value">${totaalPersonen}</div>
                         <div class="inschrijf-stat-label">Totaal aanwezigen</div>
@@ -2428,36 +2492,52 @@ async function openInschrijvingenModal(evenement) {
                         <div class="inschrijf-stat-label">Te innen</div>
                     </div>` : ''}
                 </div>
+                ${sectieRowsHtml}
             `;
         }
 
+        const searchInput = document.getElementById('inschrijvingenSearchInput');
+        const searchClear = document.getElementById('inschrijvingenSearchClear');
+        if (searchInput) searchInput.value = '';
+        if (searchClear) searchClear.style.display = 'none';
+
         list.innerHTML = inschrijvingen.map((i, idx) => {
-            const extraHtml = (i.extraAntwoorden || []).map(ant => {
+            let personKost = 0;
+            let personExtraPersonen = 0;
+
+            const chips = (i.extraAntwoorden || []).map(ant => {
                 const veld = extraVelden.find(v => v.id === ant.veldId);
-                if (!veld || !ant.waarde) return '';
+                if (!veld) return '';
                 const aantal = parseInt(ant.waarde) || 0;
                 if (aantal === 0) return '';
                 const kost = aantal * (veld.pricePerUnit || 0);
-                return `<span style="font-size:0.82rem;color:#555;margin-top:2px;display:block;">
-                    ${veld.label}: <strong>${aantal}</strong>
-                    ${veld.pricePerUnit > 0 ? `<span style="color:#1565c0;">(€${kost.toFixed(2)})</span>` : ''}
-                </span>`;
+                personKost += kost;
+                if (veld.telAlsPersonen !== false) personExtraPersonen += aantal;
+                const kostLabel = veld.pricePerUnit > 0 ? ` · €${kost.toFixed(2)}` : ' · Gratis';
+                return `<span class="insrow-chip">${aantal}× ${veld.label}${kostLabel}</span>`;
             }).join('');
 
             const datum = i.ingeschrevenOp
                 ? new Date(i.ingeschrevenOp.toMillis?.() || i.ingeschrevenOp).toLocaleDateString('nl-BE')
                 : '';
 
+            const zoekTekst = `${(i.naam || '').toLowerCase()} ${(i.email || '').toLowerCase()}`;
+            const totaalPersonen = 1 + personExtraPersonen;
+
             return `
-                <div style="display:flex;align-items:flex-start;gap:0.75rem;padding:0.65rem 0;border-bottom:1px solid #f0f0f0;">
-                    <span style="width:24px;height:24px;border-radius:50%;background:#e3f2fd;color:#1565c0;display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;flex-shrink:0;margin-top:2px;">${idx + 1}</span>
-                    <div style="flex:1;">
-                        <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-                            <strong>${i.naam || '—'}</strong>
-                            <span style="color:#888;font-size:0.85rem;">${i.email || ''}</span>
-                            ${datum ? `<span style="color:#aaa;font-size:0.8rem;">${datum}</span>` : ''}
+                <div class="inschrijving-row" data-search="${escAttr(zoekTekst)}">
+                    <span class="insrow-num">${idx + 1}</span>
+                    <div class="insrow-body">
+                        <div class="insrow-header">
+                            <strong class="insrow-naam">${i.naam || '—'}</strong>
+                            <span class="insrow-email">${i.email || ''}</span>
+                            ${datum ? `<span class="insrow-datum">${datum}</span>` : ''}
                         </div>
-                        ${extraHtml}
+                        ${chips ? `<div class="insrow-chips">${chips}</div>` : ''}
+                        <div class="insrow-totaal">
+                            ${personExtraPersonen > 0 ? `👥 ${totaalPersonen} personen` : '👤 1 persoon'}
+                            ${personKost > 0 ? ` &nbsp;·&nbsp;  <strong>€${personKost.toFixed(2)}</strong> te betalen` : ' &nbsp;·&nbsp; Gratis'}
+                        </div>
                     </div>
                 </div>
             `;
@@ -2474,6 +2554,40 @@ if (inschrijvingenModalClose) {
         document.getElementById('inschrijvingenModal').classList.remove('active');
     });
 }
+
+(function initInschrijvingenSearch() {
+    const input = document.getElementById('inschrijvingenSearchInput');
+    const clearBtn = document.getElementById('inschrijvingenSearchClear');
+    if (!input) return;
+
+    function filter(q) {
+        const query = q.trim().toLowerCase();
+        clearBtn.style.display = query ? '' : 'none';
+        const rows = document.querySelectorAll('#inschrijvingenList .inschrijving-row');
+        let visible = 0;
+        rows.forEach(row => {
+            const match = !query || (row.dataset.search || '').includes(query);
+            row.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        let noResult = document.getElementById('inschrijvingenNoResult');
+        if (rows.length > 0 && visible === 0) {
+            if (!noResult) {
+                noResult = document.createElement('p');
+                noResult.id = 'inschrijvingenNoResult';
+                noResult.style.cssText = 'text-align:center;color:var(--text-gray);padding:1rem;font-style:italic;';
+                document.getElementById('inschrijvingenList').appendChild(noResult);
+            }
+            noResult.textContent = `Geen resultaten voor "${q.trim()}".`;
+            noResult.style.display = '';
+        } else if (noResult) {
+            noResult.style.display = 'none';
+        }
+    }
+
+    input.addEventListener('input', () => filter(input.value));
+    clearBtn.addEventListener('click', () => { input.value = ''; filter(''); input.focus(); });
+})();
 
 // ===============================================
 // CONTACTBERICHTEN MANAGEMENT
