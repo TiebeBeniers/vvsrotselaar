@@ -14,8 +14,8 @@ const firebaseConfig = {
     authDomain: "vvs-rotselaar-db.firebaseapp.com",
     projectId: "vvs-rotselaar-db",
     storageBucket: "vvs-rotselaar-db.firebasestorage.app",
-    messagingSenderId: "155354748494",
-    appId: "1:155354748494:web:8bc7a4a1da2efcdf57dd86"
+    messagingSenderId: "776733736506",
+    appId: "1:776733736506:web:864e8c0f9cf68a04e9bf03"
 };
 
 // Initialize Firebase

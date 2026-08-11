@@ -9,7 +9,7 @@ import { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, dele
 import { isAdmin as _isAdmin, hasPermission, isTijdelijk as _isTijdelijk } from './vvs-user-helpers.js';
 
 // Cloud Function URL
-const BANCONTACT_FUNCTION_URL = 'https://europe-west1-vvs-rotselaar-db.cloudfunctions.net/createBancontactPayment';
+const BANCONTACT_FUNCTION_URL = 'https://createbancontactpayment-zqr63o77ia-ew.a.run.app';
 
 // Houdt de actieve Firestore listener bij zodat we die kunnen stoppen
 // als de modal gesloten wordt

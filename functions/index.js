@@ -1,11 +1,100 @@
 const { onRequest } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
 
 const bancontactApiKey = defineSecret('BANCONTACT_API_KEY');
+
+// ═══════════════════════════════════════════════
+// PUSHMELDINGEN NAAR ADMINS
+// Triggert automatisch bij nieuwe contactberichten
+// en nieuwe accountaanvragen.
+// ═══════════════════════════════════════════════
+
+async function notifyAdmins(title, body, clickUrl) {
+    const db = getFirestore();
+    const usersSnap = await db.collection('users')
+        .where('permissions', 'array-contains', 'admin')
+        .get();
+
+    const tokens = [];
+    usersSnap.forEach(doc => {
+        const data = doc.data();
+        if (Array.isArray(data.fcmTokens)) tokens.push(...data.fcmTokens);
+    });
+    if (tokens.length === 0) {
+        console.log('Geen admin-tokens gevonden, geen pushmelding verstuurd.');
+        return;
+    }
+
+    // LET OP: bewust enkel "data" gebruiken, geen "notification"-veld.
+    // Een "notification"-veld laat de Firebase SDK in de service worker
+    // ZELF automatisch al een melding tonen, nog vóór onBackgroundMessage()
+    // uitgevoerd wordt — dat gaf dubbele meldingen (auto-weergave + onze
+    // eigen showNotification() erbovenop). Met enkel "data" is onze eigen
+    // code in firebase-messaging-sw.js de enige plek die iets toont.
+    const message = {
+        data: {
+            title,
+            body,
+            click_action: clickUrl,
+        },
+        tokens,
+    };
+
+    const response = await getMessaging().sendEachForMulticast(message);
+    console.log(`Push verstuurd: ${response.successCount}/${tokens.length} geslaagd.`);
+
+    // Ongeldige/verlopen tokens netjes opkuisen zodat de lijst niet blijft aangroeien
+    const invalidTokens = [];
+    response.responses.forEach((r, i) => {
+        const code = r.error?.code;
+        if (code === 'messaging/invalid-registration-token' ||
+            code === 'messaging/registration-token-not-registered') {
+            invalidTokens.push(tokens[i]);
+        }
+    });
+    if (invalidTokens.length > 0) {
+        const batch = db.batch();
+        usersSnap.forEach(docSnap => {
+            const arr = docSnap.data().fcmTokens || [];
+            const filtered = arr.filter(t => !invalidTokens.includes(t));
+            if (filtered.length !== arr.length) {
+                batch.update(docSnap.ref, { fcmTokens: filtered });
+            }
+        });
+        await batch.commit();
+        console.log(`${invalidTokens.length} verlopen token(s) opgekuist.`);
+    }
+}
+
+exports.onNewContactBericht = onDocumentCreated(
+    { document: 'contactberichten/{id}', region: 'europe-west1' },
+    async (event) => {
+        const d = event.data.data();
+        await notifyAdmins(
+            '📩 Nieuw contactbericht',
+            `${d.email}: ${(d.bericht || '').slice(0, 100)}`,
+            'https://vvsrotselaar.be/admin.html'
+        );
+    }
+);
+
+exports.onNewAccountRequest = onDocumentCreated(
+    { document: 'account_requests/{id}', region: 'europe-west1' },
+    async (event) => {
+        const d = event.data.data();
+        await notifyAdmins(
+            '👤 Nieuwe accountaanvraag',
+            `${d.naam || d.name || 'Iemand'} vraagt een account aan`,
+            'https://vvsrotselaar.be/admin.html'
+        );
+    }
+);
 
 // ═══════════════════════════════════════════════
 // 1) BETALING AANMAKEN

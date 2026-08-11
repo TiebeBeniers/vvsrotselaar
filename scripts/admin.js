@@ -12,6 +12,7 @@ import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'htt
 import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel } from './vvs-user-helpers.js';
+import { enablePushNotifications, disablePushNotifications, getPushPermissionStatus, listenForegroundMessages } from './push-notifications.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
 const storage = getStorage();
@@ -73,10 +74,84 @@ onAuthStateChanged(auth, async (user) => {
         
         await initializeSecondaryApp();
         await initializeAdminPage();
+        initPushNotificationButton();
     } catch (error) {
         console.error('Error checking user permissions:', error);
     }
 });
+
+// ===============================================
+// PUSHMELDINGEN — knop in de header (aan/uit-toggle)
+// ===============================================
+
+const PUSH_FLAG_KEY = 'vvs_push_enabled';
+
+function initPushNotificationButton() {
+    const btn     = document.getElementById('enablePushBtn');
+    const btnText = document.getElementById('enablePushBtnText');
+    if (!btn) return;
+
+    const status = getPushPermissionStatus();
+    if (status === 'unsupported') {
+        btn.style.display = 'none';
+        return;
+    }
+
+    function render() {
+        const isOn = status === 'granted' && localStorage.getItem(PUSH_FLAG_KEY) === '1';
+        if (Notification.permission === 'denied') {
+            btnText.textContent = 'Meldingen geblokkeerd';
+            btn.title = 'Je hebt meldingen geblokkeerd in je browserinstellingen. Zet ze daar terug aan om dit te gebruiken.';
+        } else if (isOn) {
+            btnText.textContent = 'Meldingen aan ✓';
+            btn.title = 'Klik om pushmeldingen uit te schakelen op dit toestel';
+        } else {
+            btnText.textContent = 'Meldingen';
+            btn.title = 'Pushmeldingen ontvangen bij nieuwe contactberichten en accountaanvragen';
+        }
+    }
+    render();
+
+    // Voorgrond-berichten (tab open + actief) meteen laten afhandelen als
+    // toestemming al eerder gegeven was — anders komt dit pas na de volgende
+    // keer klikken op de knop tot stand.
+    if (status === 'granted' && localStorage.getItem(PUSH_FLAG_KEY) === '1') {
+        listenForegroundMessages();
+    }
+
+    btn.addEventListener('click', async () => {
+        if (!currentUser) return;
+        if (Notification.permission === 'denied') {
+            showToast('Meldingen zijn geblokkeerd in je browserinstellingen — zet ze daar terug aan.', 'error');
+            return;
+        }
+
+        const isCurrentlyOn = Notification.permission === 'granted' && localStorage.getItem(PUSH_FLAG_KEY) === '1';
+        btn.disabled = true;
+
+        if (isCurrentlyOn) {
+            const ok = await disablePushNotifications(currentUser.uid);
+            if (ok) {
+                localStorage.setItem(PUSH_FLAG_KEY, '0');
+                showToast('Pushmeldingen uitgeschakeld op dit toestel.', 'success');
+            } else {
+                showToast('Uitschakelen is niet gelukt.', 'error');
+            }
+        } else {
+            const ok = await enablePushNotifications(currentUser.uid);
+            if (ok) {
+                localStorage.setItem(PUSH_FLAG_KEY, '1');
+                listenForegroundMessages();
+                showToast('Pushmeldingen ingeschakeld! Je krijgt nu meldingen bij nieuwe contactberichten en accountaanvragen.', 'success');
+            } else {
+                showToast('Pushmeldingen inschakelen is niet gelukt.', 'error');
+            }
+        }
+
+        btn.disabled = false;
+        render();
+    });
+}
 
 async function initializeSecondaryApp() {
     try {

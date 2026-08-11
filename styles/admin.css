@@ -960,6 +960,13 @@ a.message-email:hover {
     margin-bottom: 0;
 }
 
+.admin-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .admin-page-nav {
     display: flex;
     gap: 0.5rem;
@@ -1166,6 +1173,26 @@ html.dark .icon.upload { filter:invert(1); }
 }
 
 @media (max-width: 768px) {
+
+    /* Header-actions (Meldingen + Gids + paginanav): op mobiel 2 rijen —
+       Meldingen/Gids naast elkaar, paginanav (1/2/3) eronder over volle breedte */
+    .admin-header-row {
+        align-items: stretch;
+    }
+    .admin-header-actions {
+        width: 100%;
+    }
+    .admin-header-actions #enablePushBtn,
+    .admin-header-actions #adminTourBtn {
+        flex: 1 1 0;
+        min-width: 0;
+        justify-content: center;
+        white-space: nowrap;
+    }
+    .admin-header-actions .admin-page-nav {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
 
     /* Tabs become vertical list */
     .admin-tabs {
