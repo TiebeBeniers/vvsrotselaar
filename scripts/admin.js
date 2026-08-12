@@ -9,7 +9,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, deleteField } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel } from './vvs-user-helpers.js';
 import { enablePushNotifications, disablePushNotifications, getPushPermissionStatus, listenForegroundMessages } from './push-notifications.js';
@@ -567,9 +567,6 @@ if (memberForm) {
         if (catField) catField.value = categorie;
         // Multi-rol: lees uit checkboxes, leid primaire rol af
         const rollen = getMemberRollen();
-        const role = rollen.includes('admin') && !rollen.includes('speler') ? 'admin'
-                   : rollen.includes('admin') ? 'admin'  // admin domineert voor Firestore-compat
-                   : 'speler';
         const uid = document.getElementById('memberUid').value;
         
         const goals       = parseInt(document.getElementById('memberGoals')?.value)  || 0;
@@ -579,7 +576,7 @@ if (memberForm) {
         const geelKaarten = parseInt(document.getElementById('memberGeel')?.value)    || 0;
         const roodKaarten = parseInt(document.getElementById('memberRood')?.value)    || 0;
         
-        console.log('Submitting member form:', { name, email, categorie, role, isUpdate: !!uid });
+        console.log('Submitting member form:', { name, email, categorie, rollen, isUpdate: !!uid });
         
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
@@ -590,35 +587,37 @@ if (memberForm) {
         try {
             if (uid) {
                 console.log('Updating member with UID:', uid);
-                if (uid) {
-                    const rechten = getMemberRechten();
-                    const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
-                    const updateData = {
-                        naam:        name,
-                        email:       email,
-                        telefoon:    telefoon,
-                        categorie:   categorie,
-                        ploegen:     ploegen,
-                        rol:         role,
-                        rollen:      rollen,
-                        rechten:     rechten,
-                        afgevaardigdeTeam: rechten.includes('afgevaardigde') ? afgevaardigdeTeam : null,
-                        goals,
-                        assists,
-                        matchen,
-                        minuten,
-                        geelKaarten,
-                        roodKaarten,
-                    };
-                    
-                    console.log('Updating document:', memberDoc.id, updateData);
-                    await updateDoc(doc(db, 'users', memberDoc.id), updateData);
-                    console.log('Member updated successfully');
-                    showToast('Lid bijgewerkt!', 'success');
-                    memberModal.classList.remove('active');
-                    memberForm.reset();
-                    await loadMembers();
-                }
+                const rechten = getMemberRechten();
+                const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
+
+                // Bouw permissions[] exact zoals bij het aanmaken van een nieuw lid
+                const nieuwePermissions = [...rollen];
+                rechten.forEach(r => {
+                    if (r === 'afgevaardigde') nieuwePermissions.push(`afgevaardigde:${afgevaardigdeTeam || '*'}`);
+                    else nieuwePermissions.push(r);
+                });
+
+                const updateData = {
+                    name:        name,
+                    email:       email,
+                    telnr:       telefoon,
+                    team:        ploegen,
+                    permissions: nieuwePermissions,
+                    'stats.goals':      goals,
+                    'stats.assists':    assists,
+                    'stats.matches':    matchen,
+                    'stats.minutes':    minuten,
+                    'stats.yellowCard': geelKaarten,
+                    'stats.redCard':    roodKaarten,
+                };
+
+                console.log('Updating document:', uid, updateData);
+                await updateDoc(doc(db, 'users', uid), updateData);
+                console.log('Member updated successfully');
+                showToast('Lid bijgewerkt!', 'success');
+                memberModal.classList.remove('active');
+                memberForm.reset();
+                await loadMembers();
             } else {
                 console.log('Creating new member using secondary auth...');
                 
