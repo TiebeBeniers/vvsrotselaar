@@ -1356,7 +1356,7 @@ function createRequestCard(request) {
     });
     
     card.querySelector('.req-reject-btn').addEventListener('click', () => {
-        rejectRequest(request.id);
+        rejectRequest(request.id, request.naam || request.name, request.email);
     });
     
     return card;
@@ -1424,6 +1424,28 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         updateRequestsBadge();
         
         showToast(`Account aangemaakt voor ${naam} (${ploegenToSave.join(', ')})`, 'success');
+
+        // Bevestigingsmail naar de aanvrager — via Trigger Email Firestore Extension.
+        // Niet-blokkerend: als dit faalt, blijft de accountaanvraag toch gewoon geaccepteerd.
+        try {
+            await addDoc(collection(db, 'mail'), {
+                to: [email],
+                message: {
+                    subject: 'Je account bij V.V.S Rotselaar is goedgekeurd!',
+                    html: `
+                        <p>Hallo ${naam},</p>
+                        <p>Goed nieuws — je accountaanvraag bij <strong>V.V.S Rotselaar</strong> is goedgekeurd! 🎉</p>
+                        <p>Je bent toegevoegd bij: <strong>${ploegenToSave.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}</strong>.</p>
+                        <p>Je kan nu inloggen op de website met het e-mailadres en wachtwoord die je hebt opgegeven bij je aanvraag.</p>
+                        <p>Tot binnenkort!<br>V.V.S Rotselaar</p>
+                    `,
+                },
+                createdAt: serverTimestamp(),
+                sentBy: auth.currentUser?.uid || 'admin',
+            });
+        } catch (mailError) {
+            console.warn('Bevestigingsmail (goedgekeurd) kon niet verstuurd worden:', mailError);
+        }
         
     } catch (error) {
         console.error('Error accepting request:', error);
@@ -1442,7 +1464,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
     }
 };
 
-window.rejectRequest = async function(requestId) {
+window.rejectRequest = async function(requestId, naam = '', email = '') {
     console.log('Rejecting request:', requestId);
     
     try {
@@ -1457,6 +1479,30 @@ window.rejectRequest = async function(requestId) {
         updateRequestsBadge();
         
         showToast('Aanvraag afgewezen en verwijderd', 'success');
+
+        // Bevestigingsmail naar de aanvrager — via Trigger Email Firestore Extension.
+        // Niet-blokkerend: als dit faalt, blijft de afwijzing toch gewoon verwerkt.
+        if (email) {
+            try {
+                await addDoc(collection(db, 'mail'), {
+                    to: [email],
+                    message: {
+                        subject: 'Update over je accountaanvraag bij V.V.S Rotselaar',
+                        html: `
+                            <p>Hallo ${naam || ''},</p>
+                            <p>Bedankt voor je interesse in <strong>V.V.S Rotselaar</strong>.</p>
+                            <p>Na nazicht hebben we jouw accountaanvraag helaas niet kunnen goedkeuren.</p>
+                            <p>Heb je vragen hierover, neem gerust contact met ons op via het contactformulier op de website.</p>
+                            <p>Met vriendelijke groeten,<br>V.V.S Rotselaar</p>
+                        `,
+                    },
+                    createdAt: serverTimestamp(),
+                    sentBy: auth.currentUser?.uid || 'admin',
+                });
+            } catch (mailError) {
+                console.warn('Bevestigingsmail (afgewezen) kon niet verstuurd worden:', mailError);
+            }
+        }
         
     } catch (error) {
         console.error('Error rejecting request:', error);
