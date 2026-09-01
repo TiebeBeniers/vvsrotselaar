@@ -123,14 +123,23 @@
 
 .match-date {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
     color: var(--text-gray);
     font-size: 0.92rem;
     font-weight: 600;
     margin-bottom: 1rem;
-    justify-content: space-between;
-    line-height: 1;
+    line-height: 1.3;
+}
+
+.match-date-text {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .match-location {
@@ -144,7 +153,6 @@
 }
 
 .match-date .match-share-btn {
-    margin-left: auto;
     flex-shrink: 0;
     background: none;
     border: 1.5px solid var(--border-color);
@@ -842,6 +850,127 @@ html.dark .vvs-row td { background: #2555b49d; }
 .motm-stand-name { flex: 1; font-weight: 600; color: var(--text-dark); }
 .motm-stand-pts  { font-weight: 700; color: var(--text-gray); font-size: 0.88rem; white-space: nowrap; }
 
+/* ════════════════════════════════════════════════
+   KALENDER TOEVOEGEN
+   ════════════════════════════════════════════════ */
+
+.match-date-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.match-cal-wrap { position: relative; }
+
+.match-cal-btn {
+    background: none;
+    border: 1.5px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--primary-blue);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.match-cal-btn:hover,
+.match-cal-btn[aria-expanded="true"] {
+    background: rgba(0,71,171,0.06);
+    border-color: var(--primary-blue);
+}
+.match-cal-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.match-cal-btn .cal-chev { width: 10px; height: 10px; margin-left: -2px; transition: transform 0.15s; }
+.match-cal-btn[aria-expanded="true"] .cal-chev { transform: rotate(180deg); }
+
+.match-cal-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 600;
+    width: 250px;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius, 10px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    padding: 0.4rem;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.match-cal-menu.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+
+.cal-menu-section-label {
+    font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-gray); padding: 0.5rem 0.6rem 0.25rem;
+}
+.cal-menu-divider { height: 1px; background: var(--border-color); margin: 0.35rem 0.2rem; }
+
+.cal-menu-item {
+    display: flex; align-items: center; gap: 0.55rem;
+    width: 100%; text-align: left; background: none; border: none;
+    padding: 0.5rem 0.6rem; border-radius: 7px; cursor: pointer;
+    font-family: inherit; font-size: 0.84rem; font-weight: 600; color: var(--text-dark);
+    transition: background 0.12s;
+}
+.cal-menu-item:hover { background: var(--off-white); }
+.cal-menu-item svg { width: 17px; height: 17px; flex-shrink: 0; color: var(--primary-blue); }
+.cal-menu-item-text { display: flex; flex-direction: column; gap: 1px; }
+.cal-menu-item-sub  { font-size: 0.68rem; font-weight: 500; color: var(--text-gray); }
+
+/* ── Abonneer-instructies popup ── */
+.cal-sub-popup {
+    position: fixed; inset: 0; z-index: 3000;
+    background: rgba(20,26,40,0.55);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.18s ease;
+    padding: 1rem;
+}
+.cal-sub-popup.active { opacity: 1; pointer-events: auto; }
+.cal-sub-card {
+    background: var(--white); border-radius: var(--radius-lg, 16px);
+    max-width: 420px; width: 100%; padding: 1.5rem;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    position: relative;
+}
+.cal-sub-close {
+    position: absolute; top: 0.9rem; right: 0.9rem;
+    background: none; border: none; font-size: 1.1rem; cursor: pointer;
+    color: var(--text-gray); width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; transition: background 0.15s;
+}
+.cal-sub-close:hover { background: var(--off-white); }
+.cal-sub-title { font-size: 1.1rem; font-weight: 800; color: var(--text-dark); margin-bottom: 0.35rem; padding-right: 1.5rem; }
+.cal-sub-desc  { font-size: 0.86rem; color: var(--text-gray); margin-bottom: 1.1rem; line-height: 1.5; }
+.cal-sub-url-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: var(--off-white); border-radius: var(--radius-sm, 6px);
+    padding: 0.55rem 0.7rem; margin-bottom: 1rem;
+}
+.cal-sub-url-row input {
+    flex: 1; border: none; background: none; font-size: 0.76rem; color: var(--text-dark);
+    font-family: monospace; outline: none; min-width: 0;
+}
+.cal-sub-copy-btn {
+    background: var(--primary-blue); color: #fff; border: none; border-radius: 6px;
+    padding: 0.4rem 0.7rem; font-size: 0.76rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.cal-sub-platform-buttons { display: flex; flex-direction: column; gap: 0.5rem; }
+.cal-sub-platform-btn {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.65rem 0.8rem; border-radius: var(--radius-sm, 6px);
+    border: 1.5px solid var(--border-color); background: none; cursor: pointer;
+    font-family: inherit; font-size: 0.85rem; font-weight: 700; color: var(--text-dark);
+    text-decoration: none; transition: border-color 0.15s, background 0.15s;
+}
+.cal-sub-platform-btn:hover { border-color: var(--primary-blue); background: rgba(0,71,171,0.04); }
+.cal-sub-platform-btn svg { width: 18px; height: 18px; color: var(--primary-blue); flex-shrink: 0; }
+
 /* ── Map hover popup ── */
 .map-trigger {
     display: inline-flex; align-items: center; justify-content: center;
@@ -958,6 +1087,16 @@ html.dark .motm-pos-pts         { color: #f0c040; background: rgba(201,146,10,0.
 @media (max-width: 480px) {
     .team-title { font-size: 2rem; }
     .team-hero  { padding: 3rem 1rem; }
+
+    .match-date-text  { font-size: 0.85rem; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+    .match-date-text svg { flex-shrink: 0; }
+    .match-date-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .match-flag-badge { flex-shrink: 0; }
+    .match-cal-btn span { display: none; }
+    .match-cal-btn { padding: 0.4rem; }
+    .match-cal-btn .cal-chev { display: none; }
+    .match-share-btn span { display: none; }
+    .match-date .match-share-btn { padding: 0.4rem; }
 
     .next-match-card { padding: 1.25rem; }
     .recent-match-card { padding: 1.1rem; }

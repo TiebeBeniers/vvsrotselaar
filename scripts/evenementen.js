@@ -244,6 +244,7 @@ function buildInschrijfWrap(ev) {
     wrap.dataset.max = ev.maxDeelnemers || '';
     wrap.dataset.secties = JSON.stringify(getEffectieveSecties(ev));
     wrap.dataset.inschrijfBeschrijving = ev.inschrijfBeschrijving || '';
+    wrap.dataset.basisPrijs = ev.basisPrijs || 0;
 
     const locked = isInschrijvingLocked(ev);
     wrap.dataset.locked = locked ? '1' : '';
@@ -463,7 +464,7 @@ function bindVeldControls(modal) {
     });
 }
 
-function updateSamenvatting(modal, secties, isBewerken = false) {
+function updateSamenvatting(modal, secties, isBewerken = false, basisPrijs = 0) {
     const totalDiv  = modal.querySelector('#inschrijfPopupSamenvatting');
     const kostenDiv = modal.querySelector('#inschrijfPopupKosten');
 
@@ -473,7 +474,7 @@ function updateSamenvatting(modal, secties, isBewerken = false) {
     }));
 
     let totaalPersonen = 0;
-    let totaalKosten = 0;
+    let totaalKosten = isBewerken ? 0 : basisPrijs;
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp => {
         const aantal = parseInt(inp.value) || 0;
         const meta = veldMeta[inp.dataset.veldId] || { telAlsPersonen: true, pricePerUnit: parseFloat(inp.dataset.prijs) || 0 };
@@ -518,6 +519,7 @@ function openInschrijfPopup(wrap) {
     const evenementId     = wrap.dataset.evenementId;
     const secties         = JSON.parse(wrap.dataset.secties || '[]');
     const inschrijfBeschr = wrap.dataset.inschrijfBeschrijving || '';
+    const basisPrijs      = parseFloat(wrap.dataset.basisPrijs) || 0;
     const modal = getOrCreateModal();
     const sectiesHtml = buildSectiesHtml(secties);
     const heeftPersonenSectie = secties.some(s => s.telAlsPersonen !== false && (s.velden || []).length > 0);
@@ -529,6 +531,7 @@ function openInschrijfPopup(wrap) {
             <div class="inschrijf-popup-jijzelf">
                 <span class="inschrijf-popup-check">✓</span>
                 <span>Jij schrijft jezelf in</span>
+                ${basisPrijs > 0 ? `<span class="inschrijf-prijs-hint">€${basisPrijs.toFixed(2)}</span>` : `<span class="inschrijf-prijs-hint gratis">Gratis</span>`}
             </div>
             ${sectiesHtml}
             ${heeftPersonenSectie ? `<div id="inschrijfPopupSamenvatting" class="inschrijf-popup-samenvatting neutraal">Alleen jezelf — geen extra personen</div>` : ''}
@@ -542,8 +545,9 @@ function openInschrijfPopup(wrap) {
 
     modal.style.display = 'flex';
     bindVeldControls(modal);
+    updateSamenvatting(modal, secties, false, basisPrijs);
     modal.querySelectorAll('.inschrijf-popup-input').forEach(inp =>
-        inp.addEventListener('input', () => updateSamenvatting(modal, secties))
+        inp.addEventListener('input', () => updateSamenvatting(modal, secties, false, basisPrijs))
     );
     modal.querySelector('#inschrijfPopupCancel').onclick = () => { modal.style.display = 'none'; };
     modal.onclick = e => { if (e.target === modal) modal.style.display = 'none'; };

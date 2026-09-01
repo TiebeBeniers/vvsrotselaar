@@ -155,6 +155,318 @@ let allPlannedMatches  = [];   // alle geplande wedstrijden van dit team
 let currentPlannedIdx  = 0;   // index van de huidige weergegeven geplande wedstrijd
 let liveUpdateInterval = null;
 
+// ════════════════════════════════════════════════
+// KALENDER: .ics GENERATIE + GOOGLE CALENDAR LINKS
+// ════════════════════════════════════════════════
+//
+// Belangrijk: match.datum/match.uur zijn lokale klokwaarden in Brussel
+// (bv. "2026-09-05" / "20:00"). We zetten die zelf correct om naar UTC
+// (rekening houdend met zomer-/wintertijd) i.p.v. te vertrouwen op de
+// tijdzone van de browser van de bezoeker — anders klopt een geïmporteerd
+// event niet voor iemand die de site vanuit een andere tijdzone bekijkt.
+
+const CAL_TEAM_LABELS = { veteranen: 'Veteranen', zaterdag: 'Zaterdagploeg', zondag: 'Zondagploeg' };
+const MATCH_DURATION_MS = 2 * 60 * 60 * 1000; // aanname: 2u per wedstrijd
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// Is `y-m-d` (m = 0-index) binnen de Europese zomertijd-periode
+// (laatste zondag van maart t.e.m. laatste zondag van oktober)?
+function isBrusselsDST(y, m, d) {
+    const lastSunday = (year, month) => {
+        const last = new Date(Date.UTC(year, month + 1, 0));
+        last.setUTCDate(last.getUTCDate() - last.getUTCDay());
+        return last;
+    };
+    const dstStart = lastSunday(y, 2);  // maart
+    const dstEnd   = lastSunday(y, 9);  // oktober
+    const check = new Date(Date.UTC(y, m, d));
+    return check >= dstStart && check < dstEnd;
+}
+
+// Zet lokale Brusselse datum/tijd om naar een correcte UTC Date.
+function brusselsToUtcDate(datumStr, uurStr) {
+    const [y, mo, d] = (datumStr || '').split('-').map(Number);
+    const [h, mi] = (uurStr || '00:00').split(':').map(Number);
+    if (!y || !mo || !d) return new Date();
+    const offset = isBrusselsDST(y, mo - 1, d) ? 2 : 1; // CEST = +2, CET = +1
+    return new Date(Date.UTC(y, mo - 1, d, (h || 0) - offset, mi || 0));
+}
+
+function formatIcsUtc(date) {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+// RFC5545: komma's, puntkomma's, backslashes en newlines moeten escaped worden
+function icsEscape(str) {
+    return String(str || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n');
+}
+
+// Vouw regels >75 tekens conform RFC5545 (voorkomt problemen bij sommige clients)
+function icsFold(line) {
+    if (line.length <= 75) return line;
+    let result = line.slice(0, 75);
+    let rest = line.slice(75);
+    while (rest.length > 0) {
+        result += '\r\n ' + rest.slice(0, 74);
+        rest = rest.slice(74);
+    }
+    return result;
+}
+
+function slugify(str) {
+    return String(str || '')
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'wedstrijd';
+}
+
+function buildVEvent(match) {
+    const start = brusselsToUtcDate(match.datum, match.uur || '00:00');
+    const end   = new Date(start.getTime() + MATCH_DURATION_MS);
+    const uid   = `match-${match.id}@vvsrotselaar.be`;
+    const home  = match.thuisploeg || 'Thuis';
+    const away  = match.uitploeg   || 'Uit';
+    const summary = `⚽ ${home} vs ${away}`;
+    const descParts = [];
+    if (match.isBekermatch) descParts.push('Bekermatch');
+    if (match.isForfait)    descParts.push('Forfait');
+    if (match.beschrijving) descParts.push(match.beschrijving);
+    descParts.push(`Volg live: ${window.location.origin}/live.html`);
+
+    const lines = [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${formatIcsUtc(new Date())}`,
+        `DTSTART:${formatIcsUtc(start)}`,
+        `DTEND:${formatIcsUtc(end)}`,
+        `SUMMARY:${icsEscape(summary)}`,
+        match.locatie ? `LOCATION:${icsEscape(match.locatie)}` : null,
+        `DESCRIPTION:${icsEscape(descParts.join('\n'))}`,
+        `URL:${window.location.origin}/live.html`,
+        'END:VEVENT'
+    ].filter(Boolean);
+
+    return lines.map(icsFold).join('\r\n');
+}
+
+function buildIcsCalendar(events, calName) {
+    return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//VVS Rotselaar//Wedstrijdkalender//NL',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        `X-WR-CALNAME:${icsEscape(calName)}`,
+        'X-WR-TIMEZONE:Europe/Brussels',
+        ...events,
+        'END:VCALENDAR'
+    ].join('\r\n');
+}
+
+function downloadIcsFile(icsContent, filename) {
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildGoogleCalUrl(match) {
+    const start = brusselsToUtcDate(match.datum, match.uur || '00:00');
+    const end   = new Date(start.getTime() + MATCH_DURATION_MS);
+    const home  = match.thuisploeg || 'Thuis';
+    const away  = match.uitploeg   || 'Uit';
+    const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: `⚽ ${home} vs ${away}`,
+        dates: `${formatIcsUtc(start)}/${formatIcsUtc(end)}`,
+        details: (match.beschrijving ? match.beschrijving + '\n\n' : '') + `Volg live: ${window.location.origin}/live.html`,
+        location: match.locatie || ''
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+// URL van de live .ics-feed (auto-updatend abonnement). Deze feed wordt
+// server-side gegenereerd door een Cloud Function op basis van Firestore —
+// zie calendarFeed.js. Kalender-apps halen deze periodiek zelf opnieuw op.
+function getCalendarFeedUrl(teamType) {
+    return `${window.location.origin}/kalender/${teamType}.ics`;
+}
+
+function addSingleMatchToCalendar(match, provider) {
+    if (provider === 'google') {
+        window.open(buildGoogleCalUrl(match), '_blank', 'noopener');
+        return;
+    }
+    const home = match.thuisploeg || 'Thuis';
+    const away = match.uitploeg   || 'Uit';
+    const ics  = buildIcsCalendar([buildVEvent(match)], `${home} vs ${away}`);
+    downloadIcsFile(ics, `${slugify(home)}-vs-${slugify(away)}.ics`);
+}
+
+function addAllMatchesToCalendar() {
+    if (!allPlannedMatches.length) {
+        showToast('Geen geplande wedstrijden om toe te voegen.', 'error');
+        return;
+    }
+    const teamLabel = CAL_TEAM_LABELS[TEAM_TYPE] || TEAM_TYPE;
+    const events = allPlannedMatches.map(buildVEvent);
+    const ics = buildIcsCalendar(events, `VVS Rotselaar - ${teamLabel}`);
+    downloadIcsFile(ics, `vvs-rotselaar-${slugify(teamLabel)}.ics`);
+    showToast(`${events.length} wedstrijden gedownload als .ics-bestand.`, 'success');
+}
+
+// ── Abonneer-popup (auto-update via live feed) ──────────────────────────────
+function openCalendarSubscribePopup() {
+    const teamLabel = CAL_TEAM_LABELS[TEAM_TYPE] || TEAM_TYPE;
+    const httpsUrl  = getCalendarFeedUrl(TEAM_TYPE);
+    const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
+
+    let popup = document.getElementById('calSubscribePopup');
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'calSubscribePopup';
+        popup.className = 'cal-sub-popup';
+        document.body.appendChild(popup);
+        popup.addEventListener('click', e => { if (e.target === popup) popup.classList.remove('active'); });
+    }
+
+    popup.innerHTML = `
+        <div class="cal-sub-card">
+            <button class="cal-sub-close" id="calSubClose" aria-label="Sluiten">✕</button>
+            <div class="cal-sub-title">Abonneren op ${esc2(teamLabel)}</div>
+            <div class="cal-sub-desc">
+                Voeg deze link toe als agenda-abonnement. Wijzigt een datum, tijd of locatie later,
+                dan werkt jouw kalender-app dit automatisch bij — meestal binnen enkele uren
+                (het exacte interval bepaalt Apple/Google/Outlook zelf, niet wij).
+            </div>
+            <div class="cal-sub-url-row">
+                <input type="text" readonly value="${esc2(httpsUrl)}" id="calSubUrlInput">
+                <button class="cal-sub-copy-btn" id="calSubCopyBtn">Kopieer</button>
+            </div>
+            <div class="cal-sub-platform-buttons">
+                <a class="cal-sub-platform-btn" href="${webcalUrl}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Open in Apple Kalender / Outlook
+                </a>
+                <a class="cal-sub-platform-btn" href="https://calendar.google.com/calendar/r/settings/addbyurl" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Google Calendar (plak de link hierboven)
+                </a>
+            </div>
+        </div>`;
+
+    popup.classList.add('active');
+    popup.querySelector('#calSubClose').addEventListener('click', () => popup.classList.remove('active'));
+    popup.querySelector('#calSubCopyBtn').addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(httpsUrl);
+            showToast('Link gekopieerd!', 'success');
+        } catch (_) {
+            popup.querySelector('#calSubUrlInput').select();
+        }
+    });
+}
+
+// ── Dropdown open/close gedrag (herbruikbaar per kaart) ─────────────────────
+// Berekent de positie van het kalendermenu t.o.v. het scherm (position: fixed)
+// en klemt het altijd binnen de viewport — kan dus nooit half buiten beeld vallen,
+// ongeacht hoe smal het scherm is of waar de knop precies staat.
+function positionCalMenu(btn, menu) {
+    const margin = 8;
+    const rect = btn.getBoundingClientRect();
+
+    // Even zichtbaar maken (buiten beeld) om de echte breedte te meten
+    menu.style.visibility = 'hidden';
+    menu.style.display = 'block';
+    const menuWidth  = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    menu.style.display = '';
+    menu.style.visibility = '';
+
+    // Standaard: rechts uitgelijnd met de knop, val terug op links uitgelijnd
+    // of geklemd binnen de viewport als dat niet past.
+    let left = rect.right - menuWidth;
+    left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin));
+
+    // Standaard onder de knop; als dat niet past, boven de knop tonen.
+    let top = rect.bottom + margin;
+    if (top + menuHeight > window.innerHeight - margin) {
+        top = rect.top - menuHeight - margin;
+    }
+    top = Math.max(margin, top);
+
+    menu.style.position = 'fixed';
+    menu.style.left  = `${left}px`;
+    menu.style.top   = `${top}px`;
+    menu.style.right = 'auto';
+}
+
+function initCalendarDropdown(container, match) {
+    const btn  = container.querySelector('#matchCalBtn');
+    const menu = container.querySelector('#matchCalMenu');
+    if (!btn || !menu) return;
+    const homeParent = menu.parentElement; // .match-cal-wrap — plek om terug te zetten bij sluiten
+
+    function closeMenu() {
+        menu.classList.remove('open');
+        menu.setAttribute('aria-hidden', 'true');
+        btn.setAttribute('aria-expanded', 'false');
+        window.removeEventListener('scroll', closeMenu, true);
+        window.removeEventListener('resize', closeMenu);
+        // Terugzetten in de kaart i.p.v. laten "zweven" in <body>
+        if (menu.parentElement === document.body && homeParent && homeParent.isConnected) {
+            homeParent.appendChild(menu);
+            menu.style.position = '';
+            menu.style.left = '';
+            menu.style.top = '';
+            menu.style.right = '';
+        }
+    }
+    function openMenu() {
+        // Verplaats het menu tijdelijk naar <body>. Nodig omdat position:fixed
+        // relatief wordt aan een voorouder-element zodra die een CSS transform
+        // heeft (bv. .next-match-card:hover { transform: translateY(-4px) }) —
+        // daardoor klopte de berekende positie niet. Als kind van <body> is er
+        // gegarandeerd geen zo'n voorouder, dus fixed = écht t.o.v. het scherm.
+        document.body.appendChild(menu);
+        positionCalMenu(btn, menu);
+        menu.classList.add('open');
+        menu.setAttribute('aria-hidden', 'false');
+        btn.setAttribute('aria-expanded', 'true');
+        window.addEventListener('scroll', closeMenu, true);
+        window.addEventListener('resize', closeMenu);
+    }
+
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.contains('open') ? closeMenu() : openMenu();
+    });
+    document.addEventListener('click', closeMenu);
+    menu.addEventListener('click', (e) => e.stopPropagation());
+
+    menu.querySelectorAll('.cal-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const action = item.dataset.action;
+            closeMenu();
+            if (action === 'google-single') addSingleMatchToCalendar(match, 'google');
+            else if (action === 'ics-single') addSingleMatchToCalendar(match, 'ics');
+            else if (action === 'ics-all')    addAllMatchesToCalendar();
+            else if (action === 'subscribe')  openCalendarSubscribePopup();
+        });
+    });
+}
+
 async function loadNextMatch() {
     console.log('Loading next match for', TEAM_TYPE);
     const container = document.getElementById('nextMatchContainer');
@@ -356,7 +668,11 @@ function displayBezigMatch(match, container) {
 
 function displayPlannedMatch(match, container) {
     console.log('Displaying planned match:', match);
-    
+
+    // Ruim kalendermenu's op die nog los in <body> hangen van een vorige
+    // kaart (bv. als iemand doornavigeert terwijl het menu openstond).
+    document.querySelectorAll('body > .match-cal-menu').forEach(m => m.remove());
+
     try {
         const matchDate = new Date(`${match.datum}T${match.uur || '00:00'}`);
         const formattedDate = matchDate.toLocaleDateString('nl-BE', {
@@ -404,23 +720,55 @@ function displayPlannedMatch(match, container) {
         container.innerHTML = `
             <div class="next-match-card planned">
                 <div class="match-date">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                        <line x1="16" y1="2" x2="16" y2="6"></line>
-                        <line x1="8" y1="2" x2="8" y2="6"></line>
-                        <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    <span>${formattedDate} om ${formattedTime}</span>
-                    ${match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : ''}
-                    ${match.isForfait    ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>'      : ''}
-                    <button class="match-share-btn" id="matchShareBtn" aria-label="Wedstrijd delen">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
-                            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    <div class="match-date-text">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
                         </svg>
-                        Delen
-                    </button>
+                        <span class="match-date-label">${formattedDate} om ${formattedTime}</span>
+                        ${match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : ''}
+                        ${match.isForfait    ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>'      : ''}
+                    </div>
+                    <div class="match-date-actions">
+                        <div class="match-cal-wrap">
+                            <button class="match-cal-btn" id="matchCalBtn" aria-haspopup="true" aria-expanded="false" aria-label="Toevoegen aan kalender">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+                                <span>Kalender</span>
+                                <svg class="cal-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            <div class="match-cal-menu" id="matchCalMenu" aria-hidden="true">
+                                <div class="cal-menu-section-label">Deze wedstrijd</div>
+                                <button class="cal-menu-item" data-action="google-single">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    Google Calendar
+                                </button>
+                                <button class="cal-menu-item" data-action="ics-single">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                                    Apple / Outlook (.ics)
+                                </button>
+                                <div class="cal-menu-divider"></div>
+                                <div class="cal-menu-section-label">Alle wedstrijden</div>
+                                <button class="cal-menu-item" data-action="subscribe">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                    <span class="cal-menu-item-text">Abonneren<span class="cal-menu-item-sub">Blijft automatisch synchroniseren</span></span>
+                                </button>
+                                <button class="cal-menu-item" data-action="ics-all">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    <span class="cal-menu-item-text">Eenmalig downloaden<span class="cal-menu-item-sub">.ics-bestand, geen auto-update</span></span>
+                                </button>
+                            </div>
+                        </div>
+                        <button class="match-share-btn" id="matchShareBtn" aria-label="Wedstrijd delen">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                            </svg>
+                            <span>Delen</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="match-teams-preview">
                     <div class="team-name">${match.thuisploeg || 'Thuisploeg'}</div>
@@ -470,6 +818,9 @@ function displayPlannedMatch(match, container) {
         
         // ── Share knop ────────────────────────────────────────────────────────
         document.getElementById('matchShareBtn')?.addEventListener('click', () => sharePlannedMatch(match));
+
+        // ── Kalender-dropdown ────────────────────────────────────────────────
+        initCalendarDropdown(container, match);
         
     } catch (error) {
         console.error('Error displaying planned match:', error);

@@ -363,6 +363,7 @@
     background: #e8f5e9; border-radius: var(--radius, 10px);
     margin-bottom: 1rem; font-weight: 700; color: #2e7d32; font-size: 0.95rem;
 }
+.inschrijf-popup-jijzelf .inschrijf-prijs-hint { margin-left: auto; }
 .inschrijf-popup-check { font-size: 1.1rem; }
 
 .inschrijf-popup-extra-sectie {

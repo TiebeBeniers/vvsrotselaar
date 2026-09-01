@@ -211,3 +211,5 @@ exports.bancontactCallback = onRequest(
         }
     }
 );
+
+exports.calendarFeed = require('./calendarFeed').calendarFeed;

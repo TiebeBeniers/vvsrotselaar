@@ -6,6 +6,12 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/kalender/**",
+        "function": "calendarFeed"
+      }
     ]
   },
   "functions": [

@@ -62,6 +62,10 @@ let vvsSide = 'home';
 // Yellow card counts per player name, rebuilt from events
 let yellowCardCounts = {};
 
+// Voorkomt dat de eindstand-afhandeling (banner + confetti) meermaals
+// draait als de listener meerdere keren triggert na het beëindigen
+let matchFinishedHandled = false;
+
 const ET_HALF_DURATION = 15;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -203,6 +207,23 @@ function setupMatchListener() {
             }
             updateMatchDisplay();
             updateControlButtonStates();
+
+            // Eindstand-banner + confetti voor ALLE kijkers zodra de wedstrijd
+            // effectief beëindigd is in Firestore (niet enkel bij wie op de knop klikte)
+            if (currentMatch.status === 'finished' && !matchFinishedHandled) {
+                matchFinishedHandled = true;
+                showMatchFinishedState();
+
+                const vvsScore = vvsSide === 'home'
+                    ? (currentMatch.scoreThuis ?? 0)
+                    : (currentMatch.scoreUit   ?? 0);
+                const oppScore = vvsSide === 'home'
+                    ? (currentMatch.scoreUit   ?? 0)
+                    : (currentMatch.scoreThuis ?? 0);
+                if (vvsScore > oppScore) {
+                    launchWinConfetti();
+                }
+            }
         }
     });
 }
@@ -530,19 +551,9 @@ async function handleEndMatch() {
 
         showToast('Wedstrijd beëindigd! ✅', 'success');
 
-        // Confetti als VVS gewonnen heeft
-        const vvsScore = vvsSide === 'home'
-            ? (currentMatch.scoreThuis ?? 0)
-            : (currentMatch.scoreUit   ?? 0);
-        const oppScore = vvsSide === 'home'
-            ? (currentMatch.scoreUit   ?? 0)
-            : (currentMatch.scoreThuis ?? 0);
-        if (vvsScore > oppScore) {
-            launchWinConfetti();
-        }
-
-        // Toon eindstand UI (geen redirect)
-        showMatchFinishedState();
+        // Eindstand-banner en confetti worden getoond via de matchListener
+        // (onSnapshot) zodra status: 'finished' binnenkomt — dat gebeurt zo
+        // voor alle kijkers tegelijk, inclusief deze client zelf.
 
     } catch (e) { console.error('Error ending match:', e); showToast('Fout bij beëindigen: ' + e.message, 'error'); }
 }

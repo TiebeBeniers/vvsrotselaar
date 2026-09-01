@@ -2109,9 +2109,12 @@ html.dark .inschrijving-row { border-color: var(--border-color); }
     background: var(--white);
     border: 2px solid var(--primary-blue);
     border-radius: 12px;
-    padding: 1rem 1.1rem;
+    padding: 0.85rem 1.1rem;
     margin-bottom: 1rem;
+    transition: padding 0.15s;
 }
+
+.inschrijf-sectie-row.collapsed { padding-bottom: 0.85rem; }
 
 .inschrijf-sectie-header {
     display: flex;
@@ -2119,6 +2122,38 @@ html.dark .inschrijving-row { border-color: var(--border-color); }
     gap: 0.6rem;
     margin-bottom: 0.75rem;
 }
+
+.inschrijf-sectie-row.collapsed .inschrijf-sectie-header { margin-bottom: 0; }
+
+.sectie-collapse-btn {
+    flex-shrink: 0;
+    width: 30px; height: 30px;
+    border: 1.5px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--off-white);
+    color: var(--primary-blue);
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+}
+.sectie-collapse-btn:hover { background: var(--primary-blue); color: #fff; }
+
+.sectie-summary-badge {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-gray);
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 3px 10px;
+    white-space: nowrap;
+    display: none;
+}
+.inschrijf-sectie-row.collapsed .sectie-summary-badge { display: inline-block; }
+
+.inschrijf-sectie-body { display: block; }
+.inschrijf-sectie-row.collapsed .inschrijf-sectie-body { display: none; }
 
 .sectie-titel {
     flex: 1;
@@ -2151,6 +2186,84 @@ html.dark .inschrijving-row { border-color: var(--border-color); }
 
 html.dark .inschrijf-sectie-row { background: var(--white); border-color: var(--light-blue); }
 html.dark .sectie-titel { background: var(--off-white); color: var(--light-blue); }
+html.dark .sectie-summary-badge { background: var(--off-white); border-color: var(--border-color); }
+
+/* ── Groeperingskaarten in de inschrijvingsconfiguratie (evenement modal) ── */
+.inschrijf-config-panel {
+    background: var(--off-white);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.inschrijf-config-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+    margin-bottom: 0.9rem;
+}
+
+.icp-icon { font-size: 1.05rem; line-height: 1; }
+
+.icp-hint {
+    display: block;
+    color: var(--text-gray);
+    font-size: 0.82rem;
+    margin-top: 0.3rem;
+}
+
+.inschrijf-config-panel.prijs-panel {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+html.dark .inschrijf-config-panel.prijs-panel { background: var(--white); border-color: #2e7d32; }
+
+.basisprijs-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--white);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.4rem 0.9rem;
+    max-width: 320px;
+}
+html.dark .basisprijs-row { background: var(--off-white); }
+
+.basisprijs-euro {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: #2e7d32;
+}
+
+.basisprijs-row input#evenementBasisPrijs {
+    border: none;
+    background: transparent;
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    padding: 0.4rem 0;
+    width: 100px;
+    flex-shrink: 0;
+}
+.basisprijs-row input#evenementBasisPrijs:focus { outline: none; }
+
+.basisprijs-suffix {
+    color: var(--text-gray);
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .inschrijf-config-panel { padding: 0.9rem 1rem; }
+    .basisprijs-row { max-width: 100%; }
+}
+
+
 
 /* Groeperingslabel in inschrijvingen-samenvatting (admin modal) */
 .inschrijf-sectie-label {
