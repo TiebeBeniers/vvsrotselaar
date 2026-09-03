@@ -961,6 +961,21 @@ html.dark .vvs-row td { background: #2555b49d; }
     padding: 0.4rem 0.7rem; font-size: 0.76rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
 }
 .cal-sub-platform-buttons { display: flex; flex-direction: column; gap: 0.5rem; }
+.cal-sub-platform-btn.cal-sub-primary {
+    background: var(--primary-blue); color: #fff; border-color: var(--primary-blue);
+    justify-content: center; font-size: 0.9rem; padding: 0.8rem;
+}
+.cal-sub-platform-btn.cal-sub-primary svg { color: #fff; }
+.cal-sub-platform-btn.cal-sub-primary:hover { background: #003380; }
+.cal-sub-steps {
+    margin: 0 0 0.2rem; padding-left: 1.2rem; font-size: 0.85rem; color: var(--text-dark);
+    line-height: 1.6;
+}
+.cal-sub-note {
+    font-size: 0.8rem; line-height: 1.5; color: var(--text-gray);
+    background: var(--off-white); border-radius: var(--radius-sm, 6px);
+    padding: 0.65rem 0.8rem;
+}
 .cal-sub-platform-btn {
     display: flex; align-items: center; gap: 0.6rem;
     padding: 0.65rem 0.8rem; border-radius: var(--radius-sm, 6px);
@@ -1088,15 +1103,29 @@ html.dark .motm-pos-pts         { color: #f0c040; background: rgba(201,146,10,0.
     .team-title { font-size: 2rem; }
     .team-hero  { padding: 3rem 1rem; }
 
-    .match-date-text  { font-size: 0.85rem; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
-    .match-date-text svg { flex-shrink: 0; }
-    .match-date-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .match-date-text  { font-size: 0.85rem; flex-wrap: nowrap; align-items: flex-start; }
+    .match-date-text svg { flex-shrink: 0; margin-top: 2px; }
+    .match-date-label { flex: 1 1 auto; min-width: 0; white-space: normal; overflow: visible; }
     .match-flag-badge { flex-shrink: 0; }
     .match-cal-btn span { display: none; }
-    .match-cal-btn { padding: 0.4rem; }
     .match-cal-btn .cal-chev { display: none; }
     .match-share-btn span { display: none; }
-    .match-date .match-share-btn { padding: 0.4rem; }
+
+    /* Twee identieke vierkante icoon-knoppen */
+    .match-cal-btn,
+    .match-date .match-share-btn {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        box-sizing: border-box;
+        justify-content: center;
+        gap: 0;
+    }
+    .match-cal-btn svg,
+    .match-date .match-share-btn svg {
+        width: 16px;
+        height: 16px;
+    }
 
     .next-match-card { padding: 1.25rem; }
     .recent-match-card { padding: 1.1rem; }

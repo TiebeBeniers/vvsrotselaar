@@ -5,7 +5,11 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "functions/**"
+      "functions/**",
+      "build-tools/**"
+    ],
+    "predeploy": [
+      "node build-tools/bump-sw-cache.js"
     ],
     "rewrites": [
       {

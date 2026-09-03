@@ -168,6 +168,13 @@ let liveUpdateInterval = null;
 const CAL_TEAM_LABELS = { veteranen: 'Veteranen', zaterdag: 'Zaterdagploeg', zondag: 'Zondagploeg' };
 const MATCH_DURATION_MS = 2 * 60 * 60 * 1000; // aanname: 2u per wedstrijd
 
+// Vast domein i.p.v. window.location.origin: anders kloppen gedeelde links en
+// de kalenderfeed-URL niet meer zodra je lokaal test (bv. via 127.0.0.1:5500)
+// of via een preview-omgeving. Dit is publieke, gedeelde inhoud — een vaste
+// waarde is hier veiliger dan iets dat meebeweegt met waar de site toevallig
+// vanaf draait.
+const SITE_ORIGIN = 'https://vvsrotselaar.be';
+
 function pad2(n) { return String(n).padStart(2, '0'); }
 
 // Is `y-m-d` (m = 0-index) binnen de Europese zomertijd-periode
@@ -237,7 +244,7 @@ function buildVEvent(match) {
     if (match.isBekermatch) descParts.push('Bekermatch');
     if (match.isForfait)    descParts.push('Forfait');
     if (match.beschrijving) descParts.push(match.beschrijving);
-    descParts.push(`Volg live: ${window.location.origin}/live.html`);
+    descParts.push(`Volg live: ${SITE_ORIGIN}/live.html`);
 
     const lines = [
         'BEGIN:VEVENT',
@@ -248,7 +255,19 @@ function buildVEvent(match) {
         `SUMMARY:${icsEscape(summary)}`,
         match.locatie ? `LOCATION:${icsEscape(match.locatie)}` : null,
         `DESCRIPTION:${icsEscape(descParts.join('\n'))}`,
-        `URL:${window.location.origin}/live.html`,
+        `URL:${SITE_ORIGIN}/live.html`,
+        // Twee herinneringen: 2u en 1u op voorhand (spelers moeten 45 min
+        // op voorhand aanwezig zijn, dus ruim op tijd verwittigen).
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        `DESCRIPTION:${icsEscape(`Wedstrijd over 2 uur: ${home} vs ${away}`)}`,
+        'TRIGGER:-PT2H',
+        'END:VALARM',
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        `DESCRIPTION:${icsEscape(`Wedstrijd over 1 uur: ${home} vs ${away}`)}`,
+        'TRIGGER:-PT1H',
+        'END:VALARM',
         'END:VEVENT'
     ].filter(Boolean);
 
@@ -290,7 +309,7 @@ function buildGoogleCalUrl(match) {
         action: 'TEMPLATE',
         text: `⚽ ${home} vs ${away}`,
         dates: `${formatIcsUtc(start)}/${formatIcsUtc(end)}`,
-        details: (match.beschrijving ? match.beschrijving + '\n\n' : '') + `Volg live: ${window.location.origin}/live.html`,
+        details: (match.beschrijving ? match.beschrijving + '\n\n' : '') + `Volg live: ${SITE_ORIGIN}/live.html`,
         location: match.locatie || ''
     });
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
@@ -300,7 +319,7 @@ function buildGoogleCalUrl(match) {
 // server-side gegenereerd door een Cloud Function op basis van Firestore —
 // zie calendarFeed.js. Kalender-apps halen deze periodiek zelf opnieuw op.
 function getCalendarFeedUrl(teamType) {
-    return `${window.location.origin}/kalender/${teamType}.ics`;
+    return `${SITE_ORIGIN}/kalender/${teamType}.ics`;
 }
 
 function addSingleMatchToCalendar(match, provider) {
@@ -332,6 +351,12 @@ function openCalendarSubscribePopup() {
     const httpsUrl  = getCalendarFeedUrl(TEAM_TYPE);
     const webcalUrl = httpsUrl.replace(/^https?:\/\//, 'webcal://');
 
+    const ua = navigator.userAgent || '';
+    const isIOS     = /iP(hone|od|ad)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const isMac     = /Macintosh/.test(ua) && !isIOS;
+    const isAndroid = /Android/.test(ua);
+    const isApple   = isIOS || isMac;
+
     let popup = document.getElementById('calSubscribePopup');
     if (!popup) {
         popup = document.createElement('div');
@@ -341,34 +366,72 @@ function openCalendarSubscribePopup() {
         popup.addEventListener('click', e => { if (e.target === popup) popup.classList.remove('active'); });
     }
 
+    const copyRow = `
+        <div class="cal-sub-url-row">
+            <input type="text" readonly value="${esc2(httpsUrl)}" id="calSubUrlInput">
+            <button class="cal-sub-copy-btn" id="calSubCopyBtn">Kopieer</button>
+        </div>`;
+
+    let bodyHtml;
+
+    if (isApple) {
+        // iOS/macOS: werkt écht rechtstreeks vanaf het toestel zelf — één tik, klaar.
+        bodyHtml = `
+            <div class="cal-sub-desc">
+                Wijzigt een datum, tijd of locatie later, dan werkt je agenda dit vanzelf bij.
+            </div>
+            <a class="cal-sub-platform-btn cal-sub-primary" href="${webcalUrl}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Abonneren op ${esc2(teamLabel)}
+            </a>`;
+    } else if (isAndroid) {
+        // Android: eerlijk over de beperking. Google Calendar's "toevoegen via URL"
+        // bestaat enkel op calendar.google.com in een computer-browser — niet in de
+        // app, en niet vanaf de telefoon. Geen nepknop tonen die niets doet.
+        bodyHtml = `
+            <div class="cal-sub-desc">
+                Dit kan niet rechtstreeks vanaf je telefoon — dat is een beperking van de
+                Google Calendar-app zelf, niet iets wat wij kunnen omzeilen. Het moet één keer via een computer:
+            </div>
+            <ol class="cal-sub-steps">
+                <li>Open <strong>calendar.google.com</strong> op een computer</li>
+                <li>Klik links op "Andere agenda's" → "Toevoegen" → "Via URL"</li>
+                <li>Plak de link hieronder en bevestig</li>
+            </ol>
+            ${copyRow}
+            <div class="cal-sub-note">
+                Eenmaal daar toegevoegd verschijnt de kalender vanzelf ook op je telefoon
+                (gekoppeld aan je Google-account) en blijft hij automatisch bijwerken.
+            </div>`;
+    } else {
+        // Windows / overige desktop: beide opties werken hier normaal gewoon.
+        bodyHtml = `
+            <div class="cal-sub-desc">
+                Wijzigt een datum, tijd of locatie later, dan werkt de agenda dit automatisch bij.
+            </div>
+            <a class="cal-sub-platform-btn" href="https://calendar.google.com/calendar/r/settings/addbyurl" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Google Calendar (link wordt automatisch ingevuld)
+            </a>
+            <a class="cal-sub-platform-btn" href="${webcalUrl}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Outlook (indien standaard-agenda-app)
+            </a>
+            ${copyRow}`;
+    }
+
     popup.innerHTML = `
         <div class="cal-sub-card">
             <button class="cal-sub-close" id="calSubClose" aria-label="Sluiten">✕</button>
             <div class="cal-sub-title">Abonneren op ${esc2(teamLabel)}</div>
-            <div class="cal-sub-desc">
-                Voeg deze link toe als agenda-abonnement. Wijzigt een datum, tijd of locatie later,
-                dan werkt jouw kalender-app dit automatisch bij — meestal binnen enkele uren
-                (het exacte interval bepaalt Apple/Google/Outlook zelf, niet wij).
-            </div>
-            <div class="cal-sub-url-row">
-                <input type="text" readonly value="${esc2(httpsUrl)}" id="calSubUrlInput">
-                <button class="cal-sub-copy-btn" id="calSubCopyBtn">Kopieer</button>
-            </div>
             <div class="cal-sub-platform-buttons">
-                <a class="cal-sub-platform-btn" href="${webcalUrl}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    Open in Apple Kalender / Outlook
-                </a>
-                <a class="cal-sub-platform-btn" href="https://calendar.google.com/calendar/r/settings/addbyurl" target="_blank" rel="noopener">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    Google Calendar (plak de link hierboven)
-                </a>
+                ${bodyHtml}
             </div>
         </div>`;
 
     popup.classList.add('active');
     popup.querySelector('#calSubClose').addEventListener('click', () => popup.classList.remove('active'));
-    popup.querySelector('#calSubCopyBtn').addEventListener('click', async () => {
+    popup.querySelector('#calSubCopyBtn')?.addEventListener('click', async () => {
         try {
             await navigator.clipboard.writeText(httpsUrl);
             showToast('Link gekopieerd!', 'success');
@@ -422,8 +485,8 @@ function initCalendarDropdown(container, match) {
         menu.classList.remove('open');
         menu.setAttribute('aria-hidden', 'true');
         btn.setAttribute('aria-expanded', 'false');
-        window.removeEventListener('scroll', closeMenu, true);
-        window.removeEventListener('resize', closeMenu);
+        window.removeEventListener('scroll', onViewportChange, true);
+        window.removeEventListener('resize', onViewportChange);
         // Terugzetten in de kaart i.p.v. laten "zweven" in <body>
         if (menu.parentElement === document.body && homeParent && homeParent.isConnected) {
             homeParent.appendChild(menu);
@@ -433,6 +496,20 @@ function initCalendarDropdown(container, match) {
             menu.style.right = '';
         }
     }
+
+    // Herpositioneert het menu i.p.v. het te sluiten, zodat het meebeweegt
+    // tijdens scrollen. Via requestAnimationFrame afgeremd zodat dit niet
+    // bij elk scroll-pixeltje opnieuw het volledige layout-werk doet.
+    let repositionQueued = false;
+    function onViewportChange() {
+        if (repositionQueued) return;
+        repositionQueued = true;
+        requestAnimationFrame(() => {
+            repositionQueued = false;
+            if (menu.classList.contains('open')) positionCalMenu(btn, menu);
+        });
+    }
+
     function openMenu() {
         // Verplaats het menu tijdelijk naar <body>. Nodig omdat position:fixed
         // relatief wordt aan een voorouder-element zodra die een CSS transform
@@ -444,8 +521,8 @@ function initCalendarDropdown(container, match) {
         menu.classList.add('open');
         menu.setAttribute('aria-hidden', 'false');
         btn.setAttribute('aria-expanded', 'true');
-        window.addEventListener('scroll', closeMenu, true);
-        window.addEventListener('resize', closeMenu);
+        window.addEventListener('scroll', onViewportChange, true);
+        window.addEventListener('resize', onViewportChange);
     }
 
     btn.addEventListener('click', (e) => {
@@ -2712,7 +2789,7 @@ function sharePlannedMatch(match) {
         : '';
     const tijd  = match.uur     || '';
     const loc   = match.locatie || '';
-    const liveUrl = window.location.origin + '/live.html';
+    const liveUrl = SITE_ORIGIN + '/live.html';
     const bodyText = `⚽ ${home} vs ${away}\n📅 ${datum}${tijd ? ' om ' + tijd : ''}${loc ? '\n📍 ' + loc : ''}\n\n🔴 Volg live: ${liveUrl}`;
 
     if (navigator.share) {

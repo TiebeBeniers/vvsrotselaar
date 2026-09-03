@@ -28,6 +28,10 @@ const db = getFirestore();
 
 const VALID_TEAMS = ['veteranen', 'zaterdag', 'zondag'];
 const TEAM_LABELS = { veteranen: 'Veteranen', zaterdag: 'Zaterdagploeg', zondag: 'Zondagploeg' };
+// Hardcoded i.p.v. afgeleid uit req.get('host'): via de Firebase Hosting ->
+// Cloud Run rewrite komt daar soms de interne *.a.run.app-URL uit i.p.v. het
+// echte domein. Dit is publieke, gedeelde inhoud — vaste waarde is veiliger.
+const SITE_ORIGIN = 'https://vvsrotselaar.be';
 const MATCH_DURATION_MS = 2 * 60 * 60 * 1000;
 
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -75,7 +79,7 @@ function icsFold(line) {
     return result;
 }
 
-function buildVEvent(match, origin) {
+function buildVEvent(match) {
     const start = brusselsToUtcDate(match.datum, match.uur || '00:00');
     const end   = new Date(start.getTime() + MATCH_DURATION_MS);
     const uid   = `match-${match.id}@vvsrotselaar.be`;
@@ -86,7 +90,7 @@ function buildVEvent(match, origin) {
     if (match.isBekermatch) descParts.push('Bekermatch');
     if (match.isForfait)    descParts.push('Forfait');
     if (match.beschrijving) descParts.push(match.beschrijving);
-    descParts.push(`Volg live: ${origin}/live.html`);
+    descParts.push(`Volg live: ${SITE_ORIGIN}/live.html`);
 
     const lines = [
         'BEGIN:VEVENT',
@@ -99,9 +103,18 @@ function buildVEvent(match, origin) {
         `SUMMARY:${icsEscape(summary)}`,
         match.locatie ? `LOCATION:${icsEscape(match.locatie)}` : null,
         `DESCRIPTION:${icsEscape(descParts.join('\n'))}`,
-        `URL:${origin}/live.html`,
+        `URL:${SITE_ORIGIN}/live.html`,
         // Status meegeven zodat afgelaste/forfait-wedstrijden zichtbaar anders zijn
         match.isForfait ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+        // Twee herinneringen: 2u en 1u op voorhand. Let op: bij een geabonneerde
+        // (webcal) kalender negeren zowel Apple Kalender als Google Calendar dit
+        // doorgaans — zie de kanttekening in het chatantwoord. Werkt wel voor een
+        // eenmalige .ics-download/import.
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        `DESCRIPTION:${icsEscape(`Wedstrijd over 1 uur: ${home} vs ${away}`)}`,
+        'TRIGGER:-PT1H',
+        'END:VALARM',
         'END:VEVENT'
     ].filter(Boolean);
 
@@ -128,8 +141,7 @@ exports.calendarFeed = onRequest({ cors: true, region: 'europe-west1' }, async (
             .get();
 
         const matches = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        const origin = `${req.protocol}://${req.get('host')}`;
-        const events = matches.map(m => buildVEvent(m, origin));
+        const events = matches.map(buildVEvent);
         const teamLabel = TEAM_LABELS[teamType] || teamType;
 
         const ics = [
