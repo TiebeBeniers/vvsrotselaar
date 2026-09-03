@@ -13,6 +13,9 @@ import {
     isAdmin, isAfgevaardigde, getAfgevaardigdeTeam,
     getTeams, getDisplayName, getStats
 } from './vvs-user-helpers.js';
+import {
+    getPushCategories, setReminderPreference, setLiveTeamPreference, getPushPermissionStatus
+} from './push-notifications.js';
 
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -143,8 +146,154 @@ onAuthStateChanged(auth, async (user) => {
 
     // Re-render MOTM sectie zodra auth + userData bekend zijn.
     // loadRecentMatches kan al gelopen hebben vóór login.
-    renderMotmSection();
+    // Elk in eigen try/catch: een fout in de ene mag de andere niet blokkeren.
+    try { renderMotmSection(); } catch (err) { console.error('renderMotmSection fout:', err); }
+
+    // Belknop (herinnering + live meldingen) tonen/verbergen o.b.v. lidmaatschap
+    try { await initPushBell(); } catch (err) { console.error('initPushBell fout:', err); }
 });
+
+// ===============================================
+// PUSHMELDINGEN (belknop bij "Eerstvolgende Wedstrijd")
+// Wordt volledig in JS opgebouwd (i.p.v. in elke team-HTML apart),
+// zodat dit automatisch op zaterdag.html, zondag.html én
+// veteranen.html werkt zonder die bestanden te moeten aanpassen.
+//
+// - "Herinnering aanwezig/afwezig": enkel zichtbaar voor leden van
+//   DIT team (heeft anders geen betekenis).
+// - "Live wedstrijdmeldingen": zichtbaar voor iedereen die ingelogd
+//   is, ook niet-leden — je kan live meldingen van eender welke
+//   ploeg volgen, los van of je er zelf in speelt.
+// ===============================================
+
+let pushBellBuilt = false;
+
+function buildPushBellUI() {
+    if (pushBellBuilt) return;
+    const heading = document.querySelector('#nextMatchSection > h2');
+    if (!heading) return;
+
+    // Rij maken die de bestaande titel + de belknop naast elkaar toont
+    const row = document.createElement('div');
+    row.className = 'next-match-heading-row';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'push-bell-wrap';
+    wrap.id = 'pushBellWrap';
+    wrap.style.display = 'none';
+    wrap.innerHTML = `
+        <button class="push-bell-btn" id="pushBellBtn" type="button" aria-haspopup="true" aria-expanded="false" title="Meldingen beheren">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+            </svg>
+        </button>
+        <div class="push-bell-dropdown" id="pushBellDropdown">
+            <label class="push-bell-option" id="pushReminderOption" style="display:none;">
+                <input type="checkbox" id="pushReminderToggle">
+                <span>Herinnering aanwezig/afwezig</span>
+            </label>
+            <label class="push-bell-option">
+                <input type="checkbox" id="pushLiveToggle">
+                <span>Live wedstrijdmeldingen</span>
+            </label>
+            <p class="push-bell-note" id="pushBellNote"></p>
+        </div>
+    `;
+
+    heading.parentNode.insertBefore(row, heading);
+    row.appendChild(heading);
+    row.appendChild(wrap);
+    pushBellBuilt = true;
+
+    const bellBtn   = wrap.querySelector('#pushBellBtn');
+    const dropdown  = wrap.querySelector('#pushBellDropdown');
+    const reminderCb = wrap.querySelector('#pushReminderToggle');
+    const liveCb      = wrap.querySelector('#pushLiveToggle');
+    const note        = wrap.querySelector('#pushBellNote');
+
+    bellBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.toggle('open');
+        bellBtn.setAttribute('aria-expanded', String(isOpen));
+    });
+    document.addEventListener('click', (e) => {
+        if (!wrap.contains(e.target)) {
+            dropdown.classList.remove('open');
+            bellBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    function showNoteError(status) {
+        note.textContent = status === 'denied'
+            ? 'Meldingen staan geblokkeerd in je browserinstellingen.'
+            : 'Kon meldingen niet instellen. Probeer opnieuw.';
+    }
+
+    reminderCb.addEventListener('change', async () => {
+        reminderCb.disabled = true;
+        const ok = await setReminderPreference(currentUser.uid, reminderCb.checked);
+        if (!ok) {
+            reminderCb.checked = !reminderCb.checked;
+            showNoteError(getPushPermissionStatus());
+        } else {
+            note.textContent = '';
+        }
+        reminderCb.disabled = false;
+    });
+
+    liveCb.addEventListener('change', async () => {
+        liveCb.disabled = true;
+        const ok = await setLiveTeamPreference(currentUser.uid, TEAM_TYPE, liveCb.checked);
+        if (!ok) {
+            liveCb.checked = !liveCb.checked;
+            showNoteError(getPushPermissionStatus());
+        } else {
+            note.textContent = '';
+        }
+        liveCb.disabled = false;
+    });
+}
+
+async function initPushBell() {
+    buildPushBellUI();
+    const wrap = document.getElementById('pushBellWrap');
+    if (!wrap) return;
+
+    const isMember = !!(currentUser && currentUserData &&
+        (currentUserData.team || []).includes(TEAM_TYPE));
+
+    console.log('[push-bell] ingelogd:', !!currentUser, '| team van pagina:', TEAM_TYPE,
+        '| teams van gebruiker:', currentUserData?.team, '| lid:', isMember,
+        '| push support:', getPushPermissionStatus());
+
+    // Belknop is zichtbaar voor iedere ingelogde gebruiker (live meldingen
+    // zijn niet aan lidmaatschap gebonden) — enkel verbergen als niet
+    // ingelogd of als push niet ondersteund wordt door de browser.
+    if (!currentUser || getPushPermissionStatus() === 'unsupported') {
+        wrap.style.display = 'none';
+        return;
+    }
+
+    wrap.style.display = '';
+    const reminderOption = document.getElementById('pushReminderOption');
+    const reminderCb      = document.getElementById('pushReminderToggle');
+    const liveCb           = document.getElementById('pushLiveToggle');
+    const note             = document.getElementById('pushBellNote');
+
+    // Herinnering enkel tonen/aanbieden aan leden van dit team
+    reminderOption.style.display = isMember ? '' : 'none';
+
+    const categories = await getPushCategories(currentUser.uid);
+    reminderCb.checked = categories.reminder;
+    liveCb.checked      = categories.liveTeams.includes(TEAM_TYPE);
+
+    if (getPushPermissionStatus() === 'denied') {
+        note.textContent = 'Meldingen staan geblokkeerd in je browserinstellingen.';
+        reminderCb.disabled = true;
+        liveCb.disabled = true;
+    }
+}
 
 // ===============================================
 // LOAD NEXT MATCH OR LIVE MATCH

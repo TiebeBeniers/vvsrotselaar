@@ -361,6 +361,73 @@
 
 .password-intro { color: var(--text-gray); font-size: 0.95rem; margin-bottom: 20px; }
 
+/* ── Notifications (meldingen) card ── */
+.notifications-card {
+    background: var(--white);
+    border-radius: var(--radius-lg, 16px);
+    padding: 24px;
+    box-shadow: 0 2px 12px var(--shadow);
+    margin-bottom: 44px;
+    border-top: 3px solid var(--primary-blue);
+}
+
+.notification-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+}
+.notification-option:last-of-type { border-bottom: none; }
+
+.notification-option input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.notification-option-text { display: flex; flex-direction: column; gap: 2px; }
+.notification-option-text strong { font-size: 0.95rem; color: var(--text-dark); }
+.notification-option-text small { font-size: 0.82rem; color: var(--text-gray); line-height: 1.35; }
+
+.notification-option-group { align-items: flex-start; flex-direction: column; gap: 10px; cursor: default; }
+
+.notification-live-teams {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    padding-left: 34px;
+}
+.notification-subcheck {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--text-dark);
+    cursor: pointer;
+}
+.notification-subcheck input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+}
+
+.notifications-status {
+    margin: 14px 0 0;
+    font-size: 0.85rem;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm, 6px);
+    background: rgba(176,48,48,0.08);
+    color: #b03030;
+}
+
+html.dark .notifications-card { background: var(--white); }
+
 .password-form { display: flex; flex-direction: column; gap: 16px; }
 
 .password-actions { display: flex; gap: 12px; margin-top: 4px; }

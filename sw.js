@@ -3,8 +3,8 @@
 // ============================================================
 
 const BASE        = '';
-const CACHE_NAME  = 'vvs-static-v44'; //Last updated 02/09/2026 - 13:55
-const PAGES_CACHE = 'vvs-pages-v44';
+const CACHE_NAME  = 'vvs-static-v45'; //Last updated 03/09/2026 - 13:57
+const PAGES_CACHE = 'vvs-pages-v45';
 const OFFLINE_URL = BASE + '/offline.html';
 
 const STATIC_ASSETS = [

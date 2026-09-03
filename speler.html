@@ -251,6 +251,39 @@
                 </div>
             </div>
 
+            <!-- Meldingen (pushmeldingen beheren) -->
+            <div class="section-title" id="notificationsSectionTitle" style="display:none;">Meldingen</div>
+            <div class="info-card notifications-card" id="notificationsCard" style="display:none;">
+                <p class="password-intro" id="notificationsIntro">Kies welke pushmeldingen je wilt ontvangen.</p>
+
+                <label class="notification-option" id="notifReminderOption">
+                    <input type="checkbox" id="notifReminderToggle">
+                    <span class="notification-option-text">
+                        <strong>Herinnering aanwezigheid</strong>
+                        <small>Krijg 3 dagen voor je wedstrijd een melding als je nog niet hebt aangeduid of je aanwezig bent.</small>
+                    </span>
+                </label>
+                <div class="notification-option notification-option-group">
+                    <span class="notification-option-text">
+                        <strong>Live wedstrijdmeldingen</strong>
+                        <small>Krijg tijdens de wedstrijd een melding bij doelpunten en kaarten. Kies voor welke ploeg(en) — ook ploegen waar je zelf niet in speelt.</small>
+                    </span>
+                    <div class="notification-live-teams" id="notifLiveTeams">
+                        <label class="notification-subcheck">
+                            <input type="checkbox" class="notif-live-team-cb" data-team="zaterdag"> Zaterdag
+                        </label>
+                        <label class="notification-subcheck">
+                            <input type="checkbox" class="notif-live-team-cb" data-team="zondag"> Zondag
+                        </label>
+                        <label class="notification-subcheck">
+                            <input type="checkbox" class="notif-live-team-cb" data-team="veteranen"> Veteranen
+                        </label>
+                    </div>
+                </div>
+
+                <p class="notifications-status" id="notificationsStatus" style="display:none;"></p>
+            </div>
+
             <!-- Wedstrijdgeschiedenis -->
             <div class="section-title">Wedstrijdgeschiedenis</div>
             <div id="matchHistoryContainer">

@@ -1,11 +1,13 @@
 // ===============================================
 // PUSH NOTIFICATIONS (Firebase Cloud Messaging)
-// V.V.S Rotselaar — enkel gebruikt in het admin-paneel
+// V.V.S Rotselaar — gebruikt in het admin-paneel
+// (nieuwe contactberichten/accountaanvragen) én door leden
+// (herinnering aanwezigheid + live wedstrijdmeldingen)
 // ===============================================
 
 import { db, app } from './firebase-config.js';
 import { getMessaging, getToken, deleteToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
-import { doc, updateDoc, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 // Firebase Console → Project instellingen → Cloud Messaging → tabblad "Web configuration"
 // → "Web Push certificates" → genereer een key pair (of kopieer de bestaande).
@@ -156,4 +158,95 @@ export async function disablePushNotifications(uid) {
         console.error('Push uitschakelen mislukt:', err);
         return false;
     }
+}
+
+// ===============================================
+// MELDINGSCATEGORIEËN VOOR LEDEN
+// Bovenop de aan/uit-schakelaar hierboven (die de browser-
+// toestemming + het FCM-token regelt) kan iedereen apart kiezen:
+//  - 'reminder' (herinnering aanwezig/afwezig) — enkel zinvol voor
+//    de eigen ploeg(en), wordt enkel getoond aan leden van die ploeg.
+//  - 'liveTeams' (live wedstrijdmeldingen) — een LIJST van ploegnamen,
+//    los van lidmaatschap: iedereen mag live meldingen van eender
+//    welke ploeg aanzetten, ook een ploeg waar die zelf niet in zit.
+// Opgeslagen als users/{uid}.pushSettings = { reminder, liveTeams }.
+// ===============================================
+
+/**
+ * Haalt de huidige meldingsvoorkeuren van een gebruiker op.
+ * @param {string} uid
+ * @returns {Promise<{reminder: boolean, liveTeams: string[]}>}
+ */
+export async function getPushCategories(uid) {
+    try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        const settings = snap.data()?.pushSettings || {};
+        return {
+            reminder: !!settings.reminder,
+            liveTeams: Array.isArray(settings.liveTeams) ? settings.liveTeams : []
+        };
+    } catch (err) {
+        console.error('Kon pushSettings niet ophalen:', err);
+        return { reminder: false, liveTeams: [] };
+    }
+}
+
+/**
+ * Ruimt het FCM-token op zodra ALLE meldingscategorieën uitstaan
+ * (geen herinnering én geen enkele live-ploeg meer), zodat de
+ * gebruiker pas opnieuw om browsertoestemming gevraagd wordt als
+ * die iets terug aanzet.
+ */
+async function cleanupDeviceIfAllOff(uid) {
+    const current = await getPushCategories(uid);
+    if (!current.reminder && current.liveTeams.length === 0) {
+        await disablePushNotifications(uid);
+    }
+}
+
+/**
+ * Schakelt de herinnering aanwezig/afwezig in of uit.
+ * @param {string} uid
+ * @param {boolean} enabled
+ * @returns {Promise<boolean>} true als succesvol doorgevoerd
+ */
+export async function setReminderPreference(uid, enabled) {
+    if (enabled) {
+        const ok = await enablePushNotifications(uid);
+        if (!ok) return false;
+    }
+    try {
+        await updateDoc(doc(db, 'users', uid), { 'pushSettings.reminder': enabled });
+    } catch (err) {
+        console.error('Kon reminder-instelling niet bijwerken:', err);
+        return false;
+    }
+    if (!enabled) await cleanupDeviceIfAllOff(uid);
+    return true;
+}
+
+/**
+ * Schakelt live wedstrijdmeldingen voor één specifieke ploeg in of uit.
+ * Werkt onafhankelijk van lidmaatschap — een gebruiker kan dit voor
+ * eender welke ploeg aanzetten.
+ * @param {string} uid
+ * @param {'zaterdag'|'zondag'|'veteranen'} team
+ * @param {boolean} enabled
+ * @returns {Promise<boolean>} true als succesvol doorgevoerd
+ */
+export async function setLiveTeamPreference(uid, team, enabled) {
+    if (enabled) {
+        const ok = await enablePushNotifications(uid);
+        if (!ok) return false;
+    }
+    try {
+        await updateDoc(doc(db, 'users', uid), {
+            'pushSettings.liveTeams': enabled ? arrayUnion(team) : arrayRemove(team)
+        });
+    } catch (err) {
+        console.error('Kon live-instelling niet bijwerken:', err);
+        return false;
+    }
+    if (!enabled) await cleanupDeviceIfAllOff(uid);
+    return true;
 }
