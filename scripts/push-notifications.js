@@ -13,6 +13,10 @@ import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'https://www.gst
 // → "Web Push certificates" → genereer een key pair (of kopieer de bestaande).
 const VAPID_KEY = 'BFKrgBtZOxR2vaDslxAfveQiGh9NmMDjEdnfKpHMqQEBzH-Okn_fOTs0RcxByTC409hn0KEOXHSKpsVJx4aF3vo';
 
+// Scope waarop de FCM-service worker geregistreerd staat (zie enablePushNotifications
+// hieronder) — apart van scope '/' zodat er geen conflict ontstaat met pwa.js.
+const PUSH_SCOPE = '/firebase-push-scope/';
+
 /**
  * Vraagt toestemming voor pushmeldingen, registreert de service worker,
  * en slaat het FCM-token op bij de ingelogde admin in Firestore.
@@ -22,7 +26,11 @@ const VAPID_KEY = 'BFKrgBtZOxR2vaDslxAfveQiGh9NmMDjEdnfKpHMqQEBzH-Okn_fOTs0RcxBy
 /**
  * Vangt pushberichten op die binnenkomen terwijl deze tab open én actief is
  * (Firebase levert die NIET aan de service worker, maar rechtstreeks aan de pagina).
- * Toont een gewone systeemmelding, identiek aan de achtergrond-versie.
+ * Toont dezelfde melding via de service worker (self.registration.showNotification),
+ * identiek aan de achtergrond-versie in firebase-messaging-sw.js — zo groeperen
+ * live wedstrijdmeldingen (zelfde "tag") ook hier tot één uitklapbare melding
+ * i.p.v. een aparte melding per event, en loopt de klik-afhandeling altijd via
+ * dezelfde "notificationclick"-listener in de service worker.
  * Roep dit één keer aan bij het laden van de pagina, als er al toestemming is.
  */
 let _foregroundListenerActive = false;
@@ -31,24 +39,43 @@ export function listenForegroundMessages() {
     _foregroundListenerActive = true;
 
     const messaging = getMessaging(app);
-    onMessage(messaging, (payload) => {
+    onMessage(messaging, async (payload) => {
         console.log('[push] Voorgrond-bericht ontvangen:', payload);
-        const title = payload.data?.title || 'V.V.S Rotselaar';
-        const body  = payload.data?.body  || '';
-        const url   = payload.data?.click_action || '/admin.html';
+        if (Notification.permission !== 'granted') return;
 
-        if (Notification.permission === 'granted') {
-            const notif = new Notification(title, {
-                body,
+        const registration = await navigator.serviceWorker.getRegistration(PUSH_SCOPE);
+        if (!registration) return; // geen SW geregistreerd, kan geen melding tonen
+
+        const title      = payload.data?.title || 'V.V.S Rotselaar';
+        const body        = payload.data?.body  || '';
+        const url         = payload.data?.click_action || '/admin.html';
+        const tag         = payload.data?.tag || null;
+        const groupTitle  = payload.data?.groupTitle || title;
+
+        if (tag) {
+            // Live wedstrijdmelding: bestaande melding met deze tag ophalen en
+            // de nieuwe regel toevoegen, zodat het één (groeiende) melding blijft.
+            const existing = await registration.getNotifications({ tag });
+            const previousLines = existing[0]?.data?.lines || [];
+            const lines = [...previousLines, body].slice(-20); // laatste 20 events
+
+            await registration.showNotification(groupTitle, {
+                body: lines.join('\n'),
                 icon: '/assets/logo.png',
-                badge: '/assets/icons/badge-monochrome.png'
+                badge: '/assets/icons/badge-monochrome.png',
+                tag,
+                renotify: true,
+                data: { url, lines }
             });
-            notif.onclick = () => {
-                window.focus();
-                if (location.pathname !== url) window.location.href = url;
-                notif.close();
-            };
+            return;
         }
+
+        await registration.showNotification(title, {
+            body,
+            icon: '/assets/logo.png',
+            badge: '/assets/icons/badge-monochrome.png',
+            data: { url }
+        });
     });
 }
 
@@ -69,7 +96,7 @@ export async function enablePushNotifications(uid) {
         const existing = await navigator.serviceWorker.getRegistrations();
         for (const reg of existing) {
             const scriptUrl = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
-            if (scriptUrl.includes('firebase-messaging-sw.js') && !reg.scope.includes('/firebase-push-scope/')) {
+            if (scriptUrl.includes('firebase-messaging-sw.js') && !reg.scope.includes(PUSH_SCOPE)) {
                 console.log('[push] Oude service worker-registratie opgeruimd:', reg.scope);
                 await reg.unregister();
             }
@@ -81,7 +108,7 @@ export async function enablePushNotifications(uid) {
         // die geen melding toont — Chrome toont dan zelf een generieke fallbacktekst
         // ("De site is geüpdatet op de achtergrond") in plaats van ons eigen bericht.
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-            scope: '/firebase-push-scope/'
+            scope: PUSH_SCOPE
         });
         await navigator.serviceWorker.ready;
 
@@ -134,7 +161,7 @@ export async function disablePushNotifications(uid) {
         // Zoek de registratie op basis van scope (niet op scriptbestand — getRegistration()
         // verwacht een pagina-URL die binnen de scope valt, geen bestandsnaam).
         const registrations = await navigator.serviceWorker.getRegistrations();
-        const registration = registrations.find(r => r.scope.includes('/firebase-push-scope/'));
+        const registration = registrations.find(r => r.scope.includes(PUSH_SCOPE));
         const messaging = getMessaging(app);
 
         // Huidig token ophalen zodat we exact dát token uit Firestore kunnen verwijderen

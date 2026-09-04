@@ -16,9 +16,15 @@ const bancontactApiKey = defineSecret('BANCONTACT_API_KEY');
 // (elk met .data().fcmTokens en .ref) en kuist ongeldige/
 // verlopen tokens meteen op. Gebruikt door zowel de
 // admin-meldingen als de leden-meldingen hieronder.
+//
+// "extra" is optioneel en wordt ongewijzigd meegestuurd in het
+// data-payload (bv. { tag, groupTitle } voor live wedstrijdmeldingen,
+// zodat de service worker events van dezelfde wedstrijd kan groeperen
+// tot één uitklapbare melding i.p.v. een aparte melding per event).
+// Alle waarden in "extra" moeten strings zijn (FCM data-veld eist dat).
 // ═══════════════════════════════════════════════
 
-async function sendPushToUserDocs(db, userDocs, title, body, clickUrl) {
+async function sendPushToUserDocs(db, userDocs, title, body, clickUrl, extra = {}) {
     const tokens = [];
     userDocs.forEach(docSnap => {
         const data = docSnap.data();
@@ -40,6 +46,7 @@ async function sendPushToUserDocs(db, userDocs, title, body, clickUrl) {
             title,
             body,
             click_action: clickUrl,
+            ...extra,
         },
         tokens,
     };
@@ -205,33 +212,80 @@ exports.sendAvailabilityReminders = onSchedule(
 // ═══════════════════════════════════════════════
 // LIVE WEDSTRIJDMELDINGEN
 // Triggert telkens er tijdens een live wedstrijd een event
-// (doelpunt, owngoal, penalty, kaart) wordt toegevoegd door
-// live.js. Stuurt naar iedereen die dit team heeft toegevoegd aan
-// pushSettings.liveTeams — los van teamlidmaatschap: je kan dit
-// aanzetten voor eender welke ploeg, ook een ploeg waar je zelf
-// niet in speelt.
+// (aftrap, doelpunt, owngoal, penalty, kaart, einde) wordt
+// toegevoegd door live.js/admin.js. Stuurt naar iedereen die dit
+// team heeft toegevoegd aan pushSettings.liveTeams — los van
+// teamlidmaatschap: je kan dit aanzetten voor eender welke ploeg,
+// ook een ploeg waar je zelf niet in speelt.
+//
+// Alle events van dezelfde wedstrijd krijgen dezelfde "tag"
+// (live-{matchId}) en een vaste "groupTitle" ({thuis} - {uit}) mee
+// in het data-payload. De service worker gebruikt dat om ze te
+// bundelen tot één (groeiende, uitklapbare) melding per wedstrijd
+// i.p.v. een aparte melding per event.
 // ═══════════════════════════════════════════════
 
-const LIVE_NOTIFY_TYPES = new Set(['goal', 'own-goal', 'penalty', 'yellow', 'yellow2red', 'red']);
+const LIVE_NOTIFY_TYPES = new Set(['aftrap', 'goal', 'own-goal', 'penalty', 'yellow', 'yellow2red', 'red', 'einde']);
 
 function formatLiveEventText(event, match) {
     const home = match.thuisploeg || 'Thuis';
     const away = match.uitploeg || 'Uit';
-    const speler = event.speler ? event.speler : '';
+    const speler = event.speler || '';
+    const min = event.minuut != null ? `${event.minuut}' ` : '';
+    const scoreThuis = match.scoreThuis ?? 0;
+    const scoreUit = match.scoreUit ?? 0;
+
+    // Bouwt "Thuisploeg [x] - y Uitploeg", met vierkante haakjes rond de
+    // score van de kant die net gescoord heeft (scoringSide: 'home' | 'away').
+    function scoreline(scoringSide) {
+        const h = scoringSide === 'home' ? `[${scoreThuis}]` : `${scoreThuis}`;
+        const u = scoringSide === 'away' ? `[${scoreUit}]` : `${scoreUit}`;
+        return `${home} ${h} - ${u} ${away}`;
+    }
 
     switch (event.type) {
+        case 'aftrap':
+            return { title: '🏁 Aftrap', body: `🏁 Aftrap: ${home} - ${away}` };
+
         case 'goal':
-            return { title: '⚽ Doelpunt!', body: `${speler ? speler + ' scoort! ' : ''}${home} ${match.scoreThuis ?? ''} - ${match.scoreUit ?? ''} ${away}` };
+            return { title: '⚽ Doelpunt!', body: `⚽ ${min}${speler || 'Doelpunt'} | ${scoreline(event.ploeg)}` };
+
         case 'penalty':
-            return { title: '⚽ Penalty gescoord!', body: `${speler ? speler + ' scoort een penalty! ' : ''}${home} ${match.scoreThuis ?? ''} - ${match.scoreUit ?? ''} ${away}` };
-        case 'own-goal':
-            return { title: '⚽ Owngoal', body: `${home} ${match.scoreThuis ?? ''} - ${match.scoreUit ?? ''} ${away}` };
-        case 'yellow':
-            return { title: '🟨 Gele kaart', body: speler ? `${speler} krijgt geel.` : 'Een speler krijgt geel.' };
-        case 'yellow2red':
-            return { title: '🟨🟥 Tweede geel = rood', body: speler ? `${speler} moet van het veld.` : 'Een speler krijgt zijn tweede gele kaart.' };
-        case 'red':
-            return { title: '🟥 Rode kaart', body: speler ? `${speler} krijgt rood.` : 'Een speler krijgt rood.' };
+            return { title: '⚽ Penalty gescoord!', body: `⚽ ${min}${speler ? speler + ' (penalty)' : 'Penalty'} | ${scoreline(event.ploeg)}` };
+
+        case 'own-goal': {
+            // Bij een owngoal profiteert de tegenstander van de kant die de fout maakte
+            const benefiting = event.ploeg === 'home' ? 'away' : 'home';
+            return { title: '⚽ Owngoal', body: `⚽ ${min}${speler ? speler + ' (eigen doelpunt)' : 'Eigen doelpunt'} | ${scoreline(benefiting)}` };
+        }
+
+        case 'yellow': {
+            const teamNaam = event.ploeg === 'home' ? home : away;
+            return {
+                title: '🟨 Gele kaart',
+                body: speler ? `🟨 ${min}${speler} (${teamNaam}) krijgt geel.` : `🟨 ${min}Een speler van ${teamNaam} krijgt geel.`
+            };
+        }
+
+        case 'yellow2red': {
+            const teamNaam = event.ploeg === 'home' ? home : away;
+            return {
+                title: '🟨🟥 Tweede geel = rood',
+                body: speler ? `🟨🟥 ${min}${speler} (${teamNaam}) moet van het veld.` : `🟨🟥 ${min}Een speler van ${teamNaam} krijgt zijn tweede gele kaart.`
+            };
+        }
+
+        case 'red': {
+            const teamNaam = event.ploeg === 'home' ? home : away;
+            return {
+                title: '🟥 Rode kaart',
+                body: speler ? `🟥 ${min}${speler} (${teamNaam}) krijgt rood.` : `🟥 ${min}Een speler van ${teamNaam} krijgt rood.`
+            };
+        }
+
+        case 'einde':
+            return { title: '🏁 Einde wedstrijd', body: `🏁 Einde: ${home} ${scoreThuis} - ${scoreUit} ${away}` };
+
         default:
             return null;
     }
@@ -261,12 +315,19 @@ exports.onLiveMatchEvent = onDocumentCreated(
             .get();
         if (subscribersSnap.empty) return;
 
+        const home = match.thuisploeg || 'Thuis';
+        const away = match.uitploeg || 'Uit';
+
         await sendPushToUserDocs(
             db,
             subscribersSnap.docs,
             texts.title,
             texts.body,
-            `https://vvsrotselaar.be/${match.team}.html`
+            `https://vvsrotselaar.be/${match.team}.html`,
+            {
+                tag: `live-${matchId}`,
+                groupTitle: `${home} - ${away}`,
+            }
         );
     }
 );

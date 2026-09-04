@@ -25,12 +25,36 @@ const messaging = firebase.messaging();
 // LET OP: de server stuurt bewust enkel "data" (geen "notification"-veld) — anders
 // toont de Firebase SDK hier automatisch al zelf een melding, wat samen met onze
 // eigen showNotification() hieronder tot een dubbele melding leidde.
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
     console.log('[firebase-messaging-sw.js] Achtergrondmelding ontvangen:', payload);
-    const title = payload.data?.title || 'V.V.S Rotselaar';
-    const body  = payload.data?.body  || '';
-    const url   = payload.data?.click_action || '/admin.html';
+    const title      = payload.data?.title || 'V.V.S Rotselaar';
+    const body       = payload.data?.body  || '';
+    const url        = payload.data?.click_action || '/admin.html';
+    const tag        = payload.data?.tag || null;
+    const groupTitle = payload.data?.groupTitle || title;
 
+    if (tag) {
+        // Live wedstrijdmelding: alle events van dezelfde wedstrijd delen dezelfde
+        // "tag" (live-{matchId}). Bestaande melding met die tag ophalen en de nieuwe
+        // regel aan de body toevoegen, i.p.v. telkens een aparte melding te tonen —
+        // zo blijft het één melding die groeit, en die je in het notificatiecenter
+        // kan uitklappen om alle events van de wedstrijd te zien.
+        const existing = await self.registration.getNotifications({ tag });
+        const previousLines = existing[0]?.data?.lines || [];
+        const lines = [...previousLines, body].slice(-20); // laatste 20 events tonen
+
+        await self.registration.showNotification(groupTitle, {
+            body: lines.join('\n'),
+            icon: '/assets/logo.png',
+            badge: '/assets/icons/badge-monochrome.png',
+            tag,
+            renotify: true,
+            data: { url, lines }
+        });
+        return;
+    }
+
+    // Geen tag → gewone, aparte melding (admin-meldingen, herinneringen, ...)
     self.registration.showNotification(title, {
         body,
         icon: '/assets/logo.png',
