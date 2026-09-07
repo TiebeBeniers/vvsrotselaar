@@ -4003,6 +4003,14 @@ html.dark #afgevaardigdeTeamGroup select { background: var(--white); border-colo
 }
 .action-btn.retro-btn:hover { background: #c8e6c9; }
 
+/* Achteraf-bewerken knop (voor reeds bevestigde/live gevolgde wedstrijden) */
+.action-btn.retro-edit-btn {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #90caf9;
+}
+.action-btn.retro-edit-btn:hover { background: #bbdefb; }
+
 /* ── Modal ──────────────────────────────────────────────────── */
 #retroModal .modal-content,
 .retro-modal-content {

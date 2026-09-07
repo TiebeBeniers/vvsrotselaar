@@ -1837,7 +1837,8 @@ function createMatchCard(match) {
                     return `<span class="match-badge match-badge-forfait" title="Forfaitwedstrijd — geen tijdslijn nodig">🏳 Forfait</span>`;
                 }
                 if (match.lineupConfirmed) {
-                    return `<span class="match-badge retro-done-badge" title="Tijdslijn en opstelling zijn ingevoerd">✓ Tijdslijn</span>`;
+                    return `<span class="match-badge retro-done-badge" title="Tijdslijn en opstelling zijn ingevoerd">✓ Tijdslijn</span>
+                        <button class="action-btn retro-edit-btn match-action-retro-edit" data-id="${match.id}" title="Pas de opstelling en/of tijdslijn van deze wedstrijd nog aan">✎ Tijdslijn bewerken</button>`;
                 }
                 return `<button class="action-btn retro-btn match-action-retro" data-id="${match.id}">⏱ Tijdslijn invoeren</button>`;
             })()}
@@ -1849,7 +1850,10 @@ function createMatchCard(match) {
     if (editBtn) editBtn.addEventListener('click', () => editMatch(match));
 
     const retroBtn = card.querySelector('.match-action-retro');
-    if (retroBtn) retroBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match); });
+    if (retroBtn) retroBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match, false); });
+
+    const retroEditBtn = card.querySelector('.match-action-retro-edit');
+    if (retroEditBtn) retroEditBtn.addEventListener('click', (e) => { e.stopPropagation(); openRetroWizard(match, true); });
 
     card.querySelector('.match-action-delete').addEventListener('click', () => deleteMatch(match));
     card.querySelector('.match-info-admin').addEventListener('click', () => editMatch(match));
@@ -3429,6 +3433,7 @@ let retroStarters     = new Set();
 let retroBench        = new Set();
 let retroEvents       = [];
 let retroCurrentStep  = 1;
+let retroIsEdit       = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -3487,6 +3492,18 @@ function effectiveMin(parsed) {
     return parsed.min + parsed.extra;
 }
 
+/**
+ * Reconstrueer een {min, extra}-object uit een reeds opgeslagen (effectieve) minuut + half.
+ * Nodig om bestaande events terug in de tijdslijn-editor te laden bij het bewerken
+ * van een reeds bevestigde wedstrijd (live gevolgd of eerder retro ingevoerd).
+ */
+function reconstructParsed(minuut, half, hd, fd) {
+    if (half === 1 && minuut > hd)        return { min: hd,      extra: minuut - hd,        raw: `${hd}+${minuut - hd}` };
+    if (half === 2 && minuut > fd)        return { min: fd,      extra: minuut - fd,        raw: `${fd}+${minuut - fd}` };
+    if (half === 3 && minuut > fd + 15)   return { min: fd + 15, extra: minuut - (fd + 15), raw: `${fd + 15}+${minuut - (fd + 15)}` };
+    return { min: minuut, extra: 0, raw: `${minuut}` };
+}
+
 function halvesLabel(half) {
     return ['', '1e helft', '2e helft', 'VT 1e helft', 'VT 2e helft'][half] || `Half ${half}`;
 }
@@ -3524,7 +3541,7 @@ function getRetroModal() {
 
 // ── Wizard openen ─────────────────────────────────────────────────────────────
 
-async function openRetroWizard(match) {
+async function openRetroWizard(match, isEdit = false) {
     retroMatch        = match;
     retroAvailable    = [];
     retroSelectedUids = new Set();
@@ -3532,12 +3549,52 @@ async function openRetroWizard(match) {
     retroBench        = new Set();
     retroEvents       = [];
     retroCurrentStep  = 1;
+    retroIsEdit       = isEdit;
 
     const modal = getRetroModal();
-    modal.querySelector('#retroTitle').textContent =
-        `Tijdslijn invoeren — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`;
+    modal.querySelector('#retroTitle').textContent = isEdit
+        ? `Tijdslijn bewerken — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`
+        : `Tijdslijn invoeren — ${match.thuisploeg} ${match.scoreThuis ?? 0}–${match.scoreUit ?? 0} ${match.uitploeg}`;
     modal.classList.add('active');
+
+    if (isEdit) await preloadRetroEditData(match);
+
     await renderRetroStep(1);
+}
+
+/**
+ * Laad de reeds opgeslagen tijdslijn-events van een wedstrijd (live gevolgd of
+ * eerder retro ingevoerd) in retroEvents, zodat de admin ze kan aanpassen of
+ * verwijderen in plaats van alles opnieuw te moeten ingeven.
+ */
+async function preloadRetroEditData(match) {
+    try {
+        const snap = await getDocs(collection(db, 'matches', match.id, 'events'));
+        const MARKER_TYPES = new Set(['aftrap', 'rust', 'einde-regulier', 'einde']);
+        const hd = retroHalfDur(), fd = retroFullDur();
+        const loaded = [];
+        snap.forEach(d => {
+            const ev = d.data();
+            if (MARKER_TYPES.has(ev.type)) return;
+            const item = {
+                type: ev.type, minuut: ev.minuut, half: ev.half,
+                ploeg: ev.ploeg, speler: ev.speler || '',
+                parsed: reconstructParsed(ev.minuut, ev.half, hd, fd),
+            };
+            if (ev.assist)               item.assist     = ev.assist;
+            if (ev.spelerUit)            item.spelerUit  = ev.spelerUit;
+            if (ev.spelerIn)             item.spelerIn   = ev.spelerIn;
+            if (ev.spelersUit)           item.spelersUit = ev.spelersUit;
+            if (ev.spelersIn)            item.spelersIn  = ev.spelersIn;
+            if (ev.multiSub !== undefined) item.multiSub = ev.multiSub;
+            loaded.push(item);
+        });
+        loaded.sort((a, b) => effectiveMin(a.parsed) - effectiveMin(b.parsed));
+        retroEvents = loaded;
+    } catch (e) {
+        console.error('Error loading existing events for edit:', e);
+        showToast('Kon bestaande tijdslijn niet volledig laden, ga voorzichtig te werk.', 'error');
+    }
 }
 
 // ── Stap renderen ─────────────────────────────────────────────────────────────
@@ -3594,8 +3651,22 @@ async function renderRetroStep1(content) {
         retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
     } catch (e) { console.error('Error loading availability:', e); }
 
+    // Bij bewerken: spelers uit de reeds opgeslagen opstelling die niet (meer) in de
+    // beschikbaarheidslijst staan (bv. handmatig toegevoegd tijdens een live wedstrijd) toevoegen.
+    if (retroIsEdit) {
+        const existingLineup = retroMatch.lineup || retroMatch.lineupDraft || {};
+        Object.entries(existingLineup).forEach(([uid, info]) => {
+            if (info.status === 'niet_geselecteerd') return;
+            if (!retroAvailable.find(p => p.uid === uid)) {
+                retroAvailable.push({ uid, name: info.name || 'Onbekend', isExternal: uid.startsWith('manual_') });
+            }
+        });
+        retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
     content.innerHTML = `
         <div class="retro-step-body">
+            ${retroIsEdit ? `<p class="retro-step-desc"><strong>Je bewerkt een reeds opgeslagen wedstrijd.</strong> Aanwezigen, opstelling en tijdslijn zijn vooraf ingevuld — pas aan waar nodig.</p>` : ''}
             <p class="retro-step-desc">
                 ${retroAvailable.length === 0
                     ? '<strong>Geen beschikbaarheidslijst gevonden.</strong> Voeg spelers handmatig toe.'
@@ -3886,9 +3957,11 @@ function renderRetroStep3(content) {
 
             <div class="retro-finalize-section">
                 <p style="color:var(--text-gray);font-size:0.85rem;margin-bottom:0.75rem;">
-                    Slaat de <strong>opstelling</strong> en <strong>tijdslijn</strong> op — identiek aan een live wedstrijd.
+                    ${retroIsEdit
+                        ? 'Overschrijft de <strong>opstelling</strong> en <strong>tijdslijn</strong> van deze wedstrijd met de huidige gegevens.'
+                        : 'Slaat de <strong>opstelling</strong> en <strong>tijdslijn</strong> op — identiek aan een live wedstrijd.'}
                 </p>
-                <button class="modal-btn confirm" id="retroFinalizeBtn">💾 Opslaan in database</button>
+                <button class="modal-btn confirm" id="retroFinalizeBtn">${retroIsEdit ? '💾 Wijzigingen opslaan' : '💾 Opslaan in database'}</button>
             </div>
         </div>`;
 
@@ -4032,6 +4105,10 @@ async function retroFinalize() {
             halfTimeReached: true, extraTimeStarted: hasET, etHalfTimeReached: has2ndET, pausedAt: null,
         });
 
+        // Verwijder bestaande playerMinutes (worden hieronder opnieuw opgebouwd o.b.v. de huidige opstelling)
+        const pmSnap = await getDocs(collection(db, 'matches', matchId, 'playerMinutes'));
+        await Promise.all(pmSnap.docs.map(d => deleteDoc(d.ref)));
+
         // playerMinutes voor basisspelers
         await Promise.all(Object.entries(lineup)
             .filter(([uid,info]) => !uid.startsWith('manual_') && info.status === 'starter')
@@ -4071,13 +4148,13 @@ async function retroFinalize() {
 
         await Promise.all(allEvDocs.map(ev => addDoc(eventsCol, {...ev, timestamp: serverTimestamp()})));
 
-        showToast('✅ Opstelling en tijdslijn opgeslagen!', 'success');
+        showToast(retroIsEdit ? '✅ Tijdslijn en opstelling bijgewerkt!' : '✅ Opstelling en tijdslijn opgeslagen!', 'success');
         document.getElementById('retroModal').classList.remove('active');
         await loadMatches();
     } catch(e) {
         console.error('retroFinalize error:', e);
         showToast('Fout bij opslaan: ' + e.message, 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '💾 Opslaan in database'; }
+        if (btn) { btn.disabled = false; btn.textContent = retroIsEdit ? '💾 Wijzigingen opslaan' : '💾 Opslaan in database'; }
     }
 }
 // ===============================================
@@ -4160,7 +4237,7 @@ const TOUR_STEPS = [
     },
     {
         icon: '', title: 'Wedstrijdkaart',
-        desc: 'Elke wedstrijd toont ploegen, datum, locatie en score. Geplande wedstrijden hebben een <strong>Bewerken</strong>-knop. Afgelopen wedstrijden (die niet live gevolgd werden) tonen een <strong>Tijdslijn invoeren</strong>-knop om opstelling en gebeurtenissen in te geven.',
+        desc: 'Elke wedstrijd toont ploegen, datum, locatie en score. Geplande wedstrijden hebben een <strong>Bewerken</strong>-knop. Afgelopen wedstrijden zonder tijdslijn tonen een <strong>Tijdslijn invoeren</strong>-knop; wedstrijden mét tijdslijn (ook live gevolgde) tonen daarnaast een <strong>Tijdslijn bewerken</strong>-knop om opstelling en gebeurtenissen achteraf nog aan te passen.',
         tab: 'matches', target: '#matchesList .match-card',
     },
 
