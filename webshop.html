@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0B1D3A">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="VVS Rotselaar">
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+    <script>
+        const isDark = localStorage.getItem('vvs_theme') === 'dark';
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+        }
+        const metaTheme = document.querySelector("meta[name='theme-color']");
+        if (metaTheme) {
+            metaTheme.setAttribute("content", isDark ? "#080F1E" : "#0B1D3A");
+        }
+    </script>
+
+    <title>V.V.S Rotselaar - Webshop</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/webshop.css">
+</head>
+<body>
+
+    <!-- ── Header ── -->
+    <header class="main-header">
+        <div class="header-container">
+            <div class="logo-section">
+                <img src="assets/logo.png" alt="VVS Rotselaar Logo" class="team-logo">
+            </div>
+            <div class="title-section">
+                <h1><a href="index.html">V.V.S ROTSELAAR</a></h1>
+            </div>
+            <nav class="nav-section">
+                <button class="hamburger" id="hamburger" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <ul class="nav-menu" id="navMenu">
+                    <li><a href="index.html">HOME</a></li>
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-btn" id="teamsDropdownBtn" aria-expanded="false" aria-haspopup="true">
+                            TEAMS <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <ul class="nav-dropdown-menu" id="teamsDropdownMenu">
+                            <li><a href="veteranen.html">Veteranen</a></li>
+                            <li><a href="zaterdag.html">Zaterdag</a></li>
+                            <li><a href="zondag.html">Zondag</a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-dropdown">
+                        <button class="nav-dropdown-btn active" id="evenementenDropdownBtn" aria-expanded="false" aria-haspopup="true">
+                            EVENEMENTEN <svg class="dropdown-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <ul class="nav-dropdown-menu" id="evenementenDropdownMenu">
+                            <li><a href="evenementen.html">Evenementen</a></li>
+                            <li><a href="kalender.html">Kalender</a></li>
+                            <li style="display:none;"><a href="werklijst.html">Werklijst</a></li>
+                            <li style="display:none;"><a href="webshop.html" class="active">Webshop</a></li>
+                        </ul>
+                    </li>
+                    <li><a href="partners.html">SPONSORS</a></li>
+                    <li><a href="galerij.html">GALERIJ</a></li>
+                    <li><a href="contact.html">CONTACT</a></li>
+                    <li><a href="login.html" id="loginLink">LOGIN</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <!-- ── Hero ── -->
+    <div class="shop-hero">
+        <span class="event-tag" id="heroEventTag">🛒 Clubshop</span>
+        <h2>Webshop</h2>
+        <p>Bestel en betaal je clubkledij online, en haal het nadien af op het terrein.</p>
+    </div>
+
+    <main class="shop-page">
+        <div class="shop-container">
+
+            <!-- Auth Guard -->
+            <div class="auth-guard" id="authGuard" style="display:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <h3>Aanmelden vereist</h3>
+                <p>Je moet ingelogd zijn om de webshop te bekijken en te bestellen.</p>
+                <a href="login.html">Aanmelden →</a>
+            </div>
+
+            <!-- Loading -->
+            <div class="shop-loading" id="loadingSpinner">
+                <div class="shop-spinner"></div>
+                <span>Laden…</span>
+            </div>
+
+            <!-- Main Content -->
+            <div id="mainContent" style="display:none;">
+
+                <!-- Shop tijdelijk gesloten -->
+                <div class="shop-closed-notice" id="shopClosedNotice" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <h3>Webshop tijdelijk gesloten</h3>
+                    <p>Er is momenteel geen bestelronde actief. Kom later nog eens terug of neem contact op met de beheerder.</p>
+                </div>
+
+                <!-- Intro + afhaalinfo (ingevuld via admin) -->
+                <p class="shop-intro" id="shopIntroText" style="display:none;"></p>
+                <div class="shop-pickup-banner" id="shopPickupBanner" style="display:none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+                        <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+                    </svg>
+                    <span id="shopPickupText"></span>
+                </div>
+
+                <!-- Geen producten -->
+                <div class="shop-empty-notice" id="emptyShopNotice" style="display:none;">
+                    <h3>Nog geen producten</h3>
+                    <p>Er staan momenteel geen producten in de webshop. Kijk later nog eens terug.</p>
+                </div>
+
+                <!-- Productgrid -->
+                <div class="shop-grid" id="shopGrid"></div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer class="main-footer">
+        <p>&copy; Tiebe Beniers - Alle rechten voorbehouden. &nbsp;&middot;&nbsp;
+        <a href="privacy.html" style="color:inherit;opacity:0.7;text-decoration:underline;">Privacyverklaring</a></p>
+    </footer>
+
+    <!-- ── Winkelmandje: floating knop ── -->
+    <button class="cart-fab" id="cartFab" style="display:none;" aria-label="Winkelmandje">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="26" height="26">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        <span class="cart-fab-badge" id="cartFabBadge" style="display:none;">0</span>
+    </button>
+
+    <!-- ── Winkelmandje: drawer ── -->
+    <div class="cart-backdrop" id="cartBackdrop"></div>
+    <aside class="cart-drawer" id="cartDrawer">
+        <div class="cart-drawer-header">
+            <h3>Winkelmandje</h3>
+            <button class="cart-close-btn" id="cartCloseBtn" aria-label="Sluiten">✕</button>
+        </div>
+        <div class="cart-items" id="cartItemsList">
+            <div class="cart-empty">Je winkelmandje is leeg.</div>
+        </div>
+        <div class="cart-drawer-footer">
+            <div class="cart-total-row">
+                <span>Totaal</span>
+                <span id="cartTotal">€0,00</span>
+            </div>
+            <button class="cart-checkout-btn" id="cartCheckoutBtn" disabled>Bestelling plaatsen</button>
+            <p class="cart-note">Betaling gebeurt momenteel nog niet online — je ontvangt verdere instructies na het plaatsen van je bestelling.</p>
+        </div>
+    </aside>
+
+    <!-- ── Productdetail popup (met foto-gallerij) ── -->
+    <div class="product-modal-backdrop" id="productModal">
+        <div class="product-modal">
+            <button class="product-modal-close" id="productModalClose" aria-label="Sluiten">✕</button>
+
+            <div class="product-modal-gallery">
+                <div class="product-modal-main-image" id="galleryMainImage">
+                    <button class="gallery-nav-btn prev" id="galleryPrevBtn" aria-label="Vorige foto">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <img id="galleryMainImg" src="" alt="" style="display:none;">
+                    <span class="gallery-no-image-icon" id="galleryNoImageIcon" style="display:none;">📦</span>
+                    <button class="gallery-nav-btn next" id="galleryNextBtn" aria-label="Volgende foto">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                    <div class="gallery-dots" id="galleryDots"></div>
+                </div>
+                <div class="gallery-thumbs" id="galleryThumbs"></div>
+            </div>
+
+            <div class="product-modal-info">
+                <span class="product-modal-category" id="modalCategory" style="display:none;"></span>
+                <h2 id="modalName">Productnaam</h2>
+                <div class="product-modal-price" id="modalPrice">€0,00</div>
+                <p class="product-modal-desc" id="modalDesc"></p>
+
+                <div class="product-modal-option-group" id="modalSizeGroup" style="display:none;">
+                    <label>Maat</label>
+                    <div class="size-pill-group" id="modalSizePills"></div>
+                    <p class="product-modal-size-hint" id="modalSizeHint">Kies een maat om verder te gaan.</p>
+                </div>
+
+                <div class="product-modal-option-group">
+                    <label>Aantal</label>
+                    <div class="qty-stepper">
+                        <button class="qty-stepper-btn" id="modalQtyDec" type="button" aria-label="Minder">&minus;</button>
+                        <span class="qty-stepper-value" id="modalQtyValue">1</span>
+                        <button class="qty-stepper-btn" id="modalQtyInc" type="button" aria-label="Meer">+</button>
+                    </div>
+                </div>
+
+                <div class="product-modal-footer">
+                    <button class="product-modal-add-btn" id="modalAddBtn">Toevoegen aan winkelmandje</button>
+                    <button class="product-modal-share-btn" id="modalShareBtn" aria-label="Link kopiëren" title="Link naar dit product kopiëren">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="19" height="19">
+                            <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                            <line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Bevestigingsmodal ── -->
+    <div class="shop-modal-backdrop" id="orderConfirmModal">
+        <div class="shop-modal">
+            <div class="modal-icon">✅</div>
+            <h3>Bestelling geplaatst!</h3>
+            <p id="orderConfirmText">Je bestelling is doorgestuurd. Je kan deze afhalen op het terrein zodra ze klaar staat.</p>
+            <button class="shop-modal-close-btn" id="orderConfirmCloseBtn">Sluiten</button>
+        </div>
+    </div>
+
+    <!-- ── Toast ── -->
+    <div class="shop-toast" id="shopToast"></div>
+
+    <script type="module" src="scripts/header.js"></script>
+    <script type="module" src="scripts/webshop.js"></script>
+    <script type="module" src="scripts/theme.js"></script>
+    <script type="module" src="scripts/notifications.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@4.0.5/tsparticles.confetti.bundle.min.js"></script>
+    <script src="scripts/pwa.js" defer></script>
+</body>
+</html>

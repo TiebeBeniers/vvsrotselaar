@@ -443,6 +443,177 @@
         html.dark .admin-setting-card { background: #1e2130; border-color: var(--border-color); }
         html.dark .admin-logo-option  { background: #1e2130; }
         html.dark .admin-logo-option.selected { background: #1a2a50; }
+
+        /* ── Webshop tab ─────────────────────────────────── */
+        .shop-toolbar {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem;
+        }
+        .shop-toolbar-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+
+        .shop-admin-grid {
+            display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem;
+        }
+
+        .shop-admin-card {
+            background: var(--off-white);
+            border: 1.5px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1rem 1.1rem;
+            display: grid;
+            grid-template-columns: 84px 1fr auto;
+            gap: 1rem;
+            align-items: start;
+        }
+        .shop-admin-card.inactive { opacity: 0.6; }
+
+        .shop-admin-thumb {
+            width: 84px; height: 112px;
+            border-radius: 8px;
+            background: var(--white);
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border: 1px solid var(--border-color);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.6rem; color: var(--text-gray); flex-shrink: 0;
+            padding: 0.25rem;
+        }
+
+        .shop-admin-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem;
+        }
+        .shop-admin-fields .full { grid-column: 1 / -1; }
+        .shop-admin-fields label {
+            font-size: 0.75rem; font-weight: 700; color: var(--text-gray);
+            text-transform: uppercase; letter-spacing: 0.04em;
+            display: block; margin-bottom: 0.25rem;
+        }
+        .shop-admin-fields input,
+        .shop-admin-fields textarea {
+            width: 100%; padding: 0.5rem 0.6rem;
+            border: 1.5px solid var(--border-color); border-radius: 6px;
+            background: var(--white); color: var(--text-dark);
+            font-family: inherit; font-size: 0.88rem;
+        }
+        .shop-admin-fields textarea { resize: vertical; min-height: 42px; }
+        .shop-admin-fields input:focus,
+        .shop-admin-fields textarea:focus { border-color: var(--primary-blue); outline: none; }
+
+        .shop-admin-controls {
+            display: flex; flex-direction: column; gap: 0.5rem; align-items: stretch;
+            min-width: 110px;
+        }
+        .shop-admin-controls .add-btn { padding: 0.45rem 0.8rem; font-size: 0.82rem; white-space: nowrap; }
+        .shop-admin-controls .add-btn.danger { background: var(--danger); }
+        .shop-admin-controls .add-btn.danger:hover { background: #c53030; }
+
+        .shop-admin-toggle-row {
+            display: flex; align-items: center; gap: 0.5rem;
+            font-size: 0.82rem; font-weight: 600; color: var(--text-dark);
+        }
+
+        /* Kleine toggle-variant — correct herschaald (knop past nu binnen het kader) */
+        .admin-toggle-switch.sm { width: 34px; height: 18px; }
+        .admin-toggle-switch.sm .admin-toggle-slider { border-radius: 18px; }
+        .admin-toggle-switch.sm .admin-toggle-slider::before {
+            width: 14px; height: 14px; left: 2px; top: 2px;
+        }
+        .admin-toggle-switch.sm input:checked + .admin-toggle-slider::before {
+            transform: translateX(16px);
+        }
+
+        /* ── Afbeelding upload (product) ─────────────────────────── */
+        .shop-image-file-input { display: none; }
+        .shop-image-status {
+            font-size: 0.78rem; color: var(--text-gray);
+            display: block; width: 100%; margin-top: 0.4rem;
+        }
+        .shop-image-status.uploading { color: var(--primary-blue); font-weight: 600; }
+        .shop-image-status.error { color: var(--danger); font-weight: 600; }
+
+        /* ── Multi-foto manager (product-admin) ──────────────────── */
+        .shop-image-manager {
+            display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-start;
+        }
+        .shop-image-tile {
+            position: relative;
+            width: 74px; height: 98px;
+            border-radius: 8px;
+            background: var(--white) center/contain no-repeat;
+            border: 1.5px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .shop-image-tile-remove {
+            position: absolute; top: -7px; right: -7px;
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: var(--danger);
+            color: #fff;
+            font-size: 0.75rem;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .shop-image-tile-remove:hover { background: #c53030; }
+        .shop-image-cover-badge {
+            position: absolute; bottom: 3px; left: 3px; right: 3px;
+            background: rgba(11,29,58,0.8);
+            color: #fff;
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-align: center;
+            border-radius: 4px;
+            padding: 1px 2px;
+            letter-spacing: 0.02em;
+        }
+        .shop-image-tile-reorder {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.92);
+            color: var(--text-dark);
+            font-size: 0.7rem;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+        }
+        .shop-image-tile-reorder:hover { background: #fff; }
+        .shop-image-tile-reorder.left  { left: -8px; }
+        .shop-image-tile-reorder.right { right: -8px; }
+        .shop-image-tile-reorder:disabled { opacity: 0; pointer-events: none; }
+
+        .shop-image-add-tile {
+            width: 74px; height: 98px;
+            border-radius: 8px;
+            border: 1.5px dashed var(--border-color);
+            background: var(--white);
+            color: var(--text-gray);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 0.15rem;
+            font-size: 0.68rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .shop-image-add-tile:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        .shop-image-add-tile .plus-icon { font-size: 1.3rem; line-height: 1; }
+
+        html.dark .shop-image-tile,
+        html.dark .shop-image-add-tile { background: #1e2130; }
+
+        @media (max-width: 640px) {
+            .shop-admin-card { grid-template-columns: 1fr; }
+            .shop-admin-thumb { width: 100%; height: 120px; }
+            .shop-admin-fields { grid-template-columns: 1fr; }
+            .shop-admin-controls { flex-direction: row; flex-wrap: wrap; }
+        }
+
+        html.dark .shop-admin-card,
+        html.dark .shop-admin-fields input,
+        html.dark .shop-admin-fields textarea,
+        html.dark .shop-admin-thumb { background: #1e2130; border-color: var(--border-color); }
     </style>
 </head>
 <body>
@@ -512,6 +683,7 @@
                 <button class="tab-btn" data-tab="mail">&#9993; Mailen</button>
                 <button class="tab-btn" data-tab="wrapped">&#127942; VVS Wrapped</button>
                 <button class="tab-btn" data-tab="logo">&#127279; Logo</button>
+                <button class="tab-btn" data-tab="webshop">&#128722; Webshop</button>
             </div>
 
             <!-- ══ Tab: Algemene Voorwaarden ═══════════════════════════════════ -->
@@ -729,6 +901,69 @@
                     <button class="add-btn" id="logoSaveBtn">&#128190; Logo opslaan</button>
                     <span class="save-status" id="logoSaveStatus">&#10003; Opgeslagen</span>
                 </div>
+            </div>
+
+            <!-- ══ Tab: Webshop ═══════════════════════════════════════════════ -->
+            <div class="tab-content" id="webshopTab">
+                <div class="section-header">
+                    <h3>&#128722; Webshop</h3>
+                </div>
+
+                <p class="ce-intro">
+                    Beheer hier de clubshop op <code>webshop.html</code>: schakel de shop aan/uit,
+                    pas de introtekst en afhaalinfo aan, en beheer de producten die leden kunnen bestellen.
+                    Bestellingen zelf (en de betaling) worden in een latere fase verder uitgebouwd —
+                    voorlopig komt elke bestelling terecht in de <code>shop_orders</code>-collectie in Firestore.
+                </p>
+
+                <!-- Shop actief/inactief -->
+                <div class="admin-setting-card" id="webshopSettingCard">
+                    <div class="admin-setting-row">
+                        <div class="admin-setting-info">
+                            <strong>Webshop openstellen</strong>
+                            <span class="admin-setting-desc">
+                                Zet dit AAN zodra leden producten mogen bestellen. Zet UIT tussen
+                                bestelrondes door — de pagina toont dan een "tijdelijk gesloten"-melding.
+                            </span>
+                        </div>
+                        <label class="admin-toggle-switch">
+                            <input type="checkbox" id="webshopToggle">
+                            <span class="admin-toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="admin-setting-status" id="webshopStatus"></div>
+                </div>
+
+                <div style="margin-top:1.25rem;">
+                    <div class="mail-section-label">Introductietekst (optioneel)</div>
+                    <input type="text" id="webshopIntro" class="mail-input"
+                        placeholder="bv. Bestel hier je nieuwe clubkledij — op te halen na de training.">
+                </div>
+
+                <div style="margin-top:1rem;">
+                    <div class="mail-section-label">Afhaalinfo (optioneel)</div>
+                    <input type="text" id="webshopPickupInfo" class="mail-input"
+                        placeholder="bv. Afhalen kan vanaf 5 werkdagen na bestelling, aan de kantine.">
+                </div>
+
+                <div class="save-bar">
+                    <button class="add-btn" id="webshopSettingsSaveBtn">&#128190; Instellingen opslaan</button>
+                    <span class="save-status" id="webshopSettingsSaveStatus">&#10003; Opgeslagen</span>
+                </div>
+
+                <div class="section-header" style="margin-top:2rem;">
+                    <h3>Producten</h3>
+                </div>
+
+                <div class="shop-toolbar">
+                    <span style="font-size:0.85rem;color:var(--text-gray);" id="webshopProductCount">Laden&#8230;</span>
+                    <div class="shop-toolbar-actions">
+                        <button class="add-btn secondary" id="webshopSeedBtn">&#10024; Voorbeelditems toevoegen</button>
+                        <button class="add-btn" id="webshopAddProductBtn">+ Nieuw product</button>
+                    </div>
+                </div>
+
+                <div class="shop-admin-grid" id="webshopProductList"></div>
             </div>
 
         </div>

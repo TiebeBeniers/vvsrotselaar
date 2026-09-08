@@ -68,8 +68,9 @@ function buildEvenementenDropdown(isLoggedIn) {
     const page = window.location.pathname.split('/').pop() || 'index.html';
     const evActive = page === 'evenementen.html';
     const wlActive = page === 'werklijst.html';
+    const wsActive = page === 'webshop.html';
     const kalActive = page === 'kalender.html';
-    const anyActive = evActive || wlActive || kalActive;
+    const anyActive = evActive || wlActive || wsActive || kalActive;
 
     // Vind de bestaande <li> met de evenementen-link
     const evLink = navMenu.querySelector('a[href="evenementen.html"]');
@@ -79,6 +80,9 @@ function buildEvenementenDropdown(isLoggedIn) {
 
     const werklijstItem = isLoggedIn
         ? `<li><a href="werklijst.html"${wlActive ? ' class="active"' : ''}>Werklijst</a></li>`
+        : '';
+    const webshopItem = isLoggedIn
+        ? `<li><a href="webshop.html"${wsActive ? ' class="active"' : ''}>Webshop</a></li>`
         : '';
 
     // Vervang door nav-dropdown structuur
@@ -97,6 +101,7 @@ function buildEvenementenDropdown(isLoggedIn) {
             <li><a href="evenementen.html"${evActive ? ' class="active"' : ''}>Evenementen</a></li>
             <li><a href="kalender.html"${kalActive ? ' class="active"' : ''}>Kalender</a></li>
             ${werklijstItem}
+            ${webshopItem}
         </ul>`;
 
     const btn  = evLi.querySelector('#evenementenDropdownBtn');
@@ -138,6 +143,10 @@ onAuthStateChanged(auth, (user) => {
         // Werklijst-item: toon enkel voor ingelogde gebruikers
         const wlItem = existingMenu.querySelector('a[href="werklijst.html"]')?.closest('li');
         if (wlItem) wlItem.style.display = user ? '' : 'none';
+
+        // Webshop-item: toon enkel voor ingelogde gebruikers
+        const wsItem = existingMenu.querySelector('a[href="webshop.html"]')?.closest('li');
+        if (wsItem) wsItem.style.display = user ? '' : 'none';
 
         // Koppel listeners als dat nog niet gedaan is (guard via data-attr)
         if (!existingBtn.dataset.listenerAttached) {

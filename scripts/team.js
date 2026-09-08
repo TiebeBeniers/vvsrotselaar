@@ -932,6 +932,10 @@ function displayPlannedMatch(match, container) {
                                 <span>✗</span>
                                 <span id="unavailableCount">0</span>
                             </div>
+                            <div class="availability-count pending" style="color:#999;">
+                                <span>?</span>
+                                <span id="pendingCount">0</span>
+                            </div>
                         </div>
                     </div>
                     <div id="availabilityContent">
@@ -1980,6 +1984,36 @@ document.addEventListener('DOMContentLoaded', () => {
 // ===============================================
 
 let availabilityListener = null;
+let availabilitySetupToken = 0;
+
+// Cache van alle leden van EEN team (voor het aanvullen van de lijst met
+// spelers die nog niets hebben aangeduid). Per team-type opgeslagen zodat
+// dit ook werkt wanneer een aangeduid persoon/bestuurslid de lijst van een
+// ANDER team bekijkt.
+const teamMembersCache = {};
+
+async function getTeamMembers(teamType) {
+    if (teamMembersCache[teamType]) return teamMembersCache[teamType];
+
+    const snap = await getDocs(
+        query(collection(db, 'users'), where('team', 'array-contains', teamType))
+    );
+
+    const members = [];
+    snap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (!data.name) return;
+        // Sla tijdelijke/externe accounts over (zelfde filter als elders)
+        if ((data.permissions || []).some(p => ['tijdelijk', 'extern'].includes(p))) return;
+        members.push({
+            uid:  data.uid || docSnap.id,
+            naam: data.name
+        });
+    });
+
+    teamMembersCache[teamType] = members;
+    return members;
+}
 
 async function loadAvailability(matchId, matchData = {}) {
     console.log('Loading availability for match:', matchId);
@@ -2068,7 +2102,7 @@ async function loadAvailability(matchId, matchData = {}) {
             contentDiv.innerHTML = `
                 <div class="availability-info">
                     <p style="color: var(--text-gray); font-size: 0.9rem; margin-bottom: 0.75rem; font-style: italic;">
-                        Je kunt de beschikbaarheid bekijken en spelers van andere ploegen toevoegen.
+                        Je kunt de beschikbaarheid bekijken en spelers toevoegen.
                     </p>
                     <button class="availability-btn extra-player" id="addExtraPlayerBtn" style="margin-bottom: 0.5rem;">
                         <span>+</span>
@@ -2108,16 +2142,13 @@ async function getAllUsers() {
     allUsersCache = [];
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        // Exclude users who are member of this team (they already have availability buttons)
-        if (!(data.team || []).includes(TEAM_TYPE)) {
-            // Sla tijdelijke/externe accounts over
-            if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
-            allUsersCache.push({
-                uid:      data.uid || docSnap.id,
-                naam:     data.name || data.displayName || '',
-                categorie: (data.team || [])[0] || ''
-            });
-        }
+        // Sla tijdelijke/externe accounts over
+        if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
+        allUsersCache.push({
+            uid:      data.uid || docSnap.id,
+            naam:     data.name || data.displayName || '',
+            categorie: (data.team || [])[0] || ''
+        });
     });
     allUsersCache.sort((a, b) => a.naam.localeCompare(b.naam));
     return allUsersCache;
@@ -2132,11 +2163,12 @@ function showAddExtraPlayerModal(matchId) {
     modal.className = 'modal active';
     modal.innerHTML = `
         <div class="modal-content">
-            <h3>Speler van andere ploeg toevoegen</h3>
+            <h3>Speler toevoegen</h3>
             <div class="modal-body">
                 <p style="font-size:0.9rem; color: var(--text-gray); margin-bottom:0.75rem;">
-                    Zoek een bestaand VVS-lid van een andere ploeg en voeg hem toe aan de
-                    beschikbaarheidslijst voor deze wedstrijd.
+                    Zoek een bestaand VVS-lid (van dit team of een andere ploeg) en voeg hem
+                    toe aan de beschikbaarheidslijst voor deze wedstrijd — handig als iemand
+                    vergeten is dit zelf aan te duiden.
                 </p>
                 <label style="font-size:0.85rem; font-weight:600; display:block; margin-bottom:0.4rem;">Zoek speler</label>
                 <input
@@ -2264,27 +2296,30 @@ function showAddExtraPlayerModal(matchId) {
         try {
             const availabilityRef = doc(db, 'matches', matchId, 'availability', selectedUser.uid);
 
-            // Check if this player is already in the availability list
-            const existing = await getDocs(
-                query(collection(db, 'matches', matchId, 'availability'),
-                      where('displayName', '==', selectedUser.naam))
-            );
-            if (!existing.empty) {
+            // Check if this player already has an availability record
+            const existingSnap = await getDoc(availabilityRef);
+            if (existingSnap.exists()) {
                 showToast(`${selectedUser.naam} staat al op de lijst`, 'error');
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = 'Toevoegen';
                 return;
             }
 
-            await setDoc(availabilityRef, {
+            const isOwnTeamMember = selectedUser.categorie === TEAM_TYPE;
+
+            const docData = {
                 available: true,
                 displayName: selectedUser.naam,
-                isExternalPlayer: true,
-                fromTeam: selectedUser.categorie,
                 addedBy: currentUser.uid,
                 timestamp: new Date().toISOString()
-            });
-            console.log('Extra player added:', selectedUser.naam, '(', selectedUser.categorie, ')');
+            };
+            if (!isOwnTeamMember) {
+                docData.isExternalPlayer = true;
+                docData.fromTeam = selectedUser.categorie;
+            }
+
+            await setDoc(availabilityRef, docData);
+            console.log('Player added:', selectedUser.naam, '(', selectedUser.categorie, ')');
             modal.remove();
         } catch (error) {
             console.error('Error adding extra player:', error);
@@ -2373,12 +2408,32 @@ function showManualFallback(modal, matchId, prefillName = '') {
     });
 }
 
-function setupAvailabilityListener(matchId, showList = true, canManage = false) {
+async function setupAvailabilityListener(matchId, showList = true, canManage = false) {
     // Clean up previous listener
     if (availabilityListener) {
         availabilityListener();
+        availabilityListener = null;
     }
-    
+
+    const myToken = ++availabilitySetupToken;
+
+    // Haal alle spelers van DIT team op, zodat ze standaard in de lijst
+    // staan — ook wie nog niets heeft aangeduid (grijs vraagtekentje).
+    // De lijst toont altijd de spelers van TEAM_TYPE, ook wanneer een
+    // aangeduid persoon/bestuurslid van een ander team hem bekijkt.
+    let teamMembers = [];
+    if (showList) {
+        try {
+            teamMembers = await getTeamMembers(TEAM_TYPE);
+        } catch (err) {
+            console.error('Error loading team members:', err);
+        }
+    }
+
+    // Als er ondertussen alweer een nieuwere aanroep gebeurd is, stoppen we
+    // hier zodat we geen "verouderde" listener meer opzetten.
+    if (myToken !== availabilitySetupToken) return;
+
     const availabilityRef = collection(db, 'matches', matchId, 'availability');
     
     availabilityListener = onSnapshot(availabilityRef, (snapshot) => {
@@ -2387,11 +2442,13 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
         const availabilityList = document.getElementById('availabilityList');
         const availableCountEl = document.getElementById('availableCount');
         const unavailableCountEl = document.getElementById('unavailableCount');
+        const pendingCountEl = document.getElementById('pendingCount');
         const availableBtn = document.getElementById('availableBtn');
         const unavailableBtn = document.getElementById('unavailableBtn');
         
         let availableCount = 0;
         let unavailableCount = 0;
+        let pendingCount = 0;
         const availabilities = [];
         
         snapshot.forEach(docSnap => {
@@ -2400,9 +2457,24 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
             if (data.available) availableCount++;
             else unavailableCount++;
         });
+
+        // Vul aan met spelers van dit team die nog niets hebben aangeduid
+        if (showList && teamMembers.length) {
+            const respondedUids = new Set(availabilities.map(a => a.userId));
+            teamMembers.forEach(member => {
+                if (!member.uid || respondedUids.has(member.uid)) return;
+                availabilities.push({
+                    userId:      member.uid,
+                    displayName: member.naam,
+                    available:   null // nog niet aangeduid
+                });
+                pendingCount++;
+            });
+        }
         
         if (availableCountEl) availableCountEl.textContent = availableCount;
         if (unavailableCountEl) unavailableCountEl.textContent = unavailableCount;
+        if (pendingCountEl) pendingCountEl.textContent = pendingCount;
         
         if (currentUser && availableBtn && unavailableBtn) {
             availableBtn.classList.remove('selected');
@@ -2422,8 +2494,18 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
                     </div>
                 `;
             } else {
+                // Rang: aanwezig (0) → afwezig (1) → nog niet aangeduid (2).
+                // Dit behoudt de bestaande volgorde tussen aanwezig/afwezig
+                // en voegt de "nog niet aangeduid"-spelers er gewoon achteraan bij.
+                const rank = v => v.available === true ? 0 : v.available === false ? 1 : 2;
+
                 availabilities.sort((a, b) => {
-                    if (a.available !== b.available) return b.available - a.available;
+                    const ra = rank(a), rb = rank(b);
+                    if (ra !== rb) return ra - rb;
+                    if (ra === 2) {
+                        // Nog niet aangeduid: alfabetisch op naam
+                        return (a.displayName || '').localeCompare(b.displayName || '');
+                    }
                     // Nieuwste reactie bovenaan
                     const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
                     const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -2432,6 +2514,7 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
                 
                 availabilityList.innerHTML = availabilities.map(av => {
                     const isExternal = av.isExternalPlayer === true;
+                    const isPending  = av.available !== true && av.available !== false;
                     const teamLabels = { veteranen: 'Veteranen', zaterdag: 'Zaterdag', zondag: 'Zondag', bestuurslid: 'Bestuurslid' };
                     const sideLabel = isExternal
                         ? ` <span style="font-size:0.75rem; color:#888; font-style:italic;">(${teamLabels[av.fromTeam] || av.fromTeam || 'extern'})</span>`
@@ -2439,12 +2522,20 @@ function setupAvailabilityListener(matchId, showList = true, canManage = false) 
                     const removeBtn = (canManage && isExternal)
                         ? `<button class="remove-extra-player-btn" data-uid="${av.userId}" data-matchid="${matchId}" style="margin-left:auto; background:none; border:none; cursor:pointer; color:#4A4A4A; font-size:1rem;" title="Verwijder">✕</button>`
                         : '';
+
+                    const statusClass = isPending ? 'pending' : (av.available ? 'available' : 'unavailable');
+                    const statusIcon  = isPending ? '?' : (av.available ? '✓' : '✗');
+                    const statusStyle = `margin-left:${removeBtn ? '0' : 'auto'};${isPending ? ' color:#999;' : ''}`;
+
+                    const statusInner = isPending
+                        ? `<span>${statusIcon}</span>`
+                        : `<span>${statusIcon}</span><span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>`;
+
                     return `
                         <div class="availability-player" style="display:flex; align-items:center; gap:0.5rem;">
                             <span class="player-name">${av.displayName}${sideLabel}</span>
-                            <span class="availability-status ${av.available ? 'available' : 'unavailable'}" style="margin-left:${removeBtn ? '0' : 'auto'};">
-                                <span>${av.available ? '✓' : '✗'}</span>
-                                <span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>
+                            <span class="availability-status ${statusClass}" style="${statusStyle}">
+                                ${statusInner}
                             </span>
                             ${removeBtn}
                         </div>

@@ -9,8 +9,13 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, serverTimestamp }
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
+    from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+
+// Gebruikt dezelfde (reeds via firebase-config.js geïnitialiseerde) Firebase-app
+const storage = getStorage();
 import { LOGO_OPTIONS } from './vvs-logo.js';
 
 // ── Standaardinhoud ───────────────────────────────────────────────────────────
@@ -752,6 +757,7 @@ async function initMailTab() {
     // Nieuwe tabbladen
     initWrappedTab();
     initLogoTab();
+    initShopTab();
 }
 
 // ── Mail-tab koppelen ────────────────────────────────────────────────────────
@@ -1186,6 +1192,405 @@ async function initLogoTab() {
         }
         saveBtn.disabled = false;
     });
+}
+
+// ── Webshop Tab ──────────────────────────────────────────────────────────────
+// Firestore:
+//   settings/webshop → { active, intro, pickupInfo, updatedAt }
+//   shop_items/{id}  → { name, description, price, category, sizes: string[],
+//                         images: [{ url, path }] (ordered, eerste = hoofdfoto),
+//                         active, order, createdAt }
+//   (oudere producten kunnen nog een los image/imagePath-veld hebben — wordt
+//    automatisch gemigreerd naar images[] zodra de foto's bewerkt worden)
+
+const SHOP_EXAMPLE_ITEMS = [
+    {
+        name: 'Trainingsshirt VVS',
+        description: 'Officieel clubshirt in ademende stof, ideaal voor training en vrije tijd.',
+        price: 25,
+        images: [{ url: 'https://placehold.co/600x800/0047AB/FFFFFF?text=Trainingsshirt+VVS', path: null }],
+        category: 'Kledij',
+        sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+        active: true
+    },
+    {
+        name: 'Bodywarmer VVS',
+        description: 'Winddichte bodywarmer met clublogo — warm tijdens koude wedstrijddagen.',
+        price: 35,
+        images: [{ url: 'https://placehold.co/600x800/003380/FFFFFF?text=Bodywarmer+VVS', path: null }],
+        category: 'Kledij',
+        sizes: ['S', 'M', 'L', 'XL'],
+        active: true
+    },
+    {
+        name: 'Muts VVS',
+        description: 'Gebreide muts met geborduurd clublogo, one-size.',
+        price: 12,
+        images: [{ url: 'https://placehold.co/600x800/00A3E0/FFFFFF?text=Muts+VVS', path: null }],
+        category: 'Accessoires',
+        sizes: [],
+        active: true
+    }
+];
+// Let op: bovenstaande zijn tijdelijke placeholder-afbeeldingen (placehold.co).
+// Voeg via de foto-manager bij elk product je eigen foto's toe — die komen
+// gewoon bovenop de placeholder, die je nadien kan verwijderen.
+
+let _shopUnsub = null;
+let _shopSeedInFlight = false;
+
+async function initShopTab() {
+    const toggle       = document.getElementById('webshopToggle');
+    const introInput   = document.getElementById('webshopIntro');
+    const pickupInput  = document.getElementById('webshopPickupInfo');
+    const statusEl     = document.getElementById('webshopStatus');
+    const saveBtn      = document.getElementById('webshopSettingsSaveBtn');
+    const saveStatus   = document.getElementById('webshopSettingsSaveStatus');
+    const listEl       = document.getElementById('webshopProductList');
+    const countEl      = document.getElementById('webshopProductCount');
+    const addBtn       = document.getElementById('webshopAddProductBtn');
+    const seedBtn      = document.getElementById('webshopSeedBtn');
+    if (!toggle || !listEl) return;
+
+    // ── Instellingen laden ──────────────────────────────────────────────────
+    function updateStatus() {
+        statusEl.textContent = toggle.checked
+            ? '✅ Webshop is momenteel OPEN — leden kunnen bestellen.'
+            : '⏸️ Webshop is momenteel GESLOTEN voor leden.';
+        statusEl.style.color = toggle.checked ? 'var(--success)' : 'var(--text-gray)';
+    }
+
+    try {
+        const snap = await getDoc(doc(db, 'settings', 'webshop'));
+        if (snap.exists()) {
+            const data = snap.data();
+            toggle.checked    = !!data.active;
+            introInput.value  = data.intro || '';
+            pickupInput.value = data.pickupInfo || '';
+        }
+    } catch (e) { console.warn('Webshop: kon instellingen niet laden', e); }
+    updateStatus();
+    toggle.addEventListener('change', updateStatus);
+
+    saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        try {
+            await setDoc(doc(db, 'settings', 'webshop'), {
+                active: toggle.checked,
+                intro: introInput.value.trim(),
+                pickupInfo: pickupInput.value.trim(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            saveStatus.style.display = 'inline';
+            setTimeout(() => saveStatus.style.display = 'none', 2500);
+        } catch (e) {
+            alert('Fout bij opslaan: ' + e.message);
+        }
+        saveBtn.disabled = false;
+    });
+
+    // ── Producten: live lijst ───────────────────────────────────────────────
+    if (_shopUnsub) _shopUnsub();
+    _shopUnsub = onSnapshot(collection(db, 'shop_items'), (snapshot) => {
+        const products = [];
+        snapshot.forEach(d => products.push({ id: d.id, ...d.data() }));
+        products.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        renderShopProductList(products, listEl, countEl);
+    }, (err) => {
+        console.error('Webshop producten listener error:', err);
+        countEl.textContent = 'Fout bij laden van producten.';
+    });
+
+    // ── Nieuw product toevoegen ─────────────────────────────────────────────
+    addBtn.addEventListener('click', async () => {
+        addBtn.disabled = true;
+        try {
+            await addDoc(collection(db, 'shop_items'), {
+                name: 'Nieuw product',
+                description: '',
+                price: 0,
+                category: '',
+                sizes: [],
+                active: false,
+                order: Date.now(),
+                createdAt: serverTimestamp()
+            });
+        } catch (e) {
+            alert('Fout bij toevoegen: ' + e.message);
+        }
+        addBtn.disabled = false;
+    });
+
+    // ── Voorbeelditems toevoegen ─────────────────────────────────────────────
+    seedBtn.addEventListener('click', async () => {
+        if (_shopSeedInFlight) return;
+        if (!confirm('Dit voegt 3 voorbeeldproducten toe aan de webshop. Je kan ze nadien vrij aanpassen of verwijderen. Doorgaan?')) return;
+        _shopSeedInFlight = true;
+        seedBtn.disabled = true;
+        try {
+            let orderBase = Date.now();
+            for (const item of SHOP_EXAMPLE_ITEMS) {
+                await addDoc(collection(db, 'shop_items'), {
+                    ...item,
+                    order: orderBase++,
+                    createdAt: serverTimestamp()
+                });
+            }
+            showAdminToast('✅ Voorbeelditems toegevoegd aan de webshop.');
+        } catch (e) {
+            alert('Fout bij toevoegen van voorbeelditems: ' + e.message);
+        }
+        seedBtn.disabled = false;
+        _shopSeedInFlight = false;
+    });
+}
+
+// Normaliseert een product se afbeeldingen naar [{ url, path }], met fallback
+// voor oudere producten die nog het losse image/imagePath-veld gebruiken.
+function getAdminProductImages(p) {
+    if (Array.isArray(p.images) && p.images.length) {
+        return p.images.map(im => typeof im === 'string'
+            ? { url: im, path: null }
+            : { url: im.url, path: im.path || null });
+    }
+    if (p.image) return [{ url: p.image, path: p.imagePath || null }];
+    return [];
+}
+
+function renderShopProductList(products, listEl, countEl) {
+    countEl.textContent = products.length === 0
+        ? 'Nog geen producten — voeg er een toe of gebruik de voorbeelditems.'
+        : `${products.length} product${products.length === 1 ? '' : 'en'}`;
+
+    if (products.length === 0) {
+        listEl.innerHTML = '';
+        return;
+    }
+
+    listEl.innerHTML = products.map(p => {
+        const sizesStr = Array.isArray(p.sizes) ? p.sizes.join(', ') : '';
+        const images = getAdminProductImages(p);
+        const thumbStyle = images[0] ? `style="background-image:url('${escAttrJs(images[0].url)}')"` : '';
+        const fileInputId = `imgFiles-${p.id}`;
+
+        const tilesHtml = images.map((img, i) => `
+            <div class="shop-image-tile" style="background-image:url('${escAttrJs(img.url)}')" data-index="${i}">
+                <button type="button" class="shop-image-tile-remove" data-action="remove-image" data-index="${i}" aria-label="Verwijder foto">&times;</button>
+                <button type="button" class="shop-image-tile-reorder left" data-action="move-left" data-index="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Naar links">&#8249;</button>
+                <button type="button" class="shop-image-tile-reorder right" data-action="move-right" data-index="${i}" ${i === images.length - 1 ? 'disabled' : ''} aria-label="Naar rechts">&#8250;</button>
+                ${i === 0 ? '<span class="shop-image-cover-badge">Hoofdfoto</span>' : ''}
+            </div>`).join('');
+
+        return `
+        <div class="shop-admin-card${p.active ? '' : ' inactive'}" data-id="${p.id}">
+            <div class="shop-admin-thumb" ${thumbStyle}>${images[0] ? '' : '📦'}</div>
+            <div class="shop-admin-fields">
+                <div class="full">
+                    <label>Naam</label>
+                    <input type="text" data-field="name" value="${escHtml(p.name || '')}">
+                </div>
+                <div class="full">
+                    <label>Beschrijving</label>
+                    <textarea data-field="description" rows="2">${escHtml(p.description || '')}</textarea>
+                </div>
+                <div>
+                    <label>Prijs (&euro;)</label>
+                    <input type="number" step="0.01" min="0" data-field="price" value="${Number(p.price) || 0}">
+                </div>
+                <div>
+                    <label>Categorie</label>
+                    <input type="text" data-field="category" value="${escHtml(p.category || '')}" placeholder="bv. Kledij">
+                </div>
+                <div class="full">
+                    <label>Foto's <span style="font-weight:400;text-transform:none;letter-spacing:0;">(eerste = hoofdfoto in de shop)</span></label>
+                    <div class="shop-image-manager" data-role="imageManager">
+                        ${tilesHtml}
+                        <input type="file" accept="image/*" multiple class="shop-image-file-input"
+                               id="${fileInputId}" data-role="imageFiles">
+                        <label for="${fileInputId}" class="shop-image-add-tile">
+                            <span class="plus-icon">+</span>Foto('s)
+                        </label>
+                    </div>
+                    <span class="shop-image-status" data-role="imageStatus"></span>
+                </div>
+                <div class="full">
+                    <label>Maten (kommagescheiden, optioneel)</label>
+                    <input type="text" data-field="sizes" value="${escHtml(sizesStr)}" placeholder="S, M, L, XL">
+                </div>
+                <div class="full shop-admin-toggle-row">
+                    <label class="admin-toggle-switch sm">
+                        <input type="checkbox" data-field="active" ${p.active ? 'checked' : ''}>
+                        <span class="admin-toggle-slider"></span>
+                    </label>
+                    <span>Zichtbaar voor leden</span>
+                </div>
+            </div>
+            <div class="shop-admin-controls">
+                <button class="add-btn" data-action="save">&#128190; Opslaan</button>
+                <button class="add-btn danger" data-action="delete">&#128465; Verwijderen</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    listEl.querySelectorAll('.shop-admin-card').forEach(card => {
+        const id = card.dataset.id;
+        const product = products.find(p => p.id === id);
+
+        card.querySelector('[data-action="save"]').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+                const sizesRaw = card.querySelector('[data-field="sizes"]').value;
+                const sizes = sizesRaw.split(',').map(s => s.trim()).filter(Boolean);
+                await updateDoc(doc(db, 'shop_items', id), {
+                    name: card.querySelector('[data-field="name"]').value.trim(),
+                    description: card.querySelector('[data-field="description"]').value.trim(),
+                    price: parseFloat(card.querySelector('[data-field="price"]').value) || 0,
+                    category: card.querySelector('[data-field="category"]').value.trim(),
+                    sizes,
+                    active: card.querySelector('[data-field="active"]').checked
+                });
+                showAdminToast('✅ Product opgeslagen.');
+            } catch (e2) {
+                alert('Fout bij opslaan: ' + e2.message);
+            }
+            btn.disabled = false;
+        });
+
+        card.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+            if (!confirm('Dit product definitief verwijderen? Alle foto\'s worden ook verwijderd.')) return;
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+                const images = getAdminProductImages(product);
+                for (const img of images) {
+                    if (!img.path) continue;
+                    try { await deleteObject(storageRef(storage, img.path)); }
+                    catch (imgErr) { console.warn('Kon productfoto niet verwijderen uit storage:', imgErr); }
+                }
+                await deleteDoc(doc(db, 'shop_items', id));
+            } catch (e2) {
+                alert('Fout bij verwijderen: ' + e2.message);
+            }
+            btn.disabled = false;
+        });
+
+        // ── Foto's beheren (meerdere, herschikbaar) ──────────────────────────
+        const manager   = card.querySelector('[data-role="imageManager"]');
+        const fileInput = card.querySelector('[data-role="imageFiles"]');
+        const statusEl  = card.querySelector('[data-role="imageStatus"]');
+
+        function setManagerBusy(busy) {
+            manager.style.opacity = busy ? '0.5' : '1';
+            manager.style.pointerEvents = busy ? 'none' : 'auto';
+        }
+
+        async function persistImages(newImages, successMsg) {
+            setManagerBusy(true);
+            statusEl.textContent = 'Bezig met opslaan…';
+            statusEl.className = 'shop-image-status uploading';
+            try {
+                await updateDoc(doc(db, 'shop_items', id), {
+                    images: newImages.map(im => ({ url: im.url, path: im.path || null })),
+                    // Migratie: oude losse velden opruimen zodra we het nieuwe formaat gebruiken
+                    image: deleteField(),
+                    imagePath: deleteField()
+                });
+                statusEl.textContent = '';
+                statusEl.className = 'shop-image-status';
+                if (successMsg) showAdminToast(successMsg);
+                // onSnapshot hertekent de kaart automatisch met de nieuwe foto's
+            } catch (e2) {
+                console.error('Foto-update error:', e2);
+                statusEl.textContent = 'Fout: ' + e2.message;
+                statusEl.className = 'shop-image-status error';
+                setManagerBusy(false);
+            }
+        }
+
+        fileInput?.addEventListener('change', async () => {
+            const files = Array.from(fileInput.files || []);
+            if (files.length === 0) return;
+
+            const currentImages = getAdminProductImages(product);
+            const validFiles = [];
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) {
+                    statusEl.textContent = `"${file.name}" overgeslagen: enkel afbeeldingen toegestaan.`;
+                    statusEl.className = 'shop-image-status error';
+                    continue;
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                    statusEl.textContent = `"${file.name}" overgeslagen: bestand te groot (max 5MB).`;
+                    statusEl.className = 'shop-image-status error';
+                    continue;
+                }
+                validFiles.push(file);
+            }
+            if (validFiles.length === 0) return;
+
+            setManagerBusy(true);
+            statusEl.textContent = `Bezig met uploaden (0/${validFiles.length})…`;
+            statusEl.className = 'shop-image-status uploading';
+
+            const uploaded = [];
+            try {
+                for (let i = 0; i < validFiles.length; i++) {
+                    const file = validFiles[i];
+                    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+                    const path = `webshop/${id}/${Date.now()}_${i}_${safeName}`;
+                    const ref  = storageRef(storage, path);
+                    await uploadBytes(ref, file);
+                    const url  = await getDownloadURL(ref);
+                    uploaded.push({ url, path });
+                    statusEl.textContent = `Bezig met uploaden (${i + 1}/${validFiles.length})…`;
+                }
+                await persistImages([...currentImages, ...uploaded],
+                    `✅ ${uploaded.length} foto${uploaded.length === 1 ? '' : "'s"} toegevoegd.`);
+            } catch (e2) {
+                console.error('Upload error:', e2);
+                statusEl.textContent = 'Fout bij uploaden: ' + e2.message;
+                statusEl.className = 'shop-image-status error';
+                setManagerBusy(false);
+            }
+            fileInput.value = '';
+        });
+
+        manager?.addEventListener('click', async (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn || btn.disabled) return;
+            const idx = parseInt(btn.dataset.index, 10);
+            const currentImages = getAdminProductImages(product);
+
+            if (btn.dataset.action === 'remove-image') {
+                if (!confirm('Deze foto verwijderen?')) return;
+                const removed = currentImages[idx];
+                const newImages = currentImages.filter((_, i) => i !== idx);
+                setManagerBusy(true);
+                if (removed?.path) {
+                    try { await deleteObject(storageRef(storage, removed.path)); }
+                    catch (imgErr) { console.warn('Kon foto niet verwijderen uit storage:', imgErr); }
+                }
+                await persistImages(newImages, '✅ Foto verwijderd.');
+            }
+
+            if (btn.dataset.action === 'move-left' && idx > 0) {
+                const newImages = currentImages.slice();
+                [newImages[idx - 1], newImages[idx]] = [newImages[idx], newImages[idx - 1]];
+                await persistImages(newImages);
+            }
+
+            if (btn.dataset.action === 'move-right' && idx < currentImages.length - 1) {
+                const newImages = currentImages.slice();
+                [newImages[idx + 1], newImages[idx]] = [newImages[idx], newImages[idx + 1]];
+                await persistImages(newImages);
+            }
+        });
+    });
+}
+
+function escAttrJs(str) {
+    return String(str ?? '').replace(/'/g, '%27').replace(/"/g, '%22');
 }
 
 function showAdminToast(msg) {
