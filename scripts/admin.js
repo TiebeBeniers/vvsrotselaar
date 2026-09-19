@@ -9,7 +9,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, deleteField } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, deleteField, increment } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel } from './vvs-user-helpers.js';
 import { enablePushNotifications, disablePushNotifications, getPushPermissionStatus, listenForegroundMessages } from './push-notifications.js';
@@ -3444,6 +3444,106 @@ function retroVvsSide() {
 }
 
 /**
+ * Bouwt een naam → uid mapping op basis van een lineup-object ({uid: {name, status}}).
+ * "manual_"-spelers (niet-geregistreerde gastspelers) worden overgeslagen: zij hebben
+ * geen echt gebruikersdocument waarop stats bijgehouden kunnen worden.
+ */
+function buildNameToUid(lineupObj) {
+    const map = {};
+    Object.entries(lineupObj || {}).forEach(([uid, info]) => {
+        if (uid.startsWith('manual_')) return;
+        if (info?.name) map[info.name] = uid;
+    });
+    return map;
+}
+
+/**
+ * Telt per speler (uid) hoeveel goals/assists/kaarten een set events opleveren.
+ * Enkel events van de VVS-zijde (vvsSide) tellen mee voor onze eigen statistieken.
+ */
+function computeEventStats(events, nameToUid, vvsSide) {
+    const out = {};
+    const bump = (uid, field) => {
+        if (!uid) return;
+        if (!out[uid]) out[uid] = { goals: 0, assists: 0, yellowCard: 0, redCard: 0 };
+        out[uid][field]++;
+    };
+    (events || []).forEach(ev => {
+        if (ev.ploeg !== vvsSide) return;
+        const uid = nameToUid[ev.speler];
+        if (ev.type === 'goal' || ev.type === 'penalty') {
+            bump(uid, 'goals');
+            if (ev.assist) bump(nameToUid[ev.assist], 'assists');
+        } else if (ev.type === 'yellow') {
+            bump(uid, 'yellowCard');
+        } else if (ev.type === 'yellow2red') {
+            bump(uid, 'yellowCard');
+            bump(uid, 'redCard');
+        } else if (ev.type === 'red') {
+            bump(uid, 'redCard');
+        }
+        // 'own-goal' en 'penalty-missed' leveren bewust geen doelpuntenstatistiek op.
+    });
+    return out;
+}
+
+/**
+ * Bouwt per speler (uid) de effectief gespeelde minuten op, rekening houdend met
+ * wissels: basisspelers spelen vanaf minuut 0, wisselspelers vanaf het moment dat
+ * ze invallen; wie gewisseld wordt, stopt op dat moment. Ondersteunt ook spelers
+ * die meermaals in/uit gaan binnen dezelfde wedstrijd.
+ */
+function computePlayerMinutes(lineupObj, events, vvsSide, matchEndMinute) {
+    const nameToUid = buildNameToUid(lineupObj);
+    const stints = {};
+
+    Object.entries(lineupObj || {}).forEach(([uid, info]) => {
+        if (uid.startsWith('manual_')) return;
+        if (info.status === 'starter') {
+            stints[uid] = { name: info.name, totalMinutes: 0, minuteOn: 0, minuteOff: null, open: true, openSince: 0 };
+        }
+    });
+
+    const subEvents = (events || [])
+        .filter(ev => ev.type === 'substitution' && ev.ploeg === vvsSide)
+        .slice()
+        .sort((a, b) => a.minuut - b.minuut);
+
+    subEvents.forEach(ev => {
+        const outs = ev.spelersUit?.length ? ev.spelersUit : (ev.spelerUit ? [ev.spelerUit] : []);
+        const ins  = ev.spelersIn?.length  ? ev.spelersIn  : (ev.spelerIn  ? [ev.spelerIn]  : []);
+
+        outs.forEach(name => {
+            const uid = nameToUid[name];
+            if (!uid || !stints[uid] || !stints[uid].open) return;
+            stints[uid].totalMinutes += ev.minuut - stints[uid].openSince;
+            stints[uid].minuteOff = ev.minuut;
+            stints[uid].open = false;
+        });
+
+        ins.forEach(name => {
+            const uid = nameToUid[name];
+            if (!uid) return;
+            if (!stints[uid]) {
+                stints[uid] = { name, totalMinutes: 0, minuteOn: ev.minuut, minuteOff: null, open: true, openSince: ev.minuut };
+            } else {
+                stints[uid].open = true;
+                stints[uid].openSince = ev.minuut;
+            }
+        });
+    });
+
+    Object.values(stints).forEach(st => {
+        if (st.open) {
+            st.totalMinutes += matchEndMinute - st.openSince;
+            st.open = false;
+        }
+    });
+
+    return stints;
+}
+
+/**
  * Parseer minuut-input. Ondersteunt:
  *   - Gewone getallen:  "67"  → { min: 67, extra: 0 }
  *   - Plusnotatie:     "45+2" → { min: 45, extra: 2 }
@@ -4080,6 +4180,11 @@ async function retroFinalize() {
         const matchId  = retroMatch.id;
         const matchRef = doc(db, 'matches', matchId);
         const hd = retroHalfDur(), fd = retroFullDur();
+        const vvs = retroVvsSide();
+
+        // Vorige opstelling van deze wedstrijd (vóór overschrijven) — nodig om de
+        // oude bijdrage aan de spelersstatistieken te kunnen terugdraaien.
+        const oldLineup = retroMatch.lineup || {};
 
         // lineupDraft
         const lineupDraft = {};
@@ -4097,6 +4202,7 @@ async function retroFinalize() {
 
         const hasET    = retroEvents.some(e => e.half >= 3);
         const has2ndET = retroEvents.some(e => e.half === 4);
+        const matchEndMinute = has2ndET ? fd + 30 : (hasET ? fd + 15 : fd);
 
         await updateDoc(matchRef, {
             lineupDraft, lineupDraftConfirmed: true, lineupConfirmed: true, lineup,
@@ -4105,18 +4211,25 @@ async function retroFinalize() {
             halfTimeReached: true, extraTimeStarted: hasET, etHalfTimeReached: has2ndET, pausedAt: null,
         });
 
-        // Verwijder bestaande playerMinutes (worden hieronder opnieuw opgebouwd o.b.v. de huidige opstelling)
+        // Oude playerMinutes ophalen (voor de stats-delta) en verwijderen —
+        // worden hieronder opnieuw opgebouwd o.b.v. de huidige opstelling én
+        // tijdslijn (inclusief wissels).
         const pmSnap = await getDocs(collection(db, 'matches', matchId, 'playerMinutes'));
+        const oldMinutesByUid = {};
+        pmSnap.forEach(d => { oldMinutesByUid[d.id] = d.data().totalMinutes || 0; });
         await Promise.all(pmSnap.docs.map(d => deleteDoc(d.ref)));
 
-        // playerMinutes voor basisspelers
-        await Promise.all(Object.entries(lineup)
-            .filter(([uid,info]) => !uid.startsWith('manual_') && info.status === 'starter')
-            .map(([uid,info]) => setDoc(doc(db,'matches',matchId,'playerMinutes',uid),
-                { uid, name: info.name, minuteOn: 0, minuteOff: null, totalMinutes: fd })));
+        // Nieuwe playerMinutes, met correcte verwerking van wissels
+        const newStints = computePlayerMinutes(lineup, retroEvents, vvs, matchEndMinute);
+        await Promise.all(Object.entries(newStints).map(([uid, st]) =>
+            setDoc(doc(db, 'matches', matchId, 'playerMinutes', uid),
+                { uid, name: st.name, minuteOn: st.minuteOn, minuteOff: st.minuteOff, totalMinutes: st.totalMinutes })
+        ));
 
-        // Verwijder bestaande events in subcollection
+        // Oude events ophalen (voor de stats-delta) en verwijderen
         const existSnap = await getDocs(collection(db, 'matches', matchId, 'events'));
+        const MARKER_TYPES = new Set(['aftrap', 'rust', 'einde-regulier', 'einde']);
+        const oldEvents = existSnap.docs.map(d => d.data()).filter(ev => !MARKER_TYPES.has(ev.type));
         await Promise.all(existSnap.docs.map(d => deleteDoc(d.ref)));
 
         // Bouw events array → subcollection matches/{id}/events
@@ -4141,12 +4254,59 @@ async function retroFinalize() {
         }
         allEvDocs.push({
             ploeg: 'center', speler: '',
-            minuut: has2ndET ? fd+30 : (hasET ? fd+15 : fd),
+            minuut: matchEndMinute,
             half:   has2ndET ? 4      : (hasET ? 3      : 2),
             type:  'einde',
         });
 
         await Promise.all(allEvDocs.map(ev => addDoc(eventsCol, {...ev, timestamp: serverTimestamp()})));
+
+        // ── Spelersstatistieken bijwerken o.b.v. het verschil tussen oud en nieuw ──
+        // Zo blijft bv. een verwijderde goal of aangepaste wisselminuut correct
+        // doorgerekend in het profiel van de speler, zonder bij elke bewerking
+        // dubbel te tellen.
+        try {
+            const oldNameToUid = buildNameToUid(oldLineup);
+            const newNameToUid = buildNameToUid(lineup);
+            const oldEventStats = computeEventStats(oldEvents, oldNameToUid, vvs);
+            const newEventStats = computeEventStats(retroEvents, newNameToUid, vvs);
+
+            const affectedUids = new Set([
+                ...Object.keys(oldEventStats), ...Object.keys(newEventStats),
+                ...Object.keys(oldMinutesByUid), ...Object.keys(newStints)
+            ]);
+
+            await Promise.all(Array.from(affectedUids).map(async uid => {
+                const before = oldEventStats[uid] || { goals: 0, assists: 0, yellowCard: 0, redCard: 0 };
+                const after  = newEventStats[uid] || { goals: 0, assists: 0, yellowCard: 0, redCard: 0 };
+                const minutesBefore = oldMinutesByUid[uid] || 0;
+                const minutesAfter  = newStints[uid]?.totalMinutes || 0;
+
+                const deltaGoals   = after.goals      - before.goals;
+                const deltaAssists = after.assists    - before.assists;
+                const deltaYellow  = after.yellowCard - before.yellowCard;
+                const deltaRed     = after.redCard    - before.redCard;
+                const deltaMinutes = minutesAfter - minutesBefore;
+
+                if (!deltaGoals && !deltaAssists && !deltaYellow && !deltaRed && !deltaMinutes) return;
+
+                const update = {};
+                if (deltaGoals)   update['stats.goals']      = increment(deltaGoals);
+                if (deltaAssists) update['stats.assists']    = increment(deltaAssists);
+                if (deltaYellow)  update['stats.yellowCard'] = increment(deltaYellow);
+                if (deltaRed)     update['stats.redCard']    = increment(deltaRed);
+                if (deltaMinutes) update['stats.minutes']    = increment(deltaMinutes);
+
+                try {
+                    await updateDoc(doc(db, 'users', uid), update);
+                } catch (e) {
+                    console.error('Kon statistieken niet bijwerken voor', uid, e);
+                }
+            }));
+        } catch (e) {
+            console.error('Fout bij herberekenen spelersstatistieken:', e);
+            showToast('Tijdslijn opgeslagen, maar bijwerken van spelersstatistieken is deels mislukt.', 'error');
+        }
 
         showToast(retroIsEdit ? '✅ Tijdslijn en opstelling bijgewerkt!' : '✅ Opstelling en tijdslijn opgeslagen!', 'success');
         document.getElementById('retroModal').classList.remove('active');

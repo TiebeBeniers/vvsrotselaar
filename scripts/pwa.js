@@ -23,12 +23,16 @@
             }
           });
 
-          // Detecteer nieuwe versie op de achtergrond
+          // Nieuwe versie wordt automatisch geactiveerd door de service worker
+          // zelf (self.skipWaiting() + clients.claim() in sw.js) — dus gewoon
+          // stil op de achtergrond, zonder de gebruiker te storen met een
+          // pop-up. Bij de eerstvolgende paginaload/navigatie wordt de nieuwe
+          // versie dan vanzelf opgehaald.
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             newWorker?.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                showUpdateBanner();
+                console.log('[PWA] Nieuwe versie geïnstalleerd, wordt stil geactiveerd.');
               }
             });
           });
@@ -247,39 +251,9 @@
     }
   }
 
-  // ── 6. Update-banner (nieuwe versie beschikbaar) ─────────
-
-  function showUpdateBanner() {
-    // Niet storen tijdens het serveren op het vergrendelde kiosk-toestel.
-    if (window.__vvsKioskLocked) {
-      console.log('[PWA] Update-banner onderdrukt (kiosk-modus actief)');
-      return;
-    }
-
-    // Verwijder vorige banner als die er nog is
-    document.getElementById('vvs-pwa-banner')?.remove();
-
-    const banner = createBanner(`
-      <div class="pwa-banner-inner">
-        <img src="/assets/icons/icon-192.png" class="pwa-banner-logo" alt="VVS">
-        <div class="pwa-banner-text">
-          <div class="pwa-banner-title">🆕 Update beschikbaar</div>
-          <div class="pwa-banner-sub">Er is een nieuwe versie van de VVS app beschikbaar.</div>
-          <div class="pwa-banner-btns">
-            <button class="pwa-install-btn" id="pwaUpdateBtn">↻ Nu bijwerken</button>
-            <button class="pwa-dismiss-btn" id="pwaUpdateLaterBtn">Later</button>
-          </div>
-        </div>
-      </div>
-    `);
-
-    banner.querySelector('#pwaUpdateBtn').addEventListener('click', () => {
-      navigator.serviceWorker.controller?.postMessage({ type: 'SKIP_WAITING' });
-      window.location.reload();
-    });
-
-    banner.querySelector('#pwaUpdateLaterBtn').addEventListener('click', hideBanner);
-  }
+  // ── 6. Update-banner: uitgeschakeld ──────────────────────
+  //      Updates worden stil op de achtergrond toegepast (zie hierboven);
+  //      er verschijnt bewust geen visuele melding meer.
 
   // ── 7. Standalone: verberg browser-UI hints ──────────────
   if (isInStandaloneMode()) {

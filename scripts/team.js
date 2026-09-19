@@ -837,10 +837,20 @@ function renderPlannedNav(container) {
 
     // Touch/swipe on the card container
     let touchStartX = 0;
-    container.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+    let touchStartY = 0;
+    container.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
     container.addEventListener('touchend', e => {
         const dx = e.changedTouches[0].screenX - touchStartX;
-        if (Math.abs(dx) > 50) navigatePlanned(dx < 0 ? 1 : -1, container);
+        const dy = e.changedTouches[0].screenY - touchStartY;
+        // Enkel wisselen bij een duidelijk horizontale swipe: voldoende afstand
+        // én overduidelijk meer horizontale dan verticale beweging (anders is het
+        // gewoon scrollen en willen we niet per ongeluk van wedstrijd wisselen).
+        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
+            navigatePlanned(dx < 0 ? 1 : -1, container);
+        }
     }, { passive: true });
 }
 

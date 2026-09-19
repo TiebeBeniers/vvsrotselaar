@@ -197,7 +197,7 @@ function buildFeaturedCard(ev, isGrid = false) {
                 htmlEsc(ev.locatie) +
             '</div>' +
         '</div>' +
-        '<p class="evenement-beschrijving">' + htmlEsc(ev.beschrijving) + '</p>' +
+        '<p class="evenement-beschrijving" style="white-space:pre-wrap;">' + htmlEsc(ev.beschrijving) + '</p>' +
         linkHtml;
 
     if (ev.inschrijvingenAan) content.appendChild(buildInschrijfWrap(ev));
@@ -415,7 +415,7 @@ function buildSectiesHtml(secties, bestaandeAntwoorden = []) {
                 <span>${htmlEsc(sec.titel || 'Extra vragen')}</span>
                 <span class="inschrijf-popup-optioneel ${sec.verplicht ? 'verplicht' : ''}">${sec.verplicht ? 'verplicht' : 'optioneel'}</span>
             </div>
-            ${sec.beschrijving ? `<p class="inschrijf-sectie-beschrijving">${htmlEsc(sec.beschrijving)}</p>` : ''}
+            ${sec.beschrijving ? `<p class="inschrijf-sectie-beschrijving" style="white-space:pre-wrap;">${htmlEsc(sec.beschrijving)}</p>` : ''}
             ${sec.velden.map(v => {
                 const bestaand = bestaandeAntwoorden.find(a => a.veldId === v.id);
                 const waarde = bestaand ? (parseInt(bestaand.waarde) || 0) : 0;
@@ -527,7 +527,7 @@ function openInschrijfPopup(wrap) {
     modal.innerHTML = `
         <div class="inschrijf-popup-card">
             <h3>Inschrijven</h3>
-            ${inschrijfBeschr ? `<p class="inschrijf-popup-beschrijving">${htmlEsc(inschrijfBeschr)}</p>` : ''}
+            ${inschrijfBeschr ? `<p class="inschrijf-popup-beschrijving" style="white-space:pre-wrap;">${htmlEsc(inschrijfBeschr)}</p>` : ''}
             <div class="inschrijf-popup-jijzelf">
                 <span class="inschrijf-popup-check">✓</span>
                 <span>Jij schrijft jezelf in</span>
