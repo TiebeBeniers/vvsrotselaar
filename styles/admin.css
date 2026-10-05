@@ -1964,6 +1964,7 @@ html.dark .detail-stat-card {
 
 .detail-yellow .detail-stat-val { color: #e6a817; }
 .detail-red    .detail-stat-val { color: #dc3545; }
+.detail-motm   .detail-stat-val { color: #FFC107; }
 
 /* Stats form section label */
 .form-section-label {
@@ -4094,6 +4095,27 @@ html.dark #afgevaardigdeTeamGroup select { background: var(--white); border-colo
 }
 .retro-player-row:hover { background: #f0f4ff; }
 .retro-player-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.retro-member-search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1 0 100%;
+    max-height: 150px;
+    overflow-y: auto;
+}
+#retroModal .retro-member-result {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--text-dark, #212121);
+    text-align: left;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+#retroModal .retro-member-result:hover:not(:disabled) { background: #f0f4ff; }
+#retroModal .retro-member-result:disabled { color: #777; cursor: default; }
 .retro-extern-badge {
     font-size: 0.7rem; color: #fff; background: #78909c;
     border-radius: 4px; padding: 1px 5px; font-style: normal; font-weight: 600;

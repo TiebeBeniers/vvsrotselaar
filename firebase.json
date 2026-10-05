@@ -8,13 +8,48 @@
       "functions/**",
       "build-tools/**"
     ],
-    "predeploy": [
-      "node build-tools/bump-sw-cache.js"
-    ],
     "rewrites": [
       {
         "source": "/kalender/**",
         "function": "calendarFeed"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css|json)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=3600, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.@(png|jpg|jpeg|gif|webp|avif|svg|ico)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=604800, must-revalidate" }
+        ]
+      },
+      {
+        "source": "**/*.@(woff|woff2|ttf|eot|otf)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=2592000, must-revalidate" }
+        ]
+      },
+      {
+        "source": "sw.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      },
+      {
+        "source": "firebase-messaging-sw.js",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
       }
     ]
   },

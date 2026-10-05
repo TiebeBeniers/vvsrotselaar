@@ -2648,9 +2648,17 @@ function motmResultsVisible(match) {
     return Date.now() - new Date(match.motmRevealedAt).getTime() < 24 * 60 * 60 * 1000;
 }
 
+// Voorkomt dat een oudere (trage) render een nieuwere overschrijft.
+let motmRenderToken = 0;
+
 function renderMotmSection() {
+    _renderMotmSection().catch(err => console.error('renderMotmSection fout:', err));
+}
+
+async function _renderMotmSection() {
     const section = document.getElementById('motmSection');
     if (!section) return;
+    const myToken = ++motmRenderToken;
     section.innerHTML = '';
     section.classList.remove('motm-section--active');
 
@@ -2662,9 +2670,6 @@ function renderMotmSection() {
     const heeftWedstrijdRecht = permsMotm.includes('score_invullen');
     const isAfgevaardigdeMOTM = isAfgevaardigde(currentUserData, TEAM_TYPE);
     const isAdminUser         = permsMotm.includes('admin');
-
-    // Sectie enkel zichtbaar voor teamleden, aangeduide personen, afgevaardigde, of admin
-    if (!isInTeam && !heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser) return;
 
     const now = new Date();
 
@@ -2693,6 +2698,25 @@ function renderMotmSection() {
 
     if (!match) return; // geen wedstrijd vandaag
 
+    // Mag deze gebruiker stemmen?
+    //  - eigen teamleden (zoals voorheen), OF
+    //  - iedereen die op de aanwezigenlijst van DEZE wedstrijd staat
+    //    (ook spelers uit andere ploegen die als extra speler zijn toegevoegd)
+    let isOnAttendanceList = false;
+    if (!isInTeam) {
+        try {
+            const avSnap = await getDoc(doc(db, 'matches', match.id, 'availability', currentUser.uid));
+            isOnAttendanceList = avSnap.exists() && avSnap.data().available === true;
+        } catch (e) {
+            console.warn('Aanwezigheid controleren mislukt:', e.message);
+        }
+        if (myToken !== motmRenderToken) return; // ondertussen is er een nieuwere render gestart
+    }
+    const canVote = isInTeam || isOnAttendanceList;
+
+    // Sectie enkel zichtbaar voor stemgerechtigden, aangeduide personen, afgevaardigde, of admin
+    if (!canVote && !heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser) return;
+
     const motmResults   = match.motmResults || null;
     const isDesignated  = match.aangeduidePersonen?.includes(currentUser.uid);
     // Wie mag de uitslag onthullen: aangeduid persoon, wedstrijdrecht, afgevaardigde, admin
@@ -2705,8 +2729,8 @@ function renderMotmSection() {
     section.classList.add('motm-section--active');
 
     if (!motmResults) {
-        // ── Stem-knop: alleen voor eigen teamleden die meegespeeld hebben
-        if (isInTeam) {
+        // ── Stem-knop: teamleden + iedereen op de aanwezigenlijst
+        if (canVote) {
             const voteBtn = document.createElement('button');
             voteBtn.className = 'motm-section-vote-btn';
             voteBtn.innerHTML = '🏆 Stem Man van de Match';
@@ -2846,7 +2870,7 @@ async function computeTally(matchId) {
         if (!Array.isArray(votes)) return;
         votes.forEach(v => {
             const pts = v.rank === 1 ? 3 : v.rank === 2 ? 2 : 1;
-            if (!tally[v.uid]) tally[v.uid] = { name: v.name, points: 0 };
+            if (!tally[v.uid]) tally[v.uid] = { uid: v.uid, name: v.name, points: 0 };
             tally[v.uid].points += pts;
         });
     });
@@ -2901,6 +2925,19 @@ async function openStandModal(match) {
 
 async function revealMotm(match, tallyArg = null) {
     try {
+        // Voorkom dubbel tellen: is de uitslag ondertussen al bekendgemaakt?
+        const freshSnap = await getDoc(doc(db, 'matches', match.id));
+        if (freshSnap.exists() && freshSnap.data().motmResults) {
+            const fresh = freshSnap.data();
+            const i = allRecentMatches.findIndex(m => m.id === match.id);
+            if (i !== -1) {
+                allRecentMatches[i] = { ...allRecentMatches[i], motmResults: fresh.motmResults, motmRevealedAt: fresh.motmRevealedAt };
+            }
+            showToast('De uitslag was al bekendgemaakt.', 'error');
+            renderMotmSection();
+            return;
+        }
+
         const tally = tallyArg || await computeTally(match.id);
         const top3  = tally.slice(0, 3);
         if (top3.length === 0) { showToast('Nog geen stemmen uitgebracht.', 'error'); return; }
@@ -2910,31 +2947,29 @@ async function revealMotm(match, tallyArg = null) {
             { motmResults: top3, motmRevealedAt: revealedAt }, { merge: true });
 
         // ── Sla MOTM-punten op per speler (1e: 3pnt, 2e: 2pnt, 3e: 1pnt) ──
+        // Wordt opgeslagen in users/{uid}: stats.motmPoints (totaal) en
+        // stats.motmHistory (per wedstrijd: positie + punten).
         const MOTM_PTS = [3, 2, 1];
+        const failed = [];
         for (let i = 0; i < top3.length; i++) {
             const r   = top3[i];
             const pts = MOTM_PTS[i] ?? 1;
             // Sla enkel op voor echte Firebase-accounts (niet manual_...)
-            if (r.uid && !String(r.uid).startsWith('manual_')) {
-                try {
-                    // NIEUW: stats.motmPoints / stats.motmHistory (v2 schema)
-                    const userSnap = await getDoc(doc(db, 'users', r.uid));
-                    if (userSnap.exists()) {
-                        const s = userSnap.data().stats || {};
-                        await updateDoc(doc(db, 'users', r.uid), {
-                            'stats.motmPoints':  (s.motmPoints || 0) + pts,
-                            'stats.motmHistory': arrayUnion({
-                                matchId:  match.id,
-                                datum:    match.datum,
-                                positie:  i + 1,
-                                punten:   pts,
-                                team:     TEAM_TYPE,
-                            })
-                        });
-                    }
-                } catch (e) {
-                    console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
-                }
+            if (!r.uid || String(r.uid).startsWith('manual_')) continue;
+            try {
+                await updateDoc(doc(db, 'users', r.uid), {
+                    'stats.motmPoints':  increment(pts),
+                    'stats.motmHistory': arrayUnion({
+                        matchId:  match.id,
+                        datum:    match.datum,
+                        positie:  i + 1,
+                        punten:   pts,
+                        team:     TEAM_TYPE,
+                    })
+                });
+            } catch (e) {
+                console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
+                failed.push(r.name);
             }
         }
 
@@ -2947,7 +2982,11 @@ async function revealMotm(match, tallyArg = null) {
         // Invalideer localStorage cache
         localStorage.removeItem(`vvs_recent_matches_${TEAM_TYPE}`);
 
-        showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
+        if (failed.length) {
+            showToast(`🏆 Top 3 bekendgemaakt, maar punten niet opgeslagen voor: ${failed.join(', ')}. Pas ze manueel aan in het adminpaneel.`, 'error');
+        } else {
+            showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
+        }
 
         // Re-render kaarten en sectie direct
         const container = document.getElementById('recentMatchesList');

@@ -9,7 +9,7 @@
 import { auth, db, app } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, deleteField, increment } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, serverTimestamp, Timestamp, writeBatch, deleteField, increment, runTransaction } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { decryptPassword } from './crypto-utils.js';
 import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel } from './vvs-user-helpers.js';
 import { enablePushNotifications, disablePushNotifications, getPushPermissionStatus, listenForegroundMessages } from './push-notifications.js';
@@ -575,6 +575,7 @@ if (memberForm) {
         const minuten     = parseInt(document.getElementById('memberMinuten')?.value) || 0;
         const geelKaarten = parseInt(document.getElementById('memberGeel')?.value)    || 0;
         const roodKaarten = parseInt(document.getElementById('memberRood')?.value)    || 0;
+        const motmPoints  = parseInt(document.getElementById('memberMotmPoints')?.value) || 0;
         
         console.log('Submitting member form:', { name, email, categorie, rollen, isUpdate: !!uid });
         
@@ -609,6 +610,7 @@ if (memberForm) {
                     'stats.minutes':    minuten,
                     'stats.yellowCard': geelKaarten,
                     'stats.redCard':    roodKaarten,
+                    'stats.motmPoints': motmPoints,
                 };
 
                 console.log('Updating document:', uid, updateData);
@@ -842,6 +844,7 @@ function showMemberDetail(member) {
     document.getElementById('detailMinuten').textContent = s.minutes;
     document.getElementById('detailGeel').textContent    = s.yellowCard;
     document.getElementById('detailRood').textContent    = s.redCard;
+    document.getElementById('detailMotm').textContent    = member.stats?.motmPoints ?? 0;
 
     modal.classList.add('active');
 }
@@ -888,6 +891,7 @@ function editMember(member) {
     document.getElementById('memberMinuten').value = s.minutes;
     document.getElementById('memberGeel').value    = s.yellowCard;
     document.getElementById('memberRood').value    = s.redCard;
+    document.getElementById('memberMotmPoints').value = member.stats?.motmPoints ?? 0;
 
     const statsGroup = document.getElementById('statsEditGroup');
     if (statsGroup) statsGroup.style.display = '';
@@ -3216,63 +3220,81 @@ if (applyMatchResultBtn) {
         applyMatchResultBtn.textContent = 'Bezig…';
 
         try {
-            const snap  = await getDoc(doc(db, 'ranking', team));
-            if (!snap.exists()) throw new Error('Klassement niet gevonden.');
-            const teams = snap.data().teams.map(t => ({ ...t }));
+            const rankingRef = doc(db, 'ranking', team);
+            const teams = await runTransaction(db, async (transaction) => {
+                const snap = await transaction.get(rankingRef);
+                if (!snap.exists()) throw new Error('Klassement niet gevonden.');
+                const updatedTeams = (snap.data().teams || []).map(t => ({ ...t }));
 
-            const homeTeam = teams.find(t => t.team === homeName);
-            const awayTeam = teams.find(t => t.team === awayName);
-            if (!homeTeam || !awayTeam) throw new Error('Ploeg niet gevonden in klassement.');
+                const homeTeam = updatedTeams.find(t => t.team === homeName);
+                const awayTeam = updatedTeams.find(t => t.team === awayName);
+                if (!homeTeam || !awayTeam) throw new Error('Ploeg niet gevonden in klassement.');
 
-            function applyResult(t, goalsFor, goalsAgainst) {
-                t.played = (t.played || 0) + 1;
-                t.goals_for     = (t.goals_for     || 0) + goalsFor;
-                t.goals_against = (t.goals_against || 0) + goalsAgainst;
-                t.saldo = t.goals_for - t.goals_against;
-                if (goalsFor > goalsAgainst) {
-                    t.won  = (t.won  || 0) + 1;
-                    t.pnt  = (t.pnt  || 0) + 3;
-                } else if (goalsFor < goalsAgainst) {
-                    t.lost = (t.lost || 0) + 1;
-                } else {
-                    t.draw = (t.draw || 0) + 1;
-                    t.pnt  = (t.pnt  || 0) + 1;
+                function applyResult(t, goalsFor, goalsAgainst) {
+                    const count = value => {
+                        const parsed = Number(value);
+                        return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+                    };
+                    t.won = count(t.won);
+                    t.draw = count(t.draw);
+                    t.lost = count(t.lost);
+                    t.pnt = count(t.pnt);
+                    t.goals_for = count(t.goals_for) + goalsFor;
+                    t.goals_against = count(t.goals_against) + goalsAgainst;
+
+                    if (goalsFor > goalsAgainst) {
+                        t.won += 1;
+                        t.pnt += 3;
+                    } else if (goalsFor < goalsAgainst) {
+                        t.lost += 1;
+                    } else {
+                        t.draw += 1;
+                        t.pnt += 1;
+                    }
+
+                    t.played = t.won + t.draw + t.lost;
+                    t.saldo = t.goals_for - t.goals_against;
                 }
-            }
-            applyResult(homeTeam, homeScore, awayScore);
-            applyResult(awayTeam, awayScore, homeScore);
+                applyResult(homeTeam, homeScore, awayScore);
+                applyResult(awayTeam, awayScore, homeScore);
 
-            teams.sort((a, b) =>
-                (b.pnt       - a.pnt)       ||
-                (b.won       - a.won)       ||
-                (b.saldo     - a.saldo)     ||
-                (b.goals_for - a.goals_for)
-            );
-            let pos = 1;
-            teams.forEach((t, i) => {
-                if (i > 0 &&
-                    t.pnt       === teams[i-1].pnt       &&
-                    t.won       === teams[i-1].won       &&
-                    t.saldo     === teams[i-1].saldo     &&
-                    t.goals_for === teams[i-1].goals_for) {
-                    t.pos = teams[i-1].pos;
-                } else {
-                    t.pos = pos;
-                }
-                pos++;
+                updatedTeams.sort((a, b) =>
+                    (b.pnt       - a.pnt)       ||
+                    (b.won       - a.won)       ||
+                    (b.saldo     - a.saldo)     ||
+                    (b.goals_for - a.goals_for)
+                );
+                let pos = 1;
+                updatedTeams.forEach((t, i) => {
+                    if (i > 0 &&
+                        t.pnt       === updatedTeams[i-1].pnt       &&
+                        t.won       === updatedTeams[i-1].won       &&
+                        t.saldo     === updatedTeams[i-1].saldo     &&
+                        t.goals_for === updatedTeams[i-1].goals_for) {
+                        t.pos = updatedTeams[i-1].pos;
+                    } else {
+                        t.pos = pos;
+                    }
+                    pos++;
+                });
+
+                transaction.set(rankingRef, { teams: updatedTeams, updatedAt: serverTimestamp() });
+                return updatedTeams;
             });
-
-            await setDoc(doc(db, 'ranking', team), { teams, updatedAt: serverTimestamp() });
             localStorage.removeItem(`vvs_ranking_${team}`);
 
+            const updatedHome = teams.find(t => t.team === homeName);
+            const updatedAway = teams.find(t => t.team === awayName);
             const result = homeScore > awayScore ? `${homeName} wint`
                          : homeScore < awayScore ? `${awayName} wint`
                          : 'Gelijkspel';
 
             document.getElementById('matchResultPreviewContent').textContent =
                 `${homeName} ${homeScore} – ${awayScore} ${awayName}\n${result}\n\n` +
-                `${homeName}: ${homeTeam.pnt} pnt, ${homeTeam.played} gespeeld\n` +
-                `${awayName}: ${awayTeam.pnt} pnt, ${awayTeam.played} gespeeld`;
+                `${homeName}: ${updatedHome.pnt} pnt, ${updatedHome.played} gespeeld ` +
+                `(${updatedHome.won} gewonnen, ${updatedHome.draw} gelijk, ${updatedHome.lost} verloren)\n` +
+                `${awayName}: ${updatedAway.pnt} pnt, ${updatedAway.played} gespeeld ` +
+                `(${updatedAway.won} gewonnen, ${updatedAway.draw} gelijk, ${updatedAway.lost} verloren)`;
             document.getElementById('matchResultPreview').style.display = 'block';
 
             showRankingStatus('matchResultStatus', 'success',
@@ -3739,6 +3761,7 @@ async function retroNav(dir) {
 // ── Stap 1: Aanwezigen ────────────────────────────────────────────────────────
 
 async function renderRetroStep1(content) {
+    let memberAccounts = [];
     try {
         const snap = await getDocs(collection(db, 'matches', retroMatch.id, 'availability'));
         retroAvailable = [];
@@ -3750,6 +3773,19 @@ async function renderRetroStep1(content) {
         });
         retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
     } catch (e) { console.error('Error loading availability:', e); }
+
+    let memberSearchError = '';
+    try {
+        const membersSnap = await getDocs(collection(db, 'users'));
+        memberAccounts = membersSnap.docs
+            .map(d => ({ uid: d.id, ...d.data() }))
+            .filter(member => !(member.permissions || []).some(p => ['tijdelijk', 'extern'].includes(p)))
+            .filter(member => member.name)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) {
+        console.error('Error loading member accounts for retro match:', e);
+        memberSearchError = 'Ledenaccounts konden niet worden geladen: ' + e.message;
+    }
 
     // Bij bewerken: spelers uit de reeds opgeslagen opstelling die niet (meer) in de
     // beschikbaarheidslijst staan (bv. handmatig toegevoegd tijdens een live wedstrijd) toevoegen.
@@ -3767,10 +3803,11 @@ async function renderRetroStep1(content) {
     content.innerHTML = `
         <div class="retro-step-body">
             ${retroIsEdit ? `<p class="retro-step-desc"><strong>Je bewerkt een reeds opgeslagen wedstrijd.</strong> Aanwezigen, opstelling en tijdslijn zijn vooraf ingevuld — pas aan waar nodig.</p>` : ''}
-            <p class="retro-step-desc">
+            <p class="retro-step-desc" id="retroAvailabilityStatus">
+                <strong id="retroAvailableSummary">${retroAvailable.length} beschikbare speler(s)</strong>
                 ${retroAvailable.length === 0
-                    ? '<strong>Geen beschikbaarheidslijst gevonden.</strong> Voeg spelers handmatig toe.'
-                    : `<strong>${retroAvailable.length} beschikbare speler(s)</strong> geladen uit de beschikbaarheidslijst.`}
+                    ? 'Geen beschikbaarheidslijst gevonden. Voeg spelers toe via zoeken of handmatig.'
+                    : 'geladen uit de beschikbaarheidslijst.'}
             </p>
             <div id="retroAvailList" class="retro-avail-list">
                 ${retroAvailable.map(p => `
@@ -3783,20 +3820,112 @@ async function renderRetroStep1(content) {
             <div class="retro-manual-add-row">
                 <button class="action-btn" id="retroToggleManualAdd">+ Speler handmatig toevoegen</button>
                 <div id="retroManualAddForm" style="display:none;gap:0.5rem;flex-wrap:wrap;">
-                    <input type="text" id="retroManualName" class="modal-input-manual" placeholder="Naam speler" style="flex:1;min-width:160px;">
-                    <button class="action-btn edit" id="retroManualAddBtn">Toevoegen</button>
+                    <input type="search" id="retroManualName" class="modal-input-manual"
+                        placeholder="Zoek een lid of voer een externe speler in" autocomplete="off"
+                        style="flex:1;min-width:160px;">
+                    <button type="button" class="action-btn edit" id="retroManualAddBtn">Extern toevoegen</button>
+                    <div id="retroMemberSearchResults" class="retro-member-search-results" aria-live="polite"></div>
                 </div>
             </div>
         </div>`;
 
+    const memberSearch = content.querySelector('#retroManualName');
+    const searchResults = content.querySelector('#retroMemberSearchResults');
+    memberSearch.addEventListener('input', () => {
+        const query = memberSearch.value.trim().toLocaleLowerCase();
+        searchResults.innerHTML = '';
+        if (!query) {
+            content.querySelector('#retroManualAddBtn').disabled = false;
+            if (memberSearchError) {
+                const error = document.createElement('p');
+                error.className = 'retro-empty';
+                error.textContent = memberSearchError;
+                searchResults.appendChild(error);
+            }
+            return;
+        }
+
+        const matches = memberAccounts.filter(member =>
+            `${member.name} ${member.email || ''}`.toLocaleLowerCase().includes(query)
+        );
+        const exactMember = memberAccounts.find(member =>
+            member.name.toLocaleLowerCase() === query
+        );
+        const addExternalBtn = content.querySelector('#retroManualAddBtn');
+        addExternalBtn.disabled = !!exactMember;
+        if (matches.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'retro-empty';
+            empty.textContent = memberSearchError
+                ? memberSearchError
+                : 'Geen ledenaccount gevonden. Klik op “Extern toevoegen”.';
+            searchResults.appendChild(empty);
+            return;
+        }
+
+        matches.forEach(member => {
+            const alreadyAdded = retroAvailable.some(player => player.uid === member.uid);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'retro-member-result';
+            button.disabled = alreadyAdded;
+            button.textContent = alreadyAdded
+                ? `${member.name} — al toegevoegd`
+                : `${member.name}${member.email ? ` (${member.email})` : ''} — toevoegen`;
+            button.addEventListener('click', () => {
+                if (retroAvailable.some(player => player.uid === member.uid)) return;
+                const player = { uid: member.uid, name: member.name, isExternal: false };
+                retroAvailable.push(player);
+                retroAvailable.sort((a, b) => a.name.localeCompare(b.name));
+
+                const list = content.querySelector('#retroAvailList');
+                list.querySelector('.retro-empty')?.remove();
+                const row = document.createElement('label');
+                row.className = 'retro-player-row';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'retro-avail-cb';
+                checkbox.value = player.uid;
+                checkbox.checked = true;
+                const name = document.createElement('span');
+                name.textContent = player.name;
+                row.append(checkbox, name);
+                list.appendChild(row);
+                button.disabled = true;
+                button.textContent = `${member.name} — al toegevoegd`;
+                memberSearch.value = '';
+                searchResults.innerHTML = '';
+                addExternalBtn.disabled = false;
+                content.querySelector('#retroAvailableSummary').textContent =
+                    `${retroAvailable.length} beschikbare speler(s)`;
+            });
+            searchResults.appendChild(button);
+        });
+        if (memberSearchError) {
+            const error = document.createElement('p');
+            error.className = 'retro-empty';
+            error.textContent = memberSearchError;
+            searchResults.appendChild(error);
+        }
+    });
+
     content.querySelector('#retroToggleManualAdd').addEventListener('click', () => {
         const f = content.querySelector('#retroManualAddForm');
-        f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+        const opening = f.style.display === 'none';
+        f.style.display = opening ? 'flex' : 'none';
+        if (opening) content.querySelector('#retroManualName').focus();
     });
     content.querySelector('#retroManualAddBtn').addEventListener('click', () => {
         const input = content.querySelector('#retroManualName');
         const name  = input.value.trim();
         if (!name) return;
+        const matchingMember = memberAccounts.find(member =>
+            member.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+        );
+        if (matchingMember) {
+            showToast('Selecteer het bestaande ledenaccount uit de zoekresultaten.', 'error');
+            return;
+        }
         const safe = name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'');
         const uid  = `manual_${safe}_${Date.now()}`;
         retroAvailable.push({ uid, name, isExternal: true });
@@ -3804,10 +3933,24 @@ async function renderRetroStep1(content) {
         list.querySelector('.retro-empty')?.remove();
         const row = document.createElement('label');
         row.className = 'retro-player-row';
-        row.innerHTML = `<input type="checkbox" class="retro-avail-cb" value="${uid}" checked>
-            <span>${name} <em class="retro-extern-badge">handmatig</em></span>`;
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'retro-avail-cb';
+        checkbox.value = uid;
+        checkbox.checked = true;
+        const nameNode = document.createElement('span');
+        nameNode.append(document.createTextNode(`${name} `));
+        const badge = document.createElement('em');
+        badge.className = 'retro-extern-badge';
+        badge.textContent = 'extern';
+        nameNode.appendChild(badge);
+        row.append(checkbox, nameNode);
         list.appendChild(row);
+        content.querySelector('#retroAvailableSummary').textContent =
+            `${retroAvailable.length} beschikbare speler(s)`;
         input.value = '';
+        searchResults.innerHTML = '';
+        content.querySelector('#retroManualAddBtn').disabled = false;
     });
 }
 
