@@ -1775,24 +1775,34 @@ function renderMatchList() {
     matchesList.innerHTML = '';
 
     let filtered = allMatchesCache;
+    const now = new Date();
+    const sortRecentFirst = (a, b) =>
+        new Date(`${b.datum}T${b.uur || '00:00'}`) - new Date(`${a.datum}T${a.uur || '00:00'}`);
+    const sortPlanned = (a, b) => {
+        const dateA = new Date(`${a.datum}T${a.uur || '00:00'}`);
+        const dateB = new Date(`${b.datum}T${b.uur || '00:00'}`);
+        const aFuture = dateA >= now;
+        const bFuture = dateB >= now;
+        if (aFuture && !bFuture) return -1;
+        if (!aFuture && bFuture) return 1;
+        return aFuture ? dateA - dateB : dateB - dateA;
+    };
 
     if (currentMatchFilter === 'planned') {
         filtered = allMatchesCache.filter(m => m.status === 'planned');
-        const today = new Date();
-        filtered.sort((a, b) => {
-            const da = new Date(a.datum + 'T' + (a.uur || '00:00'));
-            const db_ = new Date(b.datum + 'T' + (b.uur || '00:00'));
-            const aFuture = da >= today;
-            const bFuture = db_ >= today;
-            if (aFuture && !bFuture) return -1;
-            if (!aFuture && bFuture) return 1;
-            return aFuture ? da - db_ : db_ - da;
-        });
+        filtered.sort(sortPlanned);
     } else if (currentMatchFilter === 'finished') {
         filtered = allMatchesCache.filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust');
-        filtered.sort((a, b) => new Date(b.datum) - new Date(a.datum));
+        filtered.sort(sortRecentFirst);
     } else {
-        filtered = [...allMatchesCache].sort((a, b) => new Date(b.datum) - new Date(a.datum));
+        const planned = allMatchesCache.filter(m => m.status === 'planned').sort(sortPlanned);
+        const played = allMatchesCache
+            .filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust')
+            .sort(sortRecentFirst);
+        const other = allMatchesCache
+            .filter(m => m.status !== 'planned' && m.status !== 'finished' && m.status !== 'live' && m.status !== 'rust')
+            .sort(sortRecentFirst);
+        filtered = [...planned, ...played, ...other];
     }
 
     if (currentMatchTeamFilter !== 'all') {

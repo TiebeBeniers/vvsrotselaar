@@ -13,6 +13,9 @@ import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateD
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import {
+    DEFAULT_WRAPPED_THEMES, normalizeWrappedTheme, showWrappedPreview,
+} from './vvs-wrapped.js';
 
 // Gebruikt dezelfde (reeds via firebase-config.js geïnitialiseerde) Firebase-app
 const storage = getStorage();
@@ -1075,15 +1078,137 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initWrappedTab() {
     const toggle   = document.getElementById('wrappedToggle');
     const saveBtn  = document.getElementById('wrappedSaveBtn');
+    const previewBtn = document.getElementById('wrappedPreviewBtn');
     const saveStatus = document.getElementById('wrappedSaveStatus');
     const statusEl = document.getElementById('wrappedStatus');
+    const themeSelect = document.getElementById('wrappedThemeSelect');
+    const themeName = document.getElementById('wrappedThemeName');
+    const themePattern = document.getElementById('wrappedThemePattern');
+    const themeBackground = document.getElementById('wrappedThemeBackground');
+    const themePatternColor = document.getElementById('wrappedThemePatternColor');
+    const themeAccent = document.getElementById('wrappedThemeAccent');
+    const themeStatus = document.getElementById('wrappedThemeStatus');
     if (!toggle || !saveBtn) return;
+
+    let themes = DEFAULT_WRAPPED_THEMES.map(theme => ({ ...theme }));
+    let selectedThemeId = themes[0].id;
+
+    function activeTheme() {
+        return themes.find(theme => theme.id === selectedThemeId) || themes[0];
+    }
+
+    function renderThemeOptions() {
+        themeSelect.innerHTML = '';
+        themes.forEach(theme => {
+            const option = document.createElement('option');
+            option.value = theme.id;
+            option.textContent = theme.name;
+            themeSelect.appendChild(option);
+        });
+        themeSelect.value = selectedThemeId;
+        updateThemeEditor();
+    }
+
+    function updateThemeEditor() {
+        const theme = activeTheme();
+        if (!theme) return;
+        selectedThemeId = theme.id;
+        themeSelect.value = theme.id;
+        themeName.value = theme.name;
+        themePattern.value = theme.pattern;
+        themeBackground.value = theme.backgroundColor;
+        themePatternColor.value = theme.patternColor;
+        themeAccent.value = theme.accentColor;
+    }
+
+    function markThemeChanged() {
+        const theme = activeTheme();
+        if (!theme) return;
+        theme.name = themeName.value.trim().slice(0, 40) || 'Naamloos thema';
+        theme.pattern = themePattern.value;
+        theme.backgroundColor = themeBackground.value;
+        theme.patternColor = themePatternColor.value;
+        theme.accentColor = themeAccent.value;
+        const selectedOption = themeSelect.selectedOptions[0];
+        if (selectedOption) selectedOption.textContent = theme.name;
+        themeStatus.textContent = 'Themawijzigingen nog niet opgeslagen.';
+    }
+
+    function createThemeId() {
+        let id;
+        do {
+            id = `thema_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        } while (themes.some(theme => theme.id === id));
+        return id;
+    }
+
+    [themeName, themePattern, themeBackground, themePatternColor, themeAccent]
+        .forEach(input => input.addEventListener('input', markThemeChanged));
+    themeSelect.addEventListener('change', () => {
+        selectedThemeId = themeSelect.value;
+        updateThemeEditor();
+        themeStatus.textContent = 'Geselecteerd thema wordt actief na opslaan.';
+    });
+    document.getElementById('wrappedNewThemeBtn')?.addEventListener('click', () => {
+        const theme = normalizeWrappedTheme({
+            id: createThemeId(),
+            name: 'Nieuw thema',
+            pattern: 'dots',
+            backgroundColor: '#0B1D3A',
+            patternColor: '#4FC3F7',
+            accentColor: '#FFD54F',
+        });
+        themes.push(theme);
+        selectedThemeId = theme.id;
+        renderThemeOptions();
+        themeStatus.textContent = 'Nieuw thema aangemaakt. Pas het aan en sla op.';
+    });
+    document.getElementById('wrappedDuplicateThemeBtn')?.addEventListener('click', () => {
+        const source = activeTheme();
+        const theme = { ...source, id: createThemeId(), name: `${source.name} kopie`.slice(0, 40) };
+        themes.push(theme);
+        selectedThemeId = theme.id;
+        renderThemeOptions();
+        themeStatus.textContent = 'Thema gekopieerd. Pas de kopie aan en sla op.';
+    });
+    document.getElementById('wrappedDeleteThemeBtn')?.addEventListener('click', () => {
+        if (themes.length <= 1) {
+            showAdminToast('Er moet minstens één Wrapped-thema bestaan.');
+            return;
+        }
+        const theme = activeTheme();
+        if (!confirm(`Thema "${theme.name}" verwijderen?`)) return;
+        themes = themes.filter(item => item.id !== theme.id);
+        selectedThemeId = themes[0].id;
+        renderThemeOptions();
+        themeStatus.textContent = 'Thema verwijderd. Sla de wijzigingen op.';
+    });
+
+    renderThemeOptions();
+    previewBtn?.addEventListener('click', () => {
+        markThemeChanged();
+        showWrappedPreview(activeTheme());
+    });
 
     // Laad huidige waarde
     try {
         const snap = await getDoc(doc(db, 'settings', 'siteSettings'));
         if (snap.exists()) {
-            toggle.checked = !!snap.data().wrappedEnabled;
+            const settings = snap.data();
+            toggle.checked = !!settings.wrappedEnabled;
+            if (Array.isArray(settings.wrappedThemes) && settings.wrappedThemes.length) {
+                themes = settings.wrappedThemes.map(theme => normalizeWrappedTheme(theme));
+                if ((settings.wrappedThemePresetVersion || 0) < 2) {
+                    DEFAULT_WRAPPED_THEMES.forEach(defaultTheme => {
+                        if (!themes.some(theme => theme.id === defaultTheme.id)) {
+                            themes.push({ ...defaultTheme });
+                        }
+                    });
+                }
+            }
+            selectedThemeId = themes.some(theme => theme.id === settings.wrappedThemeId)
+                ? settings.wrappedThemeId : themes[0].id;
+            renderThemeOptions();
         }
     } catch (e) { console.warn('Wrapped: kon instellingen niet laden', e); }
 
@@ -1123,8 +1248,19 @@ async function initWrappedTab() {
         try {
             const payload = { wrappedEnabled: toggle.checked };
             if (seasonInput?.value) payload.wrappedSeasonKey = seasonInput.value;
+            const name = themeName.value.trim();
+            if (!name) {
+                alert('Geef het thema een naam voordat je opslaat.');
+                saveBtn.disabled = false;
+                return;
+            }
+            markThemeChanged();
+            payload.wrappedThemes = themes.map(theme => normalizeWrappedTheme(theme));
+            payload.wrappedThemeId = selectedThemeId;
+            payload.wrappedThemePresetVersion = 2;
             await setDoc(doc(db, 'settings', 'siteSettings'), payload, { merge: true });
             saveStatus.style.display = 'inline';
+            themeStatus.textContent = 'Thema en instellingen opgeslagen.';
             setTimeout(() => saveStatus.style.display = 'none', 2500);
         } catch (e) {
             alert('Fout bij opslaan: ' + e.message);

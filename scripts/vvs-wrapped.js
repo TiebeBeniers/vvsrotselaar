@@ -14,6 +14,56 @@ import {
     doc, getDoc, collection, query, where, getDocs
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
+export const DEFAULT_WRAPPED_THEMES = [
+    {
+        id: 'stadionavond',
+        name: 'Stadionavond',
+        pattern: 'dots',
+        backgroundColor: '#0B1D3A',
+        patternColor: '#4FC3F7',
+        accentColor: '#FFD54F',
+    },
+    {
+        id: 'vvs-klassiek',
+        name: 'VVS Klassiek',
+        pattern: 'original',
+        backgroundColor: '#0B1D3A',
+        patternColor: '#FFFFFF',
+        accentColor: '#7EB8FF',
+    },
+    {
+        id: 'tribune-retro',
+        name: 'Tribune Retro',
+        pattern: 'stripes',
+        backgroundColor: '#35152D',
+        patternColor: '#FFB74D',
+        accentColor: '#FFE082',
+    },
+];
+
+const WRAPPED_PATTERNS = [
+    'original', 'dots', 'grid', 'stripes', 'diagonal', 'rings',
+    'checkerboard', 'chevrons', 'crosshatch', 'waves', 'diamonds',
+    'hexagons', 'sunburst', 'plus', 'topographic',
+];
+
+export function normalizeWrappedTheme(theme, fallback = DEFAULT_WRAPPED_THEMES[0]) {
+    const isHexColor = value => /^#[0-9a-f]{6}$/i.test(value || '');
+    return {
+        id: typeof theme?.id === 'string' && /^[a-z0-9_-]{1,40}$/i.test(theme.id)
+            ? theme.id : fallback.id,
+        name: typeof theme?.name === 'string' && theme.name.trim()
+            ? theme.name.trim().slice(0, 40) : fallback.name,
+        pattern: WRAPPED_PATTERNS.includes(theme?.pattern) ? theme.pattern : fallback.pattern,
+        backgroundColor: isHexColor(theme?.backgroundColor)
+            ? theme.backgroundColor : fallback.backgroundColor,
+        patternColor: isHexColor(theme?.patternColor)
+            ? theme.patternColor : fallback.patternColor,
+        accentColor: isHexColor(theme?.accentColor)
+            ? theme.accentColor : fallback.accentColor,
+    };
+}
+
 // ── Triggered vanuit app.js na auth ──────────────────────────────────────────
 export async function checkAndShowWrapped(user, userData) {
     if (!user || !userData) return;
@@ -45,7 +95,18 @@ export async function checkAndShowWrapped(user, userData) {
         const slides = buildSlides(stats, badges);
         if (slides.length === 0) return;
 
-        showWrappedModal(slides, stats.naam || stats.name || 'Speler', user, dismissedKey);
+        const themes = Array.isArray(settingsSnap.data().wrappedThemes)
+            ? settingsSnap.data().wrappedThemes : DEFAULT_WRAPPED_THEMES;
+        const selectedTheme = themes.find(theme => theme.id === settingsSnap.data().wrappedThemeId)
+            || themes[0] || DEFAULT_WRAPPED_THEMES[0];
+        showWrappedModal(
+            slides,
+            stats.naam || stats.name || 'Speler',
+            user,
+            dismissedKey,
+            false,
+            normalizeWrappedTheme(selectedTheme)
+        );
 
     } catch (e) {
         console.warn('[Wrapped] Kon niet laden:', e);
@@ -582,8 +643,36 @@ function buildSlides(s, badges = {}) {
     return slides;
 }
 
+export function showWrappedPreview(theme = DEFAULT_WRAPPED_THEMES[0]) {
+    const sampleStats = {
+        naam: 'Voorbeeld Speler',
+        goals: 12,
+        assists: 7,
+        matchen: 22,
+        minuten: 1610,
+        geelKaarten: 2,
+        roodKaarten: 0,
+        motmPunten: 4,
+        ploegen: ['Eerste ploeg'],
+    };
+    const sampleBadges = {
+        goals: { rank: 2, scope: 'club' },
+        assists: { rank: 1, scope: 'ploeg' },
+        matchen: { rank: 3, scope: 'club' },
+    };
+
+    showWrappedModal(
+        buildSlides(sampleStats, sampleBadges),
+        sampleStats.naam,
+        null,
+        null,
+        true,
+        normalizeWrappedTheme(theme)
+    );
+}
+
 // ── Modal renderer ────────────────────────────────────────────────────────────
-function showWrappedModal(slides, naam, user, dismissedKey) {
+function showWrappedModal(slides, naam, user, dismissedKey, isPreview = false, theme = DEFAULT_WRAPPED_THEMES[0]) {
     document.getElementById('vvsWrappedModal')?.remove();
 
     let idx = 0;
@@ -649,7 +738,16 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
     position:absolute; top:0; left:-100%; width:60%; height:100%;
     background:linear-gradient(90deg,transparent,rgba(255,255,255,0.07),transparent);
     animation:vwShine 4s ease-in-out infinite;
-    pointer-events:none; z-index:0;
+    pointer-events:none; z-index:1;
+}
+
+.vw-pattern-layer {
+    position:absolute; inset:0; border-radius:inherit;
+    opacity:0; pointer-events:none; z-index:0;
+    transform:scale(1.08) rotate(1deg);
+    transition:opacity 0.85s cubic-bezier(0.4,0,0.2,1),
+               transform 1.1s cubic-bezier(0.2,0.7,0.2,1);
+    will-change:opacity;
 }
 
 /* ── Progress bar ── */
@@ -693,6 +791,15 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
 
 /* ── Slide content ── */
 #vwSlideContent { position:relative; z-index:1; width:100%; }
+
+.vw-preview-banner {
+    position:fixed; top:1rem; left:50%; transform:translateX(-50%);
+    padding:0.45rem 0.9rem; border-radius:50px;
+    background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3);
+    color:#fff; font:700 0.78rem 'Barlow Condensed',sans-serif;
+    letter-spacing:0.08em; text-transform:uppercase;
+    white-space:nowrap; z-index:5;
+}
 
 /* ── Animations ── */
 .anim-intro .vw-icon     { animation:vwFloat 3s ease-in-out infinite; }
@@ -893,8 +1000,11 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
 }
 </style>
 
+${isPreview ? '<div class="vw-preview-banner">Preview · demogegevens</div>' : ''}
 <div id="vvsWrappedCard">
-    <button class="vw-share-top" id="vwShare" title="Deel deze slide">
+    <div class="vw-pattern-layer" aria-hidden="true"></div>
+    <div class="vw-pattern-layer" aria-hidden="true"></div>
+    <button class="vw-share-top" id="vwShare" title="Deel deze slide"${isPreview ? ' style="display:none"' : ''}>
         <img src="assets/share.png" alt="Deel" style="width:16px;height:16px;object-fit:contain;filter:invert(1);display:block;">
     </button>
     <button class="vw-close" id="vwClose" aria-label="Sluiten">✕</button>
@@ -904,13 +1014,15 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
         <button class="vw-nav-btn" id="vwPrev">← Vorige</button>
         <span class="vw-counter" id="vwCounter"></span>
         <button class="vw-nav-btn" id="vwNext">Volgende →</button>
-        <button class="vw-dismiss-btn" id="vwDismiss">Niet meer tonen</button>
+        <button class="vw-dismiss-btn" id="vwDismiss"${isPreview ? ' style="display:none"' : ''}>Niet meer tonen</button>
     </div>
 </div>`;
 
     document.body.appendChild(modal);
 
     const card      = document.getElementById('vvsWrappedCard');
+    const backgroundLayers = [...card.querySelectorAll('.vw-pattern-layer')];
+    let activeBackgroundLayer = -1;
     const content   = document.getElementById('vwSlideContent');
     const progress  = document.getElementById('vwProgress');
     const counter   = document.getElementById('vwCounter');
@@ -978,8 +1090,10 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
     // ── Render function ───────────────────────────────────────────────────────
     function render(i) {
         const s  = slides[i];
-        const ac = s.accent || '#fff';
-        card.style.background = s.bg;
+        const ac = theme.pattern === 'original' ? (s.accent || '#fff') : theme.accentColor;
+        activeBackgroundLayer = applyThemeBackground(
+            card, backgroundLayers, activeBackgroundLayer, theme, s.bg, i
+        );
 
         // Progress
         progress.querySelectorAll('.vw-prog-seg').forEach((seg, j) => {
@@ -1183,14 +1297,16 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
     });
     btnPrev.addEventListener('click', () => goTo(idx - 1));
     btnClose.addEventListener('click', closeModal);
-    btnDismiss?.addEventListener('click', () => {
-        try { localStorage.setItem(dismissedKey, '1'); } catch (_) {}
-        closeModal();
-    });
+    if (!isPreview) {
+        btnDismiss?.addEventListener('click', () => {
+            try { localStorage.setItem(dismissedKey, '1'); } catch (_) {}
+            closeModal();
+        });
 
-    document.getElementById('vwShare')?.addEventListener('click', () => {
-        shareSlide(slides[idx], naam);
-    });
+        document.getElementById('vwShare')?.addEventListener('click', () => {
+            shareSlide(slides[idx], naam);
+        });
+    }
 
     // Swipe support
     let touchX = 0, touchY = 0;
@@ -1223,6 +1339,108 @@ function showWrappedModal(slides, naam, user, dismissedKey) {
     }
 
     render(0);
+}
+
+function applyThemeBackground(card, layers, activeLayer, theme, originalBackground, slideIndex) {
+    card.style.backgroundColor = theme.backgroundColor;
+    const startPatternIndex = Math.max(0, WRAPPED_PATTERNS.indexOf(theme.pattern));
+    const pattern = theme.pattern === 'original' ? 'original' : WRAPPED_PATTERNS[
+        1 + ((startPatternIndex - 1 + slideIndex) % (WRAPPED_PATTERNS.length - 1))
+    ];
+    const opacity = ['55', '38', '45', '35', '40'][slideIndex % 5];
+    const color = `${theme.patternColor}${opacity}`;
+    const brightness = [0, -9, 7, -15, 12][slideIndex % 5];
+    const backgroundColor = adjustHexBrightness(theme.backgroundColor, brightness);
+    const layerBackgrounds = {
+        dots: {
+            image: `radial-gradient(circle, ${color} 1.5px, transparent 1.8px)`,
+            size: '24px 24px',
+        },
+        grid: {
+            image: `linear-gradient(${color} 1px, transparent 1px), linear-gradient(90deg, ${color} 1px, transparent 1px)`,
+            size: '32px 32px',
+        },
+        stripes: {
+            image: `repeating-linear-gradient(135deg, transparent 0 18px, ${color} 18px 20px)`,
+        },
+        diagonal: {
+            image: `repeating-linear-gradient(45deg, transparent 0 15px, ${color} 15px 17px)`,
+        },
+        rings: {
+            image: `repeating-radial-gradient(circle at 50% 45%, transparent 0 18px, ${color} 19px 20px, transparent 21px 38px)`,
+        },
+        checkerboard: {
+            image: `conic-gradient(${color} 25%, transparent 0 50%, ${color} 0 75%, transparent 0)`,
+            size: '36px 36px',
+        },
+        chevrons: {
+            image: `linear-gradient(135deg, transparent 72%, ${color} 73% 76%, transparent 77%), linear-gradient(225deg, transparent 72%, ${color} 73% 76%, transparent 77%)`,
+            size: '40px 28px',
+        },
+        crosshatch: {
+            image: `repeating-linear-gradient(45deg, ${color} 0 1px, transparent 1px 12px), repeating-linear-gradient(-45deg, ${color} 0 1px, transparent 1px 12px)`,
+            size: 'auto',
+        },
+        waves: {
+            image: `radial-gradient(ellipse at 50% 0%, transparent 0 57%, ${color} 59% 61%, transparent 63%)`,
+            size: '64px 30px',
+        },
+        diamonds: {
+            image: `linear-gradient(45deg, transparent 48%, ${color} 49% 51%, transparent 52%), linear-gradient(-45deg, transparent 48%, ${color} 49% 51%, transparent 52%)`,
+            size: '34px 34px',
+        },
+        hexagons: {
+            image: `repeating-linear-gradient(0deg, transparent 0 13px, ${color} 13px 14px, transparent 14px 27px), repeating-linear-gradient(60deg, transparent 0 13px, ${color} 13px 14px, transparent 14px 27px), repeating-linear-gradient(-60deg, transparent 0 13px, ${color} 13px 14px, transparent 14px 27px)`,
+            size: '46px 54px',
+        },
+        sunburst: {
+            image: `repeating-conic-gradient(from 0deg at 50% 50%, ${color} 0deg 5deg, transparent 5deg 15deg)`,
+            size: '84px 84px',
+        },
+        plus: {
+            image: `linear-gradient(${color} 2px, transparent 2px), linear-gradient(90deg, ${color} 2px, transparent 2px)`,
+            size: '32px 32px',
+            position: 'center',
+        },
+        topographic: {
+            image: `repeating-radial-gradient(ellipse at 50% 50%, transparent 0 9px, ${color} 10px 11px, transparent 12px 19px)`,
+            size: '76px 58px',
+        },
+    };
+    const selectedBackground = layerBackgrounds[pattern];
+    const nextLayer = activeLayer < 0 ? 0 : (activeLayer + 1) % layers.length;
+    const layer = layers[nextLayer];
+    layer.style.background = theme.pattern === 'original'
+        ? originalBackground
+        : backgroundColor;
+    if (theme.pattern !== 'original') {
+        layer.style.backgroundImage = selectedBackground.image;
+        layer.style.backgroundSize = selectedBackground.size || 'auto';
+        layer.style.backgroundPosition = selectedBackground.position || '0 0';
+    }
+
+    if (activeLayer < 0) {
+        layer.style.opacity = '1';
+        layer.style.transform = 'scale(1)';
+    } else {
+        requestAnimationFrame(() => {
+            layer.style.opacity = '1';
+            layer.style.transform = 'scale(1)';
+            layers[activeLayer].style.opacity = '0';
+            layers[activeLayer].style.transform = 'scale(0.96) rotate(-1deg)';
+        });
+    }
+    return nextLayer;
+}
+
+function adjustHexBrightness(hex, amount) {
+    const value = Number.parseInt(hex.slice(1), 16);
+    const channels = [
+        (value >> 16) & 255,
+        (value >> 8) & 255,
+        value & 255,
+    ].map(channel => Math.max(0, Math.min(255, channel + amount)));
+    return `#${channels.map(channel => channel.toString(16).padStart(2, '0')).join('')}`;
 }
 
 // ── Seizoenlabel automatisch berekenen ───────────────────────────────────────

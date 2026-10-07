@@ -825,7 +825,8 @@
                     Wanneer <strong>VVS Wrapped</strong> ingeschakeld is, ziet elke ingelogde speler bij het 
                     openen van de homepage eenmalig per sessie een persoonlijke seizoensamenvatting — 
                     vergelijkbaar met Spotify Wrapped. De speler ziet alleen statistieken &gt; 0
-                    (kaarten worden altijd getoond indien aanwezig).
+                    (kaarten worden altijd getoond indien aanwezig). Bekijk eerst de voorbeeldweergave om de
+                    slideshow te testen zonder deze voor spelers in te schakelen.
                 </p>
 
                 <div class="admin-setting-card" id="wrappedSettingCard">
@@ -865,8 +866,72 @@
                     </div>
                 </div>
 
+                <div class="admin-setting-card" style="margin-top:1.25rem;">
+                    <div class="admin-setting-row" style="flex-direction:column;align-items:stretch;gap:1rem;">
+                        <div>
+                            <strong>Wrapped-thema</strong>
+                            <span class="admin-setting-desc" style="display:block;margin-top:0.35rem;">
+                                Kies het thema voor het huidige seizoen. Maak een thema aan of kopieer een bestaand thema,
+                                pas het startpatroon en de kleuren aan en bekijk het resultaat met Preview bekijken.
+                                Patroon-thema's wisselen automatisch van patroon en achtergrondtint per slide.
+                            </span>
+                        </div>
+                        <div style="display:flex;gap:0.65rem;flex-wrap:wrap;align-items:center;">
+                            <select id="wrappedThemeSelect" class="mail-input" style="flex:1;min-width:200px;"></select>
+                            <button class="add-btn secondary" id="wrappedNewThemeBtn" type="button">Nieuw thema</button>
+                            <button class="add-btn secondary" id="wrappedDuplicateThemeBtn" type="button">Kopieer</button>
+                            <button class="add-btn" id="wrappedDeleteThemeBtn" type="button"
+                                style="background:#e74c3c;">Verwijder</button>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0.85rem;">
+                            <label class="admin-setting-info">
+                                <strong>Naam</strong>
+                                <input id="wrappedThemeName" class="mail-input" type="text" maxlength="40"
+                                    placeholder="Bijv. Stadionavond" style="margin-top:0.4rem;width:100%;">
+                            </label>
+                            <label class="admin-setting-info">
+                                <strong>Achtergrondstijl</strong>
+                                <select id="wrappedThemePattern" class="mail-input" style="margin-top:0.4rem;width:100%;">
+                                    <option value="original">Bestaande achtergronden</option>
+                                    <option value="dots">Stippen</option>
+                                    <option value="grid">Raster</option>
+                                    <option value="stripes">Strepen</option>
+                                    <option value="diagonal">Diagonale lijnen</option>
+                                    <option value="rings">Ringen</option>
+                                    <option value="checkerboard">Dambord</option>
+                                    <option value="chevrons">Chevron / zigzag</option>
+                                    <option value="crosshatch">Arcering</option>
+                                    <option value="waves">Golven</option>
+                                    <option value="diamonds">Ruiten</option>
+                                    <option value="hexagons">Zeshoeken</option>
+                                    <option value="sunburst">Stralen</option>
+                                    <option value="plus">Plusjes</option>
+                                    <option value="topographic">Topografische lijnen</option>
+                                </select>
+                            </label>
+                            <label class="admin-setting-info">
+                                <strong>Achtergrondkleur</strong>
+                                <input id="wrappedThemeBackground" class="mail-input" type="color"
+                                    style="display:block;margin-top:0.4rem;width:100%;height:42px;padding:0.2rem;">
+                            </label>
+                            <label class="admin-setting-info">
+                                <strong>Patroonkleur</strong>
+                                <input id="wrappedThemePatternColor" class="mail-input" type="color"
+                                    style="display:block;margin-top:0.4rem;width:100%;height:42px;padding:0.2rem;">
+                            </label>
+                            <label class="admin-setting-info">
+                                <strong>Accentkleur</strong>
+                                <input id="wrappedThemeAccent" class="mail-input" type="color"
+                                    style="display:block;margin-top:0.4rem;width:100%;height:42px;padding:0.2rem;">
+                            </label>
+                        </div>
+                        <span class="admin-setting-desc" id="wrappedThemeStatus" aria-live="polite"></span>
+                    </div>
+                </div>
+
                 <div class="save-bar">
-                    <button class="add-btn" id="wrappedSaveBtn">&#128190; Opslaan</button>
+                    <button class="add-btn secondary" id="wrappedPreviewBtn" type="button">&#128065; Preview bekijken</button>
+                    <button class="add-btn" id="wrappedSaveBtn">&#128190; Instellingen en thema opslaan</button>
                     <span class="save-status" id="wrappedSaveStatus">&#10003; Opgeslagen</span>
                 </div>
             </div>
