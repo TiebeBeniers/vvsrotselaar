@@ -819,6 +819,16 @@ html.dark .wisselgeld-display       { background: var(--off-white); border-color
 }
 .notif-match-btn:hover { background: var(--dark-blue); transform: translateY(-1px); }
 
+.notif-push-actions { display: flex; flex-wrap: wrap; gap: 0.55rem; justify-content: center; }
+.notif-push-actions .notif-match-btn { align-self: auto; margin-top: 0; }
+.notif-push-dismiss {
+    padding: 0.5rem 0.9rem; background: transparent;
+    color: var(--text-gray); font-size: 0.82rem; font-weight: 600;
+    border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+    cursor: pointer; transition: background 0.2s, color 0.2s;
+}
+.notif-push-dismiss:hover { background: var(--off-white); color: var(--text-dark); }
+
 @media (max-width: 480px) {
     .notif-banner { padding: 1rem; }
     .notif-match-btn { align-self: stretch; text-align: center; }

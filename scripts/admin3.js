@@ -1373,6 +1373,7 @@ const SHOP_EXAMPLE_ITEMS = [
 // gewoon bovenop de placeholder, die je nadien kan verwijderen.
 
 let _shopUnsub = null;
+let _shopOrdersUnsub = null;
 let _shopSeedInFlight = false;
 
 async function initShopTab() {
@@ -1386,7 +1387,22 @@ async function initShopTab() {
     const countEl      = document.getElementById('webshopProductCount');
     const addBtn       = document.getElementById('webshopAddProductBtn');
     const seedBtn      = document.getElementById('webshopSeedBtn');
+    const ordersList   = document.getElementById('shopOrdersList');
+    const ordersCount  = document.getElementById('shopOrderCount');
     if (!toggle || !listEl) return;
+
+    // ── Bestellingen: live overzicht ───────────────────────────────────────
+    if (_shopOrdersUnsub) _shopOrdersUnsub();
+    _shopOrdersUnsub = onSnapshot(collection(db, 'shop_orders'), (snapshot) => {
+        const orders = snapshot.docs.map(orderDoc => ({ id: orderDoc.id, ...orderDoc.data() }));
+        orders.sort((a, b) => getShopOrderTime(b.createdAt) - getShopOrderTime(a.createdAt));
+        ordersCount.textContent = `${orders.length} ${orders.length === 1 ? 'bestelling' : 'bestellingen'}`;
+        renderShopOrders(orders, ordersList);
+    }, (err) => {
+        console.error('Webshop bestellingen listener error:', err);
+        ordersCount.textContent = 'Laden mislukt';
+        ordersList.innerHTML = '<p class="shop-orders-state">Bestellingen konden niet worden geladen. Vernieuw de pagina of controleer de toegang.</p>';
+    });
 
     // ── Instellingen laden ──────────────────────────────────────────────────
     function updateStatus() {
@@ -1479,6 +1495,60 @@ async function initShopTab() {
         seedBtn.disabled = false;
         _shopSeedInFlight = false;
     });
+}
+
+function getShopOrderTime(timestamp) {
+    if (timestamp?.toMillis) return timestamp.toMillis();
+    if (timestamp?.seconds) return timestamp.seconds * 1000;
+    return 0;
+}
+
+function renderShopOrders(orders, listEl) {
+    if (!orders.length) {
+        listEl.innerHTML = '<p class="shop-orders-state">Er zijn nog geen bestellingen binnengekomen.</p>';
+        return;
+    }
+
+    listEl.innerHTML = orders.map(order => {
+        const date = order.createdAt?.toDate ? order.createdAt.toDate() : null;
+        const dateLabel = date && !Number.isNaN(date.getTime())
+            ? date.toLocaleString('nl-BE', { dateStyle: 'medium', timeStyle: 'short' })
+            : 'Datum niet beschikbaar';
+        const items = Array.isArray(order.items) ? order.items : [];
+        const itemRows = items.length
+            ? items.map(item => {
+                const qty = Math.max(0, Number(item.qty) || 0);
+                const size = item.size ? ` · maat ${escHtml(item.size)}` : '';
+                const lineTotal = (Number(item.price) || 0) * qty;
+                return `<li><strong>${qty}×</strong> ${escHtml(item.name || 'Product')}<span class="shop-order-item-detail">${size} · €${lineTotal.toFixed(2).replace('.', ',')}</span></li>`;
+            }).join('')
+            : '<li class="shop-order-item-detail">Geen productdetails beschikbaar.</li>';
+        const email = typeof order.userEmail === 'string' ? order.userEmail.trim() : '';
+        const customer = typeof order.userName === 'string' && order.userName.trim()
+            ? order.userName.trim()
+            : 'Naam niet beschikbaar';
+        const status = typeof order.status === 'string' && order.status.trim()
+            ? order.status.trim()
+            : 'Nieuw';
+        const total = Number(order.total);
+        const totalLabel = Number.isFinite(total) ? total.toFixed(2).replace('.', ',') : '0,00';
+
+        return `
+            <article class="shop-order-card">
+                <div class="shop-order-customer">
+                    <strong>${escHtml(customer)}</strong>
+                    ${email
+                        ? `<a href="mailto:${encodeURIComponent(email)}">${escHtml(email)}</a>`
+                        : '<span>E-mailadres niet beschikbaar</span>'}
+                    <div class="shop-order-date">${escHtml(dateLabel)}</div>
+                </div>
+                <ul class="shop-order-items">${itemRows}</ul>
+                <div class="shop-order-total">
+                    <strong>€${totalLabel}</strong>
+                    <span class="shop-order-status">${escHtml(status)}</span>
+                </div>
+            </article>`;
+    }).join('');
 }
 
 // Normaliseert een product se afbeeldingen naar [{ url, path }], met fallback

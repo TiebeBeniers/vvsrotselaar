@@ -16,6 +16,7 @@ import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, getDocs, getDoc, doc }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { enablePushNotifications } from './push-notifications.js';
 
 const DISMISSED_KEY  = 'vvs_notif_dismissed';
 const CHECK_INTERVAL = 2 * 60 * 60 * 1000;  // Om de 2 uur opnieuw checken
@@ -62,12 +63,15 @@ function avDismiss(matchId) {
 }
 
 // ── Dismiss helpers — admin meldingen ─────────────────────────────────────────
-function customDismissKey(id, versie) { return `vvs_custom_${id}_v${versie}`; }
-function isCustomDismissed(id, versie) {
-    return localStorage.getItem(customDismissKey(id, versie)) === '1';
+function customDismissKey(id, versie, uid = null) {
+    return `vvs_custom_${id}_v${versie}${uid ? `_${uid}` : ''}`;
 }
-function customDismiss(id, versie) {
-    try { localStorage.setItem(customDismissKey(id, versie), '1'); } catch (_) {}
+function isCustomDismissed(id, versie, uid = null) {
+    try { return localStorage.getItem(customDismissKey(id, versie, uid)) === '1'; }
+    catch (_) { return false; }
+}
+function customDismiss(id, versie, uid = null) {
+    try { localStorage.setItem(customDismissKey(id, versie, uid), '1'); } catch (_) {}
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
@@ -181,7 +185,7 @@ const TYPE_META = {
     success: { icon: '✅',  color: '#28A745' },
 };
 
-function showCustomBanner(m) {
+function showCustomBanner(m, user = null) {
     const bannerId = `notifCustom_${m.id}`;
     document.getElementById(bannerId)?.remove();
 
@@ -190,19 +194,45 @@ function showCustomBanner(m) {
     // Gebruik de opgeslagen kleur (valt terug op meta-kleur van het type)
     const accentKleur = m.kleur || meta.color;
     // Duur: 0 = oneindig → 0ms in makeBanner; anders seconden → ms
-    const autoHideMs  = (m.duur && m.duur > 0) ? m.duur * 1000 : 0;
+    const autoHideMs  = m.pushOptIn ? 0 : (m.duur && m.duur > 0) ? m.duur * 1000 : 0;
 
     const html = `
         <div class="notif-banner-header notif-custom" style="--notif-accent:${accentKleur};border-top-color:${accentKleur}">
             <div class="notif-banner-title-row">
                 <span class="notif-banner-icon">${meta.icon}</span>
                 <span class="notif-banner-title">${escHtml(m.titel)}</span>
-                <button class="notif-banner-close" title="Sluiten">✕</button>
+                <button class="notif-banner-close" title="${m.pushOptIn ? 'Negeren' : 'Sluiten'}" aria-label="${m.pushOptIn ? 'Negeren' : 'Sluiten'}">✕</button>
             </div>
             <p class="notif-banner-text notif-text-center">${escHtml(m.tekst)}</p>
+            ${m.pushOptIn ? `
+                <div class="notif-push-actions">
+                    <button type="button" class="notif-match-btn notif-push-enable">Meldingen aanzetten</button>
+                    <button type="button" class="notif-push-dismiss">Negeren</button>
+                </div>` : ''}
         </div>`;
 
-    makeBanner(bannerId, html, () => customDismiss(m.id, m.versie ?? 1), autoHideMs);
+    const uid = m.pushOptIn ? user?.uid : null;
+    const banner = makeBanner(bannerId, html, () => customDismiss(m.id, m.versie ?? 1, uid), autoHideMs);
+
+    if (m.pushOptIn) {
+        banner.classList.add('notif-push-opt-in');
+        banner.querySelector('.notif-push-dismiss')?.addEventListener('click', () => {
+            banner.querySelector('.notif-banner-close')?.click();
+        });
+        const enableButton = banner.querySelector('.notif-push-enable');
+        enableButton?.addEventListener('click', async () => {
+            if (!user || !enableButton) return;
+            enableButton.disabled = true;
+            enableButton.textContent = 'Toestemming aanvragen…';
+            const enabled = await enablePushNotifications(user.uid);
+            if (enabled) {
+                banner.querySelector('.notif-banner-close')?.click();
+            } else if (enableButton.isConnected) {
+                enableButton.disabled = false;
+                enableButton.textContent = 'Meldingen aanzetten';
+            }
+        });
+    }
 }
 
 function escHtml(s) {
@@ -246,7 +276,7 @@ async function checkAvailability(user, team) {
     }
 }
 
-async function checkCustomNotifications(user, ploegen) {
+async function checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded) {
     // ploegen is een array van strings, bv. ['zaterdag', 'zondag']
     const today = new Date().toISOString().slice(0, 10);
 
@@ -265,6 +295,7 @@ async function checkCustomNotifications(user, ploegen) {
             // Doelgroep check
             const dg = m.doelgroep || 'iedereen';
             if (dg === 'ingelogd' && !user) return;
+            if (m.pushOptIn && (!user || !profileLoaded || hasFcmToken)) return;
             // Ploeg-specifieke check: de speler moet in die ploeg zitten
             if (dg === 'zaterdag'  && !ploegen.includes('zaterdag'))  return;
             if (dg === 'zondag'    && !ploegen.includes('zondag'))    return;
@@ -272,9 +303,9 @@ async function checkCustomNotifications(user, ploegen) {
             // 'iedereen' → altijd tonen
 
             // Al gedismissed voor deze versie?
-            if (isCustomDismissed(m.id, m.versie ?? 1)) return;
+            if (isCustomDismissed(m.id, m.versie ?? 1, m.pushOptIn ? user.uid : null)) return;
 
-            showCustomBanner(m);
+            showCustomBanner(m, user);
         });
     } catch (err) {
         console.warn('Custom meldingen check mislukt:', err);
@@ -288,23 +319,32 @@ async function runChecks(user) {
 
     // Haal gebruikersprofiel op (enkel nodig als ingelogd)
     let ploegen = [];
+    let hasFcmToken = false;
+    let profileLoaded = !user;
     if (user) {
         try {
-            const snap = await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid)));
-            if (!snap.empty) {
-                const data = snap.docs[0].data();
+            const snap = await getDoc(doc(db, 'users', user.uid));
+            if (snap.exists()) {
+                const data = snap.data();
+                profileLoaded = true;
+                hasFcmToken = Array.isArray(data.fcmTokens)
+                    && data.fcmTokens.some(token => typeof token === 'string' && token.trim());
                 // Ondersteun zowel het nieuwe ploegen-array als het oude categorie-veld
                 if (Array.isArray(data.ploegen) && data.ploegen.length > 0) {
                     ploegen = data.ploegen;
                 } else if (data.categorie) {
                     ploegen = [data.categorie];
                 }
+            } else {
+                console.warn('Gebruikersprofiel niet gevonden voor pushmeldingen:', user.uid);
             }
-        } catch (_) {}
+        } catch (err) {
+            console.error('Gebruikersprofiel kon niet worden geladen:', err);
+        }
     }
 
     // Beide checks parallel uitvoeren
-    const tasks = [checkCustomNotifications(user, ploegen)];
+    const tasks = [checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded)];
 
     // Beschikbaarheidscheck voor elke ploeg van de speler (behalve bestuurslid)
     const spelersploegen = ploegen.filter(t => t !== 'bestuurslid');
@@ -317,6 +357,7 @@ async function runChecks(user) {
 
 // ── Auth listener ─────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
+    document.querySelectorAll('.notif-push-opt-in').forEach(banner => banner.remove());
     if (user) {
         setTimeout(() => runChecks(user), 2000);
     } else {

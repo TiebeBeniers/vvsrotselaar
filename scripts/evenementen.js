@@ -174,7 +174,7 @@ function buildFeaturedCard(ev, isGrid = false) {
         ? '<div class="evenement-image"><img src="' + imgSrc + '" alt="' + htmlEsc(ev.titel) + '"></div>'
         : '';
     const linkHtml = ev.link
-        ? '<a href="' + ev.link + '" target="_blank" rel="noopener noreferrer" class="evenement-link">Meer info &rarr;</a>'
+        ? '<a href="' + ev.link + '" target="_blank" rel="noopener noreferrer" class="evenement-link">Werklijst</a>'
         : '';
 
     const content = document.createElement('div');

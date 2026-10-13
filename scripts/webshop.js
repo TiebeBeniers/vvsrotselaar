@@ -133,6 +133,9 @@ async function loadShopSettings() {
         pickupText.textContent      = shopSettings.pickupInfo;
         pickupBanner.style.display  = 'flex';
     }
+    if (shopSettings.intro?.trim() || shopSettings.pickupInfo?.trim()) {
+        document.getElementById('shopInfoStrip').style.display = 'flex';
+    }
 
     document.getElementById('cartFab').style.display = 'flex';
     listenToProducts();
@@ -169,10 +172,15 @@ function getProductImages(p) {
 function renderProducts() {
     const grid        = document.getElementById('shopGrid');
     const emptyNotice = document.getElementById('emptyShopNotice');
+    const heading     = document.getElementById('shopSectionHeading');
+    const count       = document.getElementById('shopProductCount');
 
     const products = Object.values(productsData)
         .filter(p => p.active)
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    heading.style.display = products.length ? 'flex' : 'none';
+    count.textContent = `${products.length} ${products.length === 1 ? 'artikel' : 'artikelen'}`;
 
     if (products.length === 0) {
         grid.innerHTML = '';
@@ -183,25 +191,38 @@ function renderProducts() {
         grid.innerHTML = products.map(p => {
             const images = getProductImages(p);
             const cover = images[0];
-            const imageStyle = cover ? `style="background-image:url('${escAttr(cover)}')"` : '';
+            const sizes = Array.isArray(p.sizes) ? p.sizes.filter(Boolean) : [];
+            const description = p.description?.trim();
 
             return `
-                <div class="shop-card" data-id="${p.id}">
-                    <div class="shop-card-image" ${imageStyle}>
-                        ${cover ? '' : '📦'}
+                <article class="shop-card" data-id="${escHtml(p.id)}" role="button" tabindex="0"
+                         aria-label="Bekijk ${escHtml(p.name || 'product')}">
+                    <div class="shop-card-image">
+                        ${cover ? `<img class="shop-card-photo" src="${escHtml(cover)}" alt="${escHtml(p.name || 'Product')}" loading="lazy">` : ''}
+                        ${cover ? '' : '<span class="shop-card-placeholder" aria-hidden="true">VVS</span>'}
                         ${p.category ? `<span class="shop-card-category">${escHtml(p.category)}</span>` : ''}
-                        ${images.length > 1 ? `<span class="shop-card-image-count">🖼️ ${images.length}</span>` : ''}
+                        ${images.length > 1 ? `<span class="shop-card-image-count">${images.length} foto's</span>` : ''}
                     </div>
                     <div class="shop-card-body">
                         <h3>${escHtml(p.name || 'Product')}</h3>
-                        <div class="shop-card-price">€${formatPrice(p.price)}</div>
-                        <div class="shop-card-cta">Bekijk product →</div>
+                        ${description ? `<p class="shop-card-description">${escHtml(description)}</p>` : ''}
+                        ${sizes.length ? `<p class="shop-card-sizes">Maten ${sizes.map(escHtml).join(' · ')}</p>` : ''}
+                        <div class="shop-card-footer">
+                            <span class="shop-card-price">€${formatPrice(p.price)}</span>
+                            <span class="shop-card-cta">Bekijk <span aria-hidden="true">→</span></span>
+                        </div>
                     </div>
-                </div>`;
+                </article>`;
         }).join('');
 
         grid.querySelectorAll('.shop-card').forEach(card => {
             card.addEventListener('click', () => openProductModal(card.dataset.id));
+            card.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openProductModal(card.dataset.id);
+                }
+            });
         });
     }
 

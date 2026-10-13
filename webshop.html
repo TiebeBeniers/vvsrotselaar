@@ -79,7 +79,7 @@
     <div class="shop-hero">
         <span class="event-tag" id="heroEventTag">🛒 Clubshop</span>
         <h2>Webshop</h2>
-        <p>Bestel en betaal je clubkledij online, en haal het nadien af op het terrein.</p>
+        <p>Bestel je clubkledij eenvoudig online en haal ze nadien af op het terrein.</p>
     </div>
 
     <main class="shop-page">
@@ -115,12 +115,22 @@
                 </div>
 
                 <!-- Intro + afhaalinfo (ingevuld via admin) -->
-                <p class="shop-intro" id="shopIntroText" style="display:none;"></p>
-                <div class="shop-pickup-banner" id="shopPickupBanner" style="display:none;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
-                        <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
-                    </svg>
-                    <span id="shopPickupText"></span>
+                <div class="shop-info-strip" id="shopInfoStrip" style="display:none;">
+                    <p class="shop-intro" id="shopIntroText" style="display:none;"></p>
+                    <div class="shop-pickup-banner" id="shopPickupBanner" style="display:none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+                        </svg>
+                        <span id="shopPickupText"></span>
+                    </div>
+                </div>
+
+                <div class="shop-section-heading" id="shopSectionHeading" style="display:none;">
+                    <div>
+                        <span class="shop-section-eyebrow">De clubcollectie</span>
+                        <h3>Ontdek onze kledij</h3>
+                    </div>
+                    <span class="shop-product-count" id="shopProductCount"></span>
                 </div>
 
                 <!-- Geen producten -->

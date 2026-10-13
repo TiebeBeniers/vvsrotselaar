@@ -1405,7 +1405,8 @@ async function loadRecentMatches() {
     // ── Cache check ──────────────────────────────────────────────────────────
     const cacheKey = `recent_matches_${TEAM_TYPE}`;
     const cached = tcGet(cacheKey, CACHE_TTL.recentMatches);
-    if (cached) {
+    const motmDeepLink = new URLSearchParams(window.location.search).has('motm');
+    if (cached && !motmDeepLink) {
         console.log('[cache] recent matches geladen:', cached.length);
         allRecentMatches = cached;
         currentlyShowing = INITIAL_SHOW;
@@ -2070,7 +2071,8 @@ async function loadAvailability(matchId, matchData = {}) {
             matchData.aangeduidePersonen.includes(currentUser.uid);
         const heeftWedstrijdRecht = perms.includes('score_invullen');
         const isAfgevaardigdeLoc  = isAfgevaardigde(userData, TEAM_TYPE);
-        const canManageList = isDesignated || heeftWedstrijdRecht || isAfgevaardigdeLoc || isAdmin(userData);
+        const isAdminUser = isAdmin(userData);
+        const canManageList = isDesignated || heeftWedstrijdRecht || isAfgevaardigdeLoc || isAdminUser;
         
         if (isOwnTeam) {
             // Eigen ploeg: toon knoppen EN lijst
@@ -2105,7 +2107,7 @@ async function loadAvailability(matchId, matchData = {}) {
                 document.getElementById('addExtraPlayerBtn').addEventListener('click', () => showAddExtraPlayerModal(matchId));
             }
             
-            setupAvailabilityListener(matchId, true, canManageList);
+            setupAvailabilityListener(matchId, true, canManageList, isAdminUser);
             
         } else if (canManageList) {
             // Aangeduid persoon of bestuurslid van andere ploeg: lijst zien + extra speler toevoegen
@@ -2125,7 +2127,7 @@ async function loadAvailability(matchId, matchData = {}) {
             `;
             
             document.getElementById('addExtraPlayerBtn').addEventListener('click', () => showAddExtraPlayerModal(matchId));
-            setupAvailabilityListener(matchId, true, true);
+            setupAvailabilityListener(matchId, true, true, isAdminUser);
             
         } else {
             // Andere ploeg: alleen telling zien, geen lijst
@@ -2418,7 +2420,7 @@ function showManualFallback(modal, matchId, prefillName = '') {
     });
 }
 
-async function setupAvailabilityListener(matchId, showList = true, canManage = false) {
+async function setupAvailabilityListener(matchId, showList = true, canManage = false, canSetPlayerAvailability = false) {
     // Clean up previous listener
     if (availabilityListener) {
         availabilityListener();
@@ -2456,16 +2458,11 @@ async function setupAvailabilityListener(matchId, showList = true, canManage = f
         const availableBtn = document.getElementById('availableBtn');
         const unavailableBtn = document.getElementById('unavailableBtn');
         
-        let availableCount = 0;
-        let unavailableCount = 0;
-        let pendingCount = 0;
         const availabilities = [];
         
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
             availabilities.push({ userId: docSnap.id, ...data });
-            if (data.available) availableCount++;
-            else unavailableCount++;
         });
 
         // Vul aan met spelers van dit team die nog niets hebben aangeduid
@@ -2478,9 +2475,12 @@ async function setupAvailabilityListener(matchId, showList = true, canManage = f
                     displayName: member.naam,
                     available:   null // nog niet aangeduid
                 });
-                pendingCount++;
             });
         }
+
+        const availableCount = availabilities.filter(a => a.available === true).length;
+        const unavailableCount = availabilities.filter(a => a.available === false).length;
+        const pendingCount = availabilities.filter(a => a.available !== true && a.available !== false).length;
         
         if (availableCountEl) availableCountEl.textContent = availableCount;
         if (unavailableCountEl) unavailableCountEl.textContent = unavailableCount;
@@ -2540,17 +2540,51 @@ async function setupAvailabilityListener(matchId, showList = true, canManage = f
                     const statusInner = isPending
                         ? `<span>${statusIcon}</span>`
                         : `<span>${statusIcon}</span><span>${av.available ? 'Aanwezig' : 'Afwezig'}</span>`;
+                    const availabilityControls = canSetPlayerAvailability
+                        ? `<div class="availability-admin-toggle" role="group" aria-label="Aanwezigheidsstatus van ${av.displayName}">
+                               <button type="button" class="availability-admin-option${av.available === true ? ' selected available' : ''}" data-uid="${av.userId}" data-status="available" aria-label="Aanwezig" aria-pressed="${av.available === true}" title="Aanwezig">✓</button>
+                               <button type="button" class="availability-admin-option${av.available === false ? ' selected unavailable' : ''}" data-uid="${av.userId}" data-status="unavailable" aria-label="Afwezig" aria-pressed="${av.available === false}" title="Afwezig">✗</button>
+                               <button type="button" class="availability-admin-option${isPending ? ' selected pending' : ''}" data-uid="${av.userId}" data-status="pending" aria-label="Geen antwoord" aria-pressed="${isPending}" title="Geen antwoord">?</button>
+                           </div>`
+                        : `<span class="availability-status ${statusClass}" style="${statusStyle}">
+                               ${statusInner}
+                           </span>`;
 
                     return `
                         <div class="availability-player" style="display:flex; align-items:center; gap:0.5rem;">
                             <span class="player-name">${av.displayName}${sideLabel}</span>
-                            <span class="availability-status ${statusClass}" style="${statusStyle}">
-                                ${statusInner}
-                            </span>
+                            ${availabilityControls}
                             ${removeBtn}
                         </div>
                     `;
                 }).join('');
+
+                availabilityList.querySelectorAll('.availability-admin-option').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const player = availabilities.find(av => av.userId === btn.dataset.uid);
+                        if (!player) return;
+                        const available = btn.dataset.status === 'available'
+                            ? true
+                            : btn.dataset.status === 'unavailable' ? false : null;
+                        if (player.available === available) return;
+
+                        const playerOptions = [...availabilityList.querySelectorAll('.availability-admin-option')]
+                            .filter(option => option.dataset.uid === btn.dataset.uid);
+                        playerOptions.forEach(option => { option.disabled = true; });
+                        try {
+                            await setDoc(doc(db, 'matches', matchId, 'availability', player.userId), {
+                                available,
+                                displayName: player.displayName,
+                                timestamp: new Date().toISOString()
+                            }, { merge: true });
+                        } catch (err) {
+                            console.error('Error updating player availability:', err);
+                            showToast('Fout bij aanpassen beschikbaarheid: ' + err.message, 'error');
+                        } finally {
+                            playerOptions.forEach(option => { option.disabled = false; });
+                        }
+                    });
+                });
 
                 // Wire up remove buttons
                 availabilityList.querySelectorAll('.remove-extra-player-btn').forEach(btn => {
@@ -2648,9 +2682,6 @@ function motmResultsVisible(match) {
     return Date.now() - new Date(match.motmRevealedAt).getTime() < 24 * 60 * 60 * 1000;
 }
 
-// Voorkomt dat een oudere (trage) render een nieuwere overschrijft.
-let motmRenderToken = 0;
-
 function renderMotmSection() {
     _renderMotmSection().catch(err => console.error('renderMotmSection fout:', err));
 }
@@ -2658,7 +2689,6 @@ function renderMotmSection() {
 async function _renderMotmSection() {
     const section = document.getElementById('motmSection');
     if (!section) return;
-    const myToken = ++motmRenderToken;
     section.innerHTML = '';
     section.classList.remove('motm-section--active');
 
@@ -2666,55 +2696,25 @@ async function _renderMotmSection() {
 
     // Bepaal rechten via permissions[] (v2 schema)
     const permsMotm           = currentUserData.permissions || [];
-    const isInTeam            = (currentUserData.team || []).includes(TEAM_TYPE);
     const heeftWedstrijdRecht = permsMotm.includes('score_invullen');
     const isAfgevaardigdeMOTM = isAfgevaardigde(currentUserData, TEAM_TYPE);
     const isAdminUser         = permsMotm.includes('admin');
 
     const now = new Date();
 
-    // 1. Zoek vandaag's wedstrijd in finished matches
+    // De MOTM-stemming opent pas nadat de wedstrijd is afgelopen.
     let match = allRecentMatches.find(m => {
+        if (m.status !== 'finished') return false;
         const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
         const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
         return now >= dt && now <= dayEnd;
     });
 
-    // 2. Fallback: live match die vandaag startte
-    if (!match && currentLiveMatch) {
-        const dt     = new Date(`${currentLiveMatch.datum}T${currentLiveMatch.uur || '00:00'}`);
-        const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
-        if (now > dt && now <= dayEnd) match = { ...currentLiveMatch };
-    }
-
-    // 3. Fallback: geplande (bezig) match die vandaag startte maar nog niet finished is
-    if (!match) {
-        match = allPlannedMatches.find(m => {
-            const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
-            const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
-            return now > dt && now <= dayEnd;
-        }) || null;
-    }
-
-    if (!match) return; // geen wedstrijd vandaag
-
-    // Mag deze gebruiker stemmen?
-    //  - eigen teamleden (zoals voorheen), OF
-    //  - iedereen die op de aanwezigenlijst van DEZE wedstrijd staat
-    //    (ook spelers uit andere ploegen die als extra speler zijn toegevoegd)
-    let isOnAttendanceList = false;
-    if (!isInTeam) {
-        try {
-            const avSnap = await getDoc(doc(db, 'matches', match.id, 'availability', currentUser.uid));
-            isOnAttendanceList = avSnap.exists() && avSnap.data().available === true;
-        } catch (e) {
-            console.warn('Aanwezigheid controleren mislukt:', e.message);
-        }
-        if (myToken !== motmRenderToken) return; // ondertussen is er een nieuwere render gestart
-    }
-    const canVote = isInTeam || isOnAttendanceList;
+    if (!match) return; // geen afgelopen wedstrijd vandaag
 
     // Sectie enkel zichtbaar voor stemgerechtigden, aangeduide personen, afgevaardigde, of admin
+    const canVote = (match.motmEligibleUids || []).includes(currentUser.uid)
+        || isAfgevaardigdeMOTM;
     if (!canVote && !heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser) return;
 
     const motmResults   = match.motmResults || null;

@@ -2393,6 +2393,7 @@ function buildMeldingCard(m) {
                 <div class="melding-card-tekst">${htmlEscAdmin(m.tekst)}</div>
                 <div class="melding-card-meta">
                     <span class="melding-badge">${doelLabel}</span>
+                    ${m.pushOptIn ? '<span class="melding-badge">Push-toestemming</span>' : ''}
                     <span class="melding-periode">📅 ${periode}</span>
                     <span class="melding-versie">v${m.versie ?? 1}</span>
                     ${!m.actief ? '<span class="melding-badge melding-badge-off">Inactief</span>' : ''}
@@ -2461,9 +2462,11 @@ function openMeldingModal(m = null) {
     document.getElementById('meldingTekst').value     = m ? (m.tekst   || '') : '';
     document.getElementById('meldingDoelgroep').value = m ? (m.doelgroep || 'iedereen') : 'iedereen';
     document.getElementById('meldingType').value      = m ? (m.type    || 'info') : 'info';
+    document.getElementById('meldingPushOptIn').checked = !!m?.pushOptIn;
     document.getElementById('meldingVanDatum').value  = m ? (m.vanDatum || '') : '';
     document.getElementById('meldingTotDatum').value  = m ? (m.totDatum || '') : '';
     document.getElementById('meldingActief').checked  = m ? (m.actief !== false) : true;
+    syncPushOptInAudience();
     // Kleur
     const kleurEl = document.getElementById('meldingKleur');
     if (kleurEl) kleurEl.value = m?.kleur || '#0047AB';
@@ -2482,6 +2485,15 @@ function openMeldingModal(m = null) {
 document.getElementById('addMeldingBtn')?.addEventListener('click', () => openMeldingModal());
 document.getElementById('meldingModalCancel')?.addEventListener('click', () => meldingModal.classList.remove('active'));
 meldingModal?.addEventListener('click', e => { if (e.target === meldingModal) meldingModal.classList.remove('active'); });
+
+const pushOptInInput = document.getElementById('meldingPushOptIn');
+const doelgroepInput = document.getElementById('meldingDoelgroep');
+function syncPushOptInAudience() {
+    if (!pushOptInInput || !doelgroepInput) return;
+    doelgroepInput.disabled = pushOptInInput.checked;
+    if (pushOptInInput.checked) doelgroepInput.value = 'ingelogd';
+}
+pushOptInInput?.addEventListener('change', syncPushOptInAudience);
 
 // Live label voor duur-slider
 const duurSlider = document.getElementById('meldingDuur');
@@ -2507,7 +2519,8 @@ meldingForm?.addEventListener('submit', async (e) => {
     const oudeVersie = parseInt(document.getElementById('meldingVersie').value) || 1;
     const titel      = document.getElementById('meldingTitel').value.trim();
     const tekst      = document.getElementById('meldingTekst').value.trim();
-    const doelgroep  = document.getElementById('meldingDoelgroep').value;
+    const pushOptIn  = document.getElementById('meldingPushOptIn').checked;
+    const doelgroep  = pushOptIn ? 'ingelogd' : document.getElementById('meldingDoelgroep').value;
     const type       = document.getElementById('meldingType').value;
     const vanDatum   = document.getElementById('meldingVanDatum').value || '';
     const totDatum   = document.getElementById('meldingTotDatum').value || '';
@@ -2527,7 +2540,7 @@ meldingForm?.addEventListener('submit', async (e) => {
             // Bewerken: versie ophogen → iedereen ziet de melding opnieuw
             const nieuweVersie = oudeVersie + 1;
             await setDoc(doc(db, 'notificaties', id), {
-                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur,
+                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur, pushOptIn,
                 versie: nieuweVersie,
                 updatedAt: serverTimestamp()
             }, { merge: true });
@@ -2535,7 +2548,7 @@ meldingForm?.addEventListener('submit', async (e) => {
         } else {
             // Nieuw
             await addDoc(collection(db, 'notificaties'), {
-                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur,
+                titel, tekst, doelgroep, type, vanDatum, totDatum, actief, kleur, duur, pushOptIn,
                 versie: 1,
                 createdAt: serverTimestamp()
             });

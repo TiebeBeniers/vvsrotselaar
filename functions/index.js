@@ -1,9 +1,9 @@
 const { onRequest } = require('firebase-functions/v2/https');
-const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { FieldValue, getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
@@ -113,6 +113,87 @@ exports.onNewAccountRequest = onDocumentCreated(
             `${d.naam || d.name || 'Iemand'} vraagt een account aan`,
             'https://vvsrotselaar.be/admin.html'
         );
+    }
+);
+
+// ═══════════════════════════════════════════════
+// MAN VAN DE MATCH STEMMING
+// Zodra een wedstrijd afgelopen is, mogen de spelers die effectief
+// speelden en de afgevaardigde van die ploeg stemmen. Dezelfde
+// stemgerechtigden krijgen een pushmelding als ze een FCM-token hebben.
+// ═══════════════════════════════════════════════
+
+exports.onMotmVotingOpened = onDocumentWritten(
+    { document: 'matches/{matchId}', region: 'europe-west1', retry: true },
+    async (event) => {
+        const before = event.data.before.exists ? event.data.before.data() : null;
+        const matchSnap = event.data.after;
+        if (!matchSnap.exists) return;
+
+        const match = matchSnap.data();
+        if (before?.status === 'finished' || match.status !== 'finished' || match.motmResults) return;
+        if (!['zaterdag', 'zondag', 'veteranen'].includes(match.team)) return;
+
+        const db = getFirestore();
+        const matchRef = db.collection('matches').doc(event.params.matchId);
+        const playerMinutesSnap = await matchRef.collection('playerMinutes').get();
+        const eligibleUids = new Set(
+            Object.entries(match.lineup || {})
+                .filter(([uid, player]) => !uid.startsWith('manual_') && player.status === 'starter')
+                .map(([uid]) => uid)
+        );
+        playerMinutesSnap.docs.forEach(playerDoc => {
+            if (!playerDoc.id.startsWith('manual_')) eligibleUids.add(playerDoc.id);
+        });
+
+        const [teamDelegates, allDelegates] = await Promise.all([
+            db.collection('users').where('permissions', 'array-contains', `afgevaardigde:${match.team}`).get(),
+            db.collection('users').where('permissions', 'array-contains', 'afgevaardigde:*').get()
+        ]);
+        teamDelegates.docs.forEach(userDoc => eligibleUids.add(userDoc.id));
+        allDelegates.docs.forEach(userDoc => eligibleUids.add(userDoc.id));
+        const eligibleUidList = [...eligibleUids];
+
+        const claimed = await db.runTransaction(async transaction => {
+            const freshSnap = await transaction.get(matchRef);
+            if (!freshSnap.exists || freshSnap.data().motmPushSentAt) return false;
+
+            const claim = freshSnap.data().motmPushClaim;
+            if (claim && Date.now() - claim.createdAt < 10 * 60 * 1000) return false;
+
+            transaction.update(matchRef, {
+                motmEligibleUids: eligibleUidList,
+                motmPushClaim: { eventId: event.id, createdAt: Date.now() }
+            });
+            return true;
+        });
+        if (!claimed) return;
+
+        try {
+            const userDocs = await Promise.all(eligibleUidList.map(uid => db.collection('users').doc(uid).get()));
+            const voters = userDocs.filter(userDoc => userDoc.exists);
+            const home = match.thuisploeg || 'Thuis';
+            const away = match.uitploeg || 'Uit';
+
+            await sendPushToUserDocs(
+                db,
+                voters,
+                '🏆 Stem op Man van de Match',
+                `${home} - ${away}: de stemming is geopend. Breng je stem uit!`,
+                `https://vvsrotselaar.be/${match.team}.html?motm=${event.params.matchId}`
+            );
+            await matchRef.update({
+                motmPushSentAt: FieldValue.serverTimestamp(),
+                motmPushClaim: FieldValue.delete()
+            });
+        } catch (err) {
+            try {
+                await matchRef.update({ motmPushClaim: FieldValue.delete() });
+            } catch (releaseErr) {
+                console.error('[motm] Pushclaim vrijgeven mislukt:', releaseErr);
+            }
+            throw err;
+        }
     }
 );
 

@@ -791,6 +791,22 @@ html.dark .vvs-row td { background: #2555b49d; }
 .availability-status.available   { color: var(--success); }
 .availability-status.unavailable { color: var(--danger); }
 
+.availability-admin-toggle { display: flex; flex-shrink: 0; gap: 0.2rem; }
+.availability-admin-option {
+    width: 2rem; height: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--white);
+    color: var(--text-gray);
+    font-weight: 700;
+    cursor: pointer;
+}
+.availability-admin-option:hover { border-color: var(--primary-blue); }
+.availability-admin-option.selected.available { background: var(--success); border-color: var(--success); color: #fff; }
+.availability-admin-option.selected.unavailable { background: var(--danger); border-color: var(--danger); color: #fff; }
+.availability-admin-option.selected.pending { background: #888; border-color: #888; color: #fff; }
+.availability-admin-option:disabled { opacity: 0.5; cursor: wait; }
+
 .availability-login-prompt { text-align: center; padding: 1.5rem; background: var(--off-white); border-radius: var(--radius, 10px); color: var(--text-gray); }
 .availability-login-prompt a { color: var(--primary-blue); font-weight: 600; text-decoration: underline; }
 .availability-login-prompt a:hover { color: var(--dark-blue); }
