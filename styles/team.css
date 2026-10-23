@@ -210,7 +210,7 @@ html.dark .push-bell-dropdown {
 
 .match-date {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     flex-wrap: nowrap;
     gap: 0.75rem;
     color: var(--text-gray);
@@ -227,6 +227,19 @@ html.dark .push-bell-dropdown {
     gap: 0.5rem;
     min-width: 0;
     flex: 1 1 auto;
+}
+
+.match-date-label {
+    flex: 1 1 180px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.match-date-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: 0 0 auto;
 }
 
 .match-location {
@@ -751,14 +764,17 @@ html.dark .vvs-row td { background: #2555b49d; }
 }
 
 .availability-btn.available { background: var(--white); color: var(--success); border: 2px solid var(--success); }
-.availability-btn.available:hover { background: var(--success); color: #fff; }
 .availability-btn.available.selected { background: var(--success); color: #fff; box-shadow: 0 4px 12px rgba(29,185,84,0.3); }
 
 .availability-btn.unavailable { background: var(--white); color: var(--danger); border: 2px solid var(--danger); }
-.availability-btn.unavailable:hover { background: var(--danger); color: #fff; }
 .availability-btn.unavailable.selected { background: var(--danger); color: #fff; box-shadow: 0 4px 12px rgba(229,62,62,0.3); }
 
 .availability-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@media (hover: hover) and (pointer: fine) {
+    .availability-btn.available:not(.selected):hover { background: var(--success); color: #fff; }
+    .availability-btn.unavailable:not(.selected):hover { background: var(--danger); color: #fff; }
+}
 
 .availability-btn.extra-player {
     background: var(--primary-blue); color: #fff;
@@ -1126,15 +1142,25 @@ html.dark .vvs-row td { background: #2555b49d; }
     flex-wrap: wrap; margin-bottom: 0.35rem; line-height: 1;
 }
 .recent-match-date { line-height: 1; }
+.recent-match-date-row .recent-match-date { margin-bottom: 0; }
 
 .match-flag-badge {
     display: inline-flex; align-items: center; align-self: center;
-    font-size: 0.67rem; font-weight: 700; letter-spacing: 0.05em;
-    padding: 0 7px; border-radius: 4px; height: 18px; line-height: 1;
-    white-space: nowrap; margin-bottom: 15px;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: clamp(0.62rem, 1.8vw, 0.7rem);
+    font-weight: 700; letter-spacing: 0.045em;
+    padding: 0.18rem 0.45rem;
+    border-radius: 5px;
+    min-height: 21px;
+    line-height: 1.1;
+    white-space: nowrap;
+    margin: 0;
 }
 .flag-forfait { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
 .flag-beker   { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+.flag-postponed { background: #FFF4D6; color: #805600; border: 1px solid #F2D17C; }
+.flag-cancelled { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }
 
 .bezig-badge {
     display: inline-flex; align-items: center;
@@ -1206,10 +1232,9 @@ html.dark .motm-pos-pts         { color: #f0c040; background: rgba(201,146,10,0.
     .team-title { font-size: 2rem; }
     .team-hero  { padding: 3rem 1rem; }
 
-    .match-date-text  { font-size: 0.85rem; flex-wrap: nowrap; align-items: flex-start; }
-    .match-date-text svg { flex-shrink: 0; margin-top: 2px; }
-    .match-date-label { flex: 1 1 auto; min-width: 0; white-space: normal; overflow: visible; }
-    .match-flag-badge { flex-shrink: 0; }
+    .match-date-text  { font-size: 0.85rem; flex-wrap: wrap; align-items: center; }
+    .match-date-text svg { flex-shrink: 0; margin-top: 0; }
+    .match-date-label { flex: 1 1 130px; min-width: 0; white-space: normal; overflow: visible; }
     .match-cal-btn span { display: none; }
     .match-cal-btn .cal-chev { display: none; }
     .match-share-btn span { display: none; }
@@ -1232,6 +1257,11 @@ html.dark .motm-pos-pts         { color: #f0c040; background: rgba(201,146,10,0.
 
     .next-match-card { padding: 1.25rem; }
     .recent-match-card { padding: 1.1rem; }
+    .recent-match-date-row { align-items: center; line-height: 1.3; }
+    .recent-match-date { flex: 1 1 100%; margin-bottom: 0.25rem; }
+    .recent-match-teams { gap: 0.25rem; }
+    .recent-team { font-size: clamp(0.78rem, 3.5vw, 0.95rem); overflow-wrap: anywhere; }
+    .recent-score { padding: 0 0.35rem; font-size: clamp(1.15rem, 6vw, 1.45rem); }
 
     .live-match-display { gap: 0.5rem; }
     .live-score { font-size: 1.75rem; }

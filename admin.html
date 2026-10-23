@@ -108,6 +108,10 @@
                 <div class="section-header">
                     <h3>Clubleden</h3>
                     <div class="header-buttons">
+                        <div class="list-view-toggle" role="group" aria-label="Weergave van lijsten">
+                            <button type="button" data-list-view="cards" aria-pressed="true">Kaarten</button>
+                            <button type="button" data-list-view="compact" aria-pressed="false">Compact</button>
+                        </div>
                         <button class="add-btn secondary" id="manageRequestsBtn">
                             Aanvragen Behandelen
                             <span class="requests-count-badge" id="requestsCountBadge" style="display:none;"></span>
@@ -143,7 +147,13 @@
             <div class="tab-content" id="matchesTab">
                 <div class="section-header">
                     <h3>Wedstrijden</h3>
-                    <button class="add-btn" id="addMatchBtn">+ Nieuwe Wedstrijd</button>
+                    <div class="header-buttons">
+                        <div class="list-view-toggle" role="group" aria-label="Weergave van lijsten">
+                            <button type="button" data-list-view="cards" aria-pressed="true">Kaarten</button>
+                            <button type="button" data-list-view="compact" aria-pressed="false">Compact</button>
+                        </div>
+                        <button class="add-btn" id="addMatchBtn">+ Nieuwe Wedstrijd</button>
+                    </div>
                 </div>
 
                 <!-- Filter bar -->
@@ -295,7 +305,13 @@
             <div class="tab-content" id="evenementenTab">
                 <div class="section-header">
                     <h3>Evenementen</h3>
-                    <button class="add-btn" id="addEvenementBtn">+ Nieuw Evenement</button>
+                    <div class="header-buttons">
+                        <div class="list-view-toggle" role="group" aria-label="Weergave van lijsten">
+                            <button type="button" data-list-view="cards" aria-pressed="true">Kaarten</button>
+                            <button type="button" data-list-view="compact" aria-pressed="false">Compact</button>
+                        </div>
+                        <button class="add-btn" id="addEvenementBtn">+ Nieuw Evenement</button>
+                    </div>
                 </div>
                 <div class="evenementen-list" id="evenementenList">
                     <div class="loading"><div class="loader"></div></div>
@@ -306,9 +322,15 @@
             <div class="tab-content" id="contactberichtenTab">
                 <div class="section-header">
                     <h3>Contactberichten</h3>
-                    <div class="message-stats" id="messageStats">
-                        <span class="stat-badge">Totaal: <strong id="totalMessages">0</strong></span>
-                        <span class="stat-badge unread">Ongelezen: <strong id="unreadMessages">0</strong></span>
+                    <div class="header-buttons">
+                        <div class="list-view-toggle" role="group" aria-label="Weergave van lijsten">
+                            <button type="button" data-list-view="cards" aria-pressed="true">Kaarten</button>
+                            <button type="button" data-list-view="compact" aria-pressed="false">Compact</button>
+                        </div>
+                        <div class="message-stats" id="messageStats">
+                            <span class="stat-badge">Totaal: <strong id="totalMessages">0</strong></span>
+                            <span class="stat-badge unread">Ongelezen: <strong id="unreadMessages">0</strong></span>
+                        </div>
                     </div>
                 </div>
                 <div class="filter-buttons">
@@ -619,6 +641,21 @@
                     <div class="match-type-selector">
                         <button type="button" class="match-type-btn active" data-type="upcoming" id="btnUpcoming">📆 Geplande Wedstrijd</button>
                         <button type="button" class="match-type-btn" data-type="finished" id="btnFinished">✅ Afgelopen Wedstrijd</button>
+                    </div>
+                    <div class="match-flags-row match-schedule-status">
+                        <span class="mfr-label">Wedstrijdstatus:</span>
+                        <label class="mfr-option" for="matchSchedulePlanned">
+                            <input type="radio" name="matchScheduleStatus" id="matchSchedulePlanned" value="scheduled" checked>
+                            <span>Gepland</span>
+                        </label>
+                        <label class="mfr-option" for="matchSchedulePostponed">
+                            <input type="radio" name="matchScheduleStatus" id="matchSchedulePostponed" value="postponed">
+                            <span>Uitgesteld</span>
+                        </label>
+                        <label class="mfr-option" for="matchScheduleCancelled">
+                            <input type="radio" name="matchScheduleStatus" id="matchScheduleCancelled" value="cancelled">
+                            <span>Afgelast</span>
+                        </label>
                     </div>
                     <!-- Vlaggen: Forfait en/of Bekermatch -->
                     <div class="match-flags-row">

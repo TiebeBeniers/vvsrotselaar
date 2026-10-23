@@ -226,6 +226,16 @@
     background: var(--text-gray);
     margin-bottom: 2px;
 }
+.match-badge.schedule-postponed {
+    background: #fff4d6;
+    color: #805600;
+    border: 1px solid #f2d17c;
+}
+.match-badge.schedule-cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
 
 @keyframes blink {
     0%, 100% { opacity: 1; }
@@ -391,6 +401,18 @@
 .match-type-btn:hover:not(.active) {
     border-color: var(--primary-blue);
     background: rgba(0, 71, 171, 0.05);
+}
+
+.match-schedule-status .mfr-option:has(input[value="postponed"]:checked) {
+    background: #fff4d6;
+    border-color: #f2d17c;
+    color: #805600;
+}
+
+.match-schedule-status .mfr-option:has(input[value="cancelled"]:checked) {
+    background: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
 }
 
 /* ── Checkbox items (aangeduide personen) ── */
@@ -1666,6 +1688,13 @@ html.dark .wl-admin-hint {
     font-size: 1.3rem;
     color: var(--text-dark);
     margin: 0;
+}
+
+.header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -3683,6 +3712,205 @@ html.dark .req-team-cb-label    { color: var(--text-dark); }
     background: var(--off-white);
 }
 .temp-card-info { flex: 1; }
+
+/* ── Gedeelde lijstweergave ── */
+.list-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px;
+    gap: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--off-white);
+}
+
+.list-view-toggle button {
+    min-height: 34px;
+    padding: 0.4rem 0.75rem;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-gray);
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.list-view-toggle button.active {
+    background: var(--white);
+    color: var(--primary-blue);
+    box-shadow: 0 1px 4px var(--shadow);
+}
+
+.list-view-toggle button:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 1px;
+}
+
+.compact-list {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.45rem !important;
+}
+
+.compact-list .member-card,
+.compact-list .match-card,
+.compact-list .evenement-card,
+.compact-list .temp-account-card {
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.65rem 0.85rem;
+    border-radius: 9px;
+}
+
+.compact-list .member-card:hover,
+.compact-list .match-card:hover,
+.compact-list .evenement-card:hover {
+    transform: translateX(2px);
+}
+
+.compact-list .member-info,
+.compact-list .match-info-admin,
+.compact-list .evenement-info,
+.compact-list .temp-card-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.7rem;
+    min-width: 0;
+}
+
+.compact-list .member-info h4,
+.compact-list .match-info-admin h4,
+.compact-list .evenement-info h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.compact-list .member-info p,
+.compact-list .match-info-admin p,
+.compact-list .evenement-info p {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.compact-list .match-info-admin .match-team-meta,
+.compact-list .match-info-admin .match-access,
+.compact-list .match-info-admin .match-description,
+.compact-list .evenement-info .evenement-description {
+    display: none;
+}
+
+.compact-list .member-badge,
+.compact-list .match-badge {
+    margin: 0;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+}
+
+.compact-list .card-actions {
+    flex-direction: row !important;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.3rem;
+    width: auto;
+    flex-shrink: 0;
+}
+
+.compact-list .card-actions .action-btn,
+.compact-list .message-action-btn {
+    width: auto;
+    min-width: 0;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    line-height: 1.15;
+}
+
+.compact-list .message-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.4rem 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 9px;
+}
+
+.compact-list .message-header {
+    align-items: center;
+    margin: 0;
+    gap: 0.5rem;
+}
+
+.compact-list .message-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.75rem;
+    min-width: 0;
+}
+
+.compact-list .message-email {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.compact-list .message-date {
+    font-size: 0.76rem;
+}
+
+.compact-list .message-badge {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.68rem;
+}
+
+.compact-list .message-content {
+    grid-column: 1 / -1;
+    max-height: 2.8em;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.82rem;
+    line-height: 1.4;
+}
+
+.compact-list .message-content.collapsed {
+    max-height: 2.8em;
+}
+
+.compact-list .message-expand-hint {
+    display: none;
+}
+
+.compact-list .message-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+}
+
+@media (max-width: 500px) {
+    .list-view-toggle button {
+        min-height: 32px;
+        padding: 0.35rem 0.55rem;
+        font-size: 0.76rem;
+    }
+
+    .compact-list .member-card,
+    .compact-list .match-card,
+    .compact-list .evenement-card,
+    .compact-list .temp-account-card {
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 0.5rem;
+        padding: 0.6rem;
+    }
+
+    .compact-list .card-actions .action-btn {
+        padding: 0.35rem 0.45rem;
+        font-size: 0.7rem;
+    }
+}
 .temp-card-name {
     font-weight: 700;
     font-size: 0.95rem;
@@ -4665,6 +4893,199 @@ html.dark .tour-btn-prev { background: rgba(255,255,255,0.1); }
     gap: 0.5rem;
     margin-top: 0.75rem;
     align-items: center;
+}
+
+@media (max-width: 768px) {
+    .admin-header-actions {
+        gap: 0.5rem;
+    }
+
+    .admin-header-actions .admin-tour-help-btn {
+        min-height: 40px;
+        padding: 0.45rem 0.75rem;
+        font-size: 0.8rem;
+    }
+
+    .admin-header-actions .page-nav-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .section-header {
+        gap: 0.65rem;
+    }
+
+    .section-header .header-buttons {
+        flex-direction: row;
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .section-header .header-buttons .add-btn {
+        width: auto;
+        min-height: 40px;
+        flex: 0 1 auto;
+        padding: 0.55rem 0.8rem;
+        font-size: 0.84rem;
+        white-space: nowrap;
+    }
+
+    .match-filter-bar {
+        gap: 0.4rem;
+        margin-bottom: 1.1rem;
+    }
+
+    .match-filter-bar .filter-btn,
+    .match-filter-bar .match-team-filter {
+        min-height: 42px;
+        padding: 0.5rem 0.8rem;
+        font-size: 0.84rem;
+    }
+}
+
+@media (max-width: 500px) {
+    .admin-header-actions .admin-tour-help-btn {
+        min-height: 38px;
+        padding: 0.4rem 0.65rem;
+        font-size: 0.76rem;
+    }
+
+    .admin-header-actions .admin-tour-help-btn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .admin-header-actions .page-nav-btn {
+        width: 34px;
+        height: 34px;
+        font-size: 0.85rem;
+    }
+
+    .section-header .header-buttons {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    .section-header .header-buttons .list-view-toggle {
+        min-height: 38px;
+    }
+
+    .section-header .header-buttons .add-btn {
+        min-height: 38px;
+        padding: 0.45rem 0.65rem;
+        font-size: 0.78rem;
+    }
+
+    #membersTab .section-header .header-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    #membersTab .section-header .list-view-toggle {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+
+    #membersTab .section-header .header-buttons .add-btn {
+        justify-content: center;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+    .match-filter-bar .filter-btn {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 40px;
+        padding: 0.45rem 0.65rem;
+        font-size: 0.8rem;
+    }
+
+    .match-filter-bar .match-team-filter {
+        flex: 1 1 100%;
+        min-width: 0;
+        margin-left: 0;
+        min-height: 42px;
+        padding: 0.45rem 0.65rem;
+        font-size: 0.82rem;
+    }
+}
+
+@media (max-width: 768px) {
+    #evenementenList:not(.compact-list) .evenement-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+
+    #evenementenList:not(.compact-list) .evenement-info {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    #evenementenList:not(.compact-list) .evenement-card .card-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: stretch;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    #evenementenList:not(.compact-list) .ev-pin-toggle {
+        grid-column: 1 / -1;
+        justify-content: center;
+        min-height: 40px;
+        box-sizing: border-box;
+    }
+
+    #evenementenList:not(.compact-list) .evenement-card .card-actions .action-btn {
+        width: 100%;
+        min-width: 0;
+        min-height: 40px;
+        box-sizing: border-box;
+        justify-content: center;
+        white-space: normal;
+    }
+}
+
+/* Evenementacties blijven ook in compacte lijstweergave onder de kaarttekst. */
+.compact-list .evenement-card {
+    flex-direction: column !important;
+    align-items: stretch !important;
+}
+
+.compact-list .evenement-card .evenement-info {
+    width: 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.compact-list .evenement-card .card-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0.45rem;
+    width: 100% !important;
+    min-width: 0;
+}
+
+.compact-list .evenement-card .ev-pin-toggle {
+    grid-column: 1 / -1;
+    justify-content: center;
+    min-width: 0;
+    min-height: 38px;
+    box-sizing: border-box;
+}
+
+.compact-list .evenement-card .card-actions .action-btn {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0.4rem 0.5rem;
+    box-sizing: border-box;
+    justify-content: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .add-person-search-wrap {

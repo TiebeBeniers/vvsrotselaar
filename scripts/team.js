@@ -968,6 +968,8 @@ function displayPlannedMatch(match, container) {
                             <line x1="3" y1="10" x2="21" y2="10"></line>
                         </svg>
                         <span class="match-date-label">${formattedDate} om ${formattedTime}</span>
+                        ${match.scheduleStatus === 'postponed' ? '<span class="match-flag-badge flag-postponed">UITGESTELD</span>' : ''}
+                        ${match.scheduleStatus === 'cancelled' ? '<span class="match-flag-badge flag-cancelled">AFGELAST</span>' : ''}
                         ${match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : ''}
                         ${match.isForfait    ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>'      : ''}
                     </div>
@@ -1016,7 +1018,7 @@ function displayPlannedMatch(match, container) {
                     <div class="team-name">${match.uitploeg || 'Uitploeg'}</div>
                 </div>
                 <div class="match-location">
-                    <button class="map-trigger" aria-label="Toon op kaart" data-location="${encodeURIComponent(match.locatie || '')}">
+                    <button type="button" class="map-trigger" aria-label="Toon op kaart" aria-expanded="false" data-location="${encodeURIComponent(match.locatie || '')}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                             <circle cx="12" cy="10" r="3"></circle>
@@ -1504,6 +1506,8 @@ function createRecentMatchCard(match) {
 
     // Badges voor forfait / bekermatch
     const matchBadges = [
+        match.scheduleStatus === 'postponed' ? '<span class="match-flag-badge flag-postponed">UITGESTELD</span>' : '',
+        match.scheduleStatus === 'cancelled' ? '<span class="match-flag-badge flag-cancelled">AFGELAST</span>' : '',
         match.isForfait   ? '<span class="match-flag-badge flag-forfait">FORFAIT</span>' : '',
         match.isBekermatch ? '<span class="match-flag-badge flag-beker">🏆 BEKERMATCH</span>' : '',
     ].filter(Boolean).join('');
@@ -2086,11 +2090,11 @@ async function loadAvailability(matchId, matchData = {}) {
 
             contentDiv.innerHTML = `
                 <div class="availability-actions">
-                    <button class="availability-btn available" id="availableBtn">
+                    <button class="availability-btn available" id="availableBtn" aria-pressed="false">
                         <span>✓</span>
                         <span>Ik kan komen</span>
                     </button>
-                    <button class="availability-btn unavailable" id="unavailableBtn">
+                    <button class="availability-btn unavailable" id="unavailableBtn" aria-pressed="false">
                         <span>✗</span>
                         <span>Ik kan niet komen</span>
                     </button>
@@ -2490,10 +2494,12 @@ async function setupAvailabilityListener(matchId, showList = true, canManage = f
             availableBtn.classList.remove('selected');
             unavailableBtn.classList.remove('selected');
             const userAvailability = availabilities.find(a => a.userId === currentUser.uid);
-            if (userAvailability) {
-                if (userAvailability.available) availableBtn.classList.add('selected');
-                else unavailableBtn.classList.add('selected');
-            }
+            const isAvailable = userAvailability?.available === true;
+            const isUnavailable = userAvailability?.available === false;
+            availableBtn.classList.toggle('selected', isAvailable);
+            unavailableBtn.classList.toggle('selected', isUnavailable);
+            availableBtn.setAttribute('aria-pressed', String(isAvailable));
+            unavailableBtn.setAttribute('aria-pressed', String(isUnavailable));
         }
         
         if (showList && availabilityList) {
@@ -3019,47 +3025,71 @@ function showToast(msg, type = '') {
 // ── Map popup (locatie hover) ────────────────────────────────────────────────
 function initMapPopups() {
     document.querySelectorAll('.map-trigger').forEach(btn => {
+        if (btn.dataset.mapPopupInitialized === 'true') return;
         const location = btn.closest('.match-location');
         const popup    = location?.querySelector('.map-popup');
         if (!popup) return;
+        btn.dataset.mapPopupInitialized = 'true';
 
         let closeTimer = null;
+        const canHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
         function openPopup() {
             clearTimeout(closeTimer);
             // Sluit alle andere open popups
             document.querySelectorAll('.map-popup.map-popup-open').forEach(p => {
-                if (p !== popup) p.classList.remove('map-popup-open');
+                if (p !== popup) {
+                    p.classList.remove('map-popup-open');
+                    p.setAttribute('aria-hidden', 'true');
+                    p.closest('.match-location')?.querySelector('.map-trigger')?.setAttribute('aria-expanded', 'false');
+                }
             });
             popup.classList.add('map-popup-open');
             popup.setAttribute('aria-hidden', 'false');
+            btn.setAttribute('aria-expanded', 'true');
         }
 
         function scheduleClose() {
+            clearTimeout(closeTimer);
             closeTimer = setTimeout(() => {
                 popup.classList.remove('map-popup-open');
                 popup.setAttribute('aria-hidden', 'true');
+                btn.setAttribute('aria-expanded', 'false');
             }, 200);
         }
 
-        // Desktop: hover op de knop of de popup zelf
-        btn.addEventListener('mouseenter', openPopup);
-        btn.addEventListener('mouseleave', scheduleClose);
-        popup.addEventListener('mouseenter', () => clearTimeout(closeTimer));
-        popup.addEventListener('mouseleave', scheduleClose);
+        if (canHover) {
+            btn.addEventListener('mouseenter', openPopup);
+            btn.addEventListener('mouseleave', scheduleClose);
+            popup.addEventListener('mouseenter', () => clearTimeout(closeTimer));
+            popup.addEventListener('mouseleave', scheduleClose);
+        }
 
-        // Mobiel: klik wisselt de popup
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            popup.classList.contains('map-popup-open') ? scheduleClose() : openPopup();
-        });
+        if (!canHover) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (popup.classList.contains('map-popup-open')) {
+                    clearTimeout(closeTimer);
+                    popup.classList.remove('map-popup-open');
+                    popup.setAttribute('aria-hidden', 'true');
+                    btn.setAttribute('aria-expanded', 'false');
+                } else {
+                    openPopup();
+                }
+            });
+        }
+
+        popup.addEventListener('click', e => e.stopPropagation());
     });
 
     // Sluit bij klik buiten
+    if (document.body.dataset.mapPopupOutsideClickBound === 'true') return;
+    document.body.dataset.mapPopupOutsideClickBound = 'true';
     document.addEventListener('click', () => {
         document.querySelectorAll('.map-popup.map-popup-open').forEach(p => {
             p.classList.remove('map-popup-open');
             p.setAttribute('aria-hidden', 'true');
+            p.closest('.match-location')?.querySelector('.map-trigger')?.setAttribute('aria-expanded', 'false');
         });
     });
 }

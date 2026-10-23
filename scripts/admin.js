@@ -37,6 +37,31 @@ let allEvenementen = [];
 let allMatchesCache = [];
 let currentMatchFilter = 'all';
 let currentMatchTeamFilter = 'all';
+const ADMIN_LIST_VIEW_KEY = 'vvs_admin_list_view';
+
+function initializeAdminListView() {
+    const lists = ['membersList', 'tempAccountsList', 'matchesList', 'evenementenList', 'contactberichtenList'];
+    const viewButtons = document.querySelectorAll('[data-list-view]');
+    let currentView = localStorage.getItem(ADMIN_LIST_VIEW_KEY) === 'compact' ? 'compact' : 'cards';
+
+    const applyView = (view) => {
+        currentView = view;
+        lists.forEach(id => {
+            document.getElementById(id)?.classList.toggle('compact-list', view === 'compact');
+        });
+        viewButtons.forEach(button => {
+            const isSelected = button.dataset.listView === view;
+            button.classList.toggle('active', isSelected);
+            button.setAttribute('aria-pressed', String(isSelected));
+        });
+        localStorage.setItem(ADMIN_LIST_VIEW_KEY, view);
+    };
+
+    viewButtons.forEach(button => {
+        button.addEventListener('click', () => applyView(button.dataset.listView));
+    });
+    applyView(currentView);
+}
 
 // ===============================================
 // ACCESS CONTROL
@@ -213,6 +238,7 @@ document.getElementById('matchTeamFilter')?.addEventListener('change', (e) => {
 async function initializeAdminPage() {
     console.log('Initializing admin page...');
     try {
+        initializeAdminListView();
         await loadMembers();
         await loadTempAccounts();
         await loadMatches();
@@ -1529,12 +1555,7 @@ if (addMatchBtn) {
         document.getElementById('matchModalTitle').textContent = 'Nieuwe Wedstrijd Aanmaken';
         document.getElementById('matchId').value = '';
         matchForm.reset();
-        
-        document.getElementById('matchType').value = 'upcoming';
-        document.getElementById('btnUpcoming').classList.add('active');
-        document.getElementById('btnFinished').classList.remove('active');
-        document.getElementById('scoreFields').style.display = 'none';
-        document.getElementById('designatedPersonsGroup').style.display = 'block';
+        setMatchType('upcoming');
         const fT = document.getElementById('matchForfaitThuis');
         const fU = document.getElementById('matchForfaitUit');
         const fB = document.getElementById('matchBekermatch');
@@ -1557,37 +1578,33 @@ if (matchModalCancel) {
     });
 }
 
-const btnUpcoming = document.getElementById('btnUpcoming');
-const btnFinished = document.getElementById('btnFinished');
 const scoreFields = document.getElementById('scoreFields');
 const designatedPersonsGroup = document.getElementById('designatedPersonsGroup');
 const matchTypeInput = document.getElementById('matchType');
 const matchHomeScore = document.getElementById('matchHomeScore');
 const matchAwayScore = document.getElementById('matchAwayScore');
 
-if (btnUpcoming) {
-    btnUpcoming.addEventListener('click', () => {
-        btnUpcoming.classList.add('active');
-        btnFinished.classList.remove('active');
-        scoreFields.style.display = 'none';
-        designatedPersonsGroup.style.display = 'block';
-        matchTypeInput.value = 'upcoming';
-        matchHomeScore.removeAttribute('required');
-        matchAwayScore.removeAttribute('required');
+function setMatchType(type) {
+    const isFinished = type === 'finished';
+    document.querySelectorAll('.match-type-btn').forEach(button => {
+        button.classList.toggle('active', button.dataset.type === type);
     });
+    if (scoreFields) scoreFields.style.display = isFinished ? 'flex' : 'none';
+    if (designatedPersonsGroup) designatedPersonsGroup.style.display = isFinished ? 'none' : 'block';
+    if (matchTypeInput) matchTypeInput.value = type;
+    if (matchHomeScore) {
+        if (isFinished) matchHomeScore.setAttribute('required', 'required');
+        else matchHomeScore.removeAttribute('required');
+    }
+    if (matchAwayScore) {
+        if (isFinished) matchAwayScore.setAttribute('required', 'required');
+        else matchAwayScore.removeAttribute('required');
+    }
 }
 
-if (btnFinished) {
-    btnFinished.addEventListener('click', () => {
-        btnFinished.classList.add('active');
-        btnUpcoming.classList.remove('active');
-        scoreFields.style.display = 'flex';
-        designatedPersonsGroup.style.display = 'none';
-        matchTypeInput.value = 'finished';
-        matchHomeScore.setAttribute('required', 'required');
-        matchAwayScore.setAttribute('required', 'required');
-    });
-}
+document.querySelectorAll('.match-type-btn').forEach(button => {
+    button.addEventListener('click', () => setMatchType(button.dataset.type));
+});
 
 function populateDesignatedPersonsSelect() {
     const container = document.getElementById('designatedPersonsContainer');
@@ -1627,10 +1644,11 @@ if (matchForm) {
         const descriptionField = document.getElementById('matchDescription');
         const description = descriptionField ? descriptionField.value.trim() : '';
         const matchType = document.getElementById('matchType').value;
+        const scheduleStatus = document.querySelector('input[name="matchScheduleStatus"]:checked')?.value || 'scheduled';
         
         let matchData;
         
-        if (matchType === 'upcoming') {
+        if (matchType !== 'finished') {
             const checkboxes = document.querySelectorAll('input[name="designatedPerson"]:checked');
             const aangeduidePersonen = Array.from(checkboxes).map(cb => cb.value);
             
@@ -1655,6 +1673,7 @@ if (matchForm) {
                 beschrijving: description,
                 aangeduidePersonen: aangeduidePersonen,
                 status: 'planned',
+                scheduleStatus,
                 scoreThuis: fScoreThuis,
                 scoreUit: fScoreUit,
                 isForfait:   isForfaitThuis || isForfaitUit,
@@ -1682,6 +1701,7 @@ if (matchForm) {
                 beschrijving: description,
                 aangeduidePersonen: [],
                 status: 'finished',
+                scheduleStatus,
                 scoreThuis: finalHomeScore,
                 scoreUit: finalAwayScore,
                 halfTimeReached: true,
@@ -1835,11 +1855,12 @@ function createMatchCard(match) {
     card.innerHTML = `
         <div class="match-info-admin">
             <h4>${match.thuisploeg} - ${match.uitploeg}</h4>
-            <p>${dateFormatted} om ${match.uur} | ${match.locatie}</p>
-            <p>Team: ${match.team || 'Niet gespecificeerd'}</p>
+            <p class="match-meta">${dateFormatted} om ${match.uur} | ${match.locatie}</p>
+            <p class="match-team-meta">Team: ${match.team || 'Niet gespecificeerd'}</p>
             ${match.beschrijving ? `<p class="match-description">${match.beschrijving}</p>` : ''}
-            <p>Toegang: ${personenNames}</p>
+            <p class="match-access">Toegang: ${personenNames}</p>
             ${statusBadge}
+            ${getMatchScheduleBadge(match.scheduleStatus)}
             ${match.status !== 'planned' ? `<span class="member-badge">Score: ${match.scoreThuis || 0} - ${match.scoreUit || 0}</span>` : ''}
         </div>
         <div class="card-actions match-card-actions">
@@ -1886,6 +1907,14 @@ function getMatchStatusBadge(status) {
     return `<span class="match-badge ${s.class}">${s.text}</span>`;
 }
 
+function getMatchScheduleBadge(status) {
+    const badges = {
+        postponed: '<span class="match-badge schedule-postponed">Uitgesteld</span>',
+        cancelled: '<span class="match-badge schedule-cancelled">Afgelast</span>'
+    };
+    return badges[status] || '';
+}
+
 function editMatch(match) {
     const isFinished = match.status === 'finished' || match.status === 'live' || match.status === 'rust';
 
@@ -1901,31 +1930,23 @@ function editMatch(match) {
     const descField = document.getElementById('matchDescription');
     if (descField) descField.value = match.beschrijving || '';
 
-    const btnUp  = document.getElementById('btnUpcoming');
-    const btnFin = document.getElementById('btnFinished');
-    const sfEl   = document.getElementById('scoreFields');
-    const dpEl   = document.getElementById('designatedPersonsGroup');
-    const mtEl   = document.getElementById('matchType');
     const hsEl   = document.getElementById('matchHomeScore');
     const asEl   = document.getElementById('matchAwayScore');
 
     if (isFinished) {
-        btnFin?.classList.add('active');
-        btnUp?.classList.remove('active');
-        if (sfEl) sfEl.style.display = 'flex';
-        if (dpEl) dpEl.style.display = 'none';
-        if (mtEl) mtEl.value = 'finished';
+        setMatchType('finished');
         if (hsEl) { hsEl.value = match.scoreThuis ?? 0; hsEl.setAttribute('required', 'required'); }
         if (asEl) { asEl.value = match.scoreUit   ?? 0; asEl.setAttribute('required', 'required'); }
     } else {
-        btnUp?.classList.add('active');
-        btnFin?.classList.remove('active');
-        if (sfEl) sfEl.style.display = 'none';
-        if (dpEl) dpEl.style.display = 'block';
-        if (mtEl) mtEl.value = 'upcoming';
+        setMatchType('upcoming');
         if (hsEl) hsEl.removeAttribute('required');
         if (asEl) asEl.removeAttribute('required');
     }
+
+    const scheduleRadio = document.querySelector(
+        `input[name="matchScheduleStatus"][value="${match.scheduleStatus || 'scheduled'}"]`
+    );
+    if (scheduleRadio) scheduleRadio.checked = true;
 
     const efT = document.getElementById('matchForfaitThuis');
     const efU = document.getElementById('matchForfaitUit');
