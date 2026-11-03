@@ -6,12 +6,15 @@
 //   werklijsten/{id}/shifts/{id} → { label, date, time, max, note, section, persons }
 // ===============================================
 
-import { auth, db } from './firebase-config.js';
+import { auth, db, app } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, doc, getDoc, setDoc, onSnapshot,
+    collection, doc, getDoc, onSnapshot,
     query, where, getDocs, limit
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
+
+const updateShiftSignup = httpsCallable(getFunctions(app, 'europe-west1'), 'updateShiftSignup');
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let currentUser        = null;
@@ -21,17 +24,30 @@ let shiftsData         = {};     // shiftId → shift doc data
 let pendingShiftId     = null;
 let unsubShifts        = null;
 let toastTimer         = null;
+const pendingShiftIds  = new Set();
 
 // ── Auth ───────────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    currentUserData = null;
+
     if (!user) {
+        if (unsubShifts) {
+            unsubShifts();
+            unsubShifts = null;
+        }
+        activeWerklijst = null;
+        shiftsData = {};
         document.getElementById('loadingSpinner').style.display = 'none';
+        document.getElementById('mainContent').style.display     = 'none';
         document.getElementById('authGuard').style.display      = 'flex';
         document.getElementById('loginLink').textContent        = 'LOGIN';
         return;
     }
 
-    currentUser = user;
+    document.getElementById('loadingSpinner').style.display = 'flex';
+    document.getElementById('mainContent').style.display     = 'none';
+    document.getElementById('authGuard').style.display      = 'none';
 
     try {
         const userSnap = await getDoc(doc(db, 'users', user.uid));
@@ -322,6 +338,10 @@ function attachCardListeners(shiftId) {
 // ── Handle sign-in / sign-out click ──────────────────────────────────────────
 function handleClick(shiftId) {
     if (!currentUser) return;
+    if (pendingShiftIds.has(shiftId)) {
+        showToast('Je wijziging wordt nog verwerkt. Even geduld.', 'error');
+        return;
+    }
     if (activeWerklijst?.locked) {
         showToast('🔒 Deze werklijst is vergrendeld.', 'error');
         return;
@@ -364,20 +384,19 @@ function handleClick(shiftId) {
 }
 
 async function addToShift(shiftId, asResponsible) {
-    if (!currentUser || !currentUserData) return;
+    if (!currentUser || !activeWerklijst) {
+        showToast('Je aanmelding kon niet worden verwerkt. Vernieuw de pagina en probeer opnieuw.', 'error');
+        return;
+    }
 
-    const naam     = currentUserData.name || currentUserData.email || 'Vrijwilliger';
-    const existing = shiftsData[shiftId]?.persons || [];
-    if (existing.some(p => p.uid === currentUser.uid)) return;
-
-    const updated = [...existing, { uid: currentUser.uid, name: naam, naam, responsible: asResponsible }];
-
+    pendingShiftIds.add(shiftId);
     try {
-        await setDoc(
-            doc(db, 'werklijsten', activeWerklijst.id, 'shifts', shiftId),
-            { persons: updated },
-            { merge: true }
-        );
+        await updateShiftSignup({
+            werklijstId: activeWerklijst.id,
+            shiftId,
+            responsible: asResponsible,
+            signedUp: true,
+        });
         showToast(
             asResponsible ? '✅ Ingeschreven als verantwoordelijke!' : '✅ Ingeschreven voor shift!',
             'success'
@@ -386,24 +405,32 @@ async function addToShift(shiftId, asResponsible) {
     } catch (e) {
         console.error('addToShift error:', e);
         showToast('❌ Fout bij aanmelden: ' + e.message, 'error');
+    } finally {
+        pendingShiftIds.delete(shiftId);
     }
 }
 
 async function removeFromShift(shiftId) {
-    if (!currentUser) return;
-    const updated = (shiftsData[shiftId]?.persons || [])
-        .filter(p => p.uid !== currentUser.uid);
+    if (!currentUser || !activeWerklijst) {
+        showToast('Je afmelding kon niet worden verwerkt. Vernieuw de pagina en probeer opnieuw.', 'error');
+        return;
+    }
+
+    pendingShiftIds.add(shiftId);
     try {
-        await setDoc(
-            doc(db, 'werklijsten', activeWerklijst.id, 'shifts', shiftId),
-            { persons: updated },
-            { merge: true }
-        );
+        await updateShiftSignup({
+            werklijstId: activeWerklijst.id,
+            shiftId,
+            responsible: false,
+            signedUp: false,
+        });
         showToast('↩️ Afgemeld voor shift.', 'success');
         removeCalendarButton(shiftId);
     } catch (e) {
         console.error('removeFromShift error:', e);
         showToast('❌ Fout bij afmelden: ' + e.message, 'error');
+    } finally {
+        pendingShiftIds.delete(shiftId);
     }
 }
 

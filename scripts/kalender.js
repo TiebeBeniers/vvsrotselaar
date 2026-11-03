@@ -13,13 +13,16 @@
 //     aanwezigen:[{uid,naam}], type:'training'|'other' }
 // ===============================================
 
-import { auth, db } from './firebase-config.js';
+import { auth, db, app } from './firebase-config.js';
 import { tcGet, tcSet, CACHE_TTL, PAGE_REFRESHED } from './vvs-cache.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, getDocs, doc, getDoc, setDoc, addDoc,
     deleteDoc, onSnapshot, orderBy, writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
+
+const updateTrainingSignup = httpsCallable(getFunctions(app, 'europe-west1'), 'updateTrainingSignup');
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let currentUser     = null;
@@ -296,7 +299,8 @@ function openPopup(item) {
     const scoreStr = item.type === 'match' && item.status === 'finished'
         ? `<div class="cal-popup-score">${item.scoreThuis ?? '–'} – ${item.scoreUit ?? '–'}</div>` : '';
 
-    const aanmeldBtn = item.type === 'training' && currentUser ? `
+    const canSignUp = currentUser && !(currentUserData?.permissions || []).includes('supporter');
+    const aanmeldBtn = item.type === 'training' && canSignUp ? `
         <button class="cal-popup-aanmeld ${isSigned ? 'signed' : ''}" id="calPopupAanmeld">
             ${isSigned ? '✓ Aangemeld (klik om af te melden)' : 'Aanmelden voor training'}
         </button>` : '';
@@ -360,14 +364,9 @@ function closePopup() {
 // ── Aanwezigheid ──────────────────────────────────────────────────────────────
 async function toggleAanwezigheid(item) {
     if (!currentUser || !currentUserData) { showToast('Log in om je aan te melden.', 'error'); return; }
-    const naam = currentUserData.name || currentUserData.email || 'Lid';
-    const list = [...(item.aanwezigen || [])];
-    const idx  = list.findIndex(p => p.uid === currentUser.uid);
-    if (idx === -1) list.push({ uid: currentUser.uid, name: naam, naam });
-    else list.splice(idx, 1);
     try {
-        await setDoc(doc(db, 'trainingen', item.id), { aanwezigen: list }, { merge: true });
-        showToast(idx === -1 ? '✅ Aangemeld!' : '↩️ Afgemeld.', 'success');
+        const result = await updateTrainingSignup({ trainingId: item.id });
+        showToast(result.data.signedUp ? '✅ Aangemeld!' : '↩️ Afgemeld.', 'success');
         loadWeek();
     } catch (e) { showToast('❌ ' + e.message, 'error'); }
 }

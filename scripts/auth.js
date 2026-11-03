@@ -7,7 +7,7 @@
 import { auth, db } from './firebase-config.js';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, updateDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { isAdmin as _isAdmin, isTijdelijk, hasPermission } from './vvs-user-helpers.js';
+import { isAdmin as _isAdmin, isTijdelijk, isSpeler, isSupporter, hasPermission } from './vvs-user-helpers.js';
 import { encryptPassword } from './crypto-utils.js';
 
 // ===============================================
@@ -233,12 +233,31 @@ if (backToLoginBtn) {
 // ===============================================
 
 if (requestAccountForm) {
+    const accountTypeInputs = requestAccountForm.querySelectorAll('input[name="requestAccountType"]');
+    const requestTeamLabel = document.getElementById('requestTeamLabel');
+    const updateRequestTeamLabel = () => {
+        if (!requestTeamLabel) return;
+        const isSupporterRequest = requestAccountForm.querySelector('input[name="requestAccountType"]:checked')?.value === 'supporter';
+        requestTeamLabel.firstChild.textContent = isSupporterRequest
+            ? 'Ploeg(en) waarvoor je wilt stemmen * '
+            : 'Ploeg(en) * ';
+    };
+    accountTypeInputs.forEach(input => input.addEventListener('change', updateRequestTeamLabel));
+    requestAccountForm.addEventListener('reset', () => setTimeout(updateRequestTeamLabel));
+    updateRequestTeamLabel();
+
     requestAccountForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        const requestSuccessMessage = document.getElementById('requestSuccessMessage');
+        const requestErrorMessage = document.getElementById('requestErrorMessage');
+        const submitBtn = requestAccountForm.querySelector('button[type="submit"]');
         const name = document.getElementById('requestName').value.trim();
         const email = document.getElementById('requestEmail').value.trim();
         const password = document.getElementById('requestPassword').value;
+        const accountType = requestAccountForm.querySelector('input[name="requestAccountType"]:checked')?.value === 'supporter'
+            ? 'supporter'
+            : 'speler';
         // Haal alle geselecteerde ploegen op (multi-select via checkboxes)
         const teamCheckboxes = document.querySelectorAll('input[name="requestTeam"]:checked');
         const ploegen = Array.from(teamCheckboxes).map(cb => cb.value);
@@ -263,15 +282,11 @@ if (requestAccountForm) {
             return;
         }
         
-        const requestSuccessMessage = document.getElementById('requestSuccessMessage');
-        const requestErrorMessage = document.getElementById('requestErrorMessage');
-        
         // Hide messages
         requestSuccessMessage.style.display = 'none';
         requestErrorMessage.style.display = 'none';
         
         // Disable submit button
-        const submitBtn = requestAccountForm.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.textContent = 'Bezig met indienen...';
@@ -338,6 +353,7 @@ if (requestAccountForm) {
                 encryptedPassword: encryptedPassword,
                 categorie: team,       // primaire ploeg (backwards compat)
                 ploegen: ploegen,      // array van alle ploegen
+                accountType,
                 ...(phone && { telefoon: phone }),
                 status: 'pending',
                 createdAt: serverTimestamp()
@@ -654,8 +670,9 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Permissions-gebaseerde rolcontrole (v2 schema)
                 const permissions = userData.permissions || [];
-                const isAdmin  = permissions.includes('admin');
-                const isSpeler = permissions.includes('speler') && (userData.team || []).length > 0;
+                const isAdmin  = _isAdmin(userData);
+                const supporter = isSupporter(userData);
+                const speler = isSpeler(userData) && (userData.team || []).length > 0;
 
                 // Show admin button if user has admin access
                 if (adminBtn) {
@@ -668,7 +685,7 @@ onAuthStateChanged(auth, async (user) => {
                 if (profileBtn) {
                     const userTeams2 = userData.team || [];
                     const isBestuurslid = userTeams2.includes('bestuurslid');
-                    profileBtn.style.display = (isAdmin || (isSpeler && !isBestuurslid)) ? 'block' : 'none';
+                    profileBtn.style.display = (isAdmin || (speler && !isBestuurslid)) ? 'block' : 'none';
                 }
 
                 // Layout: naast elkaar bij meerdere actie-knoppen (excl. logout)
@@ -682,10 +699,12 @@ onAuthStateChanged(auth, async (user) => {
                 if (userRoleEl) {
                     const userTeams3 = userData.team || [];
                     const isBestuurslid3 = userTeams3.includes('bestuurslid');
-                    if (isAdmin && isSpeler) userRoleEl.textContent = 'Speler + Administrator';
+                    if (supporter) userRoleEl.textContent = 'Supporter';
+                    else if (isAdmin && speler) userRoleEl.textContent = 'Speler + Administrator';
                     else if (isAdmin) userRoleEl.textContent = 'Administrator';
                     else if (isBestuurslid3) userRoleEl.textContent = 'Bestuurslid';
-                    else userRoleEl.textContent = 'Clublid';
+                    else if (speler) userRoleEl.textContent = 'Clublid';
+                    else userRoleEl.textContent = 'Gebruiker';
                 }
 
                 // Herbereken layout na render (knoppen kunnen display:none zijn)

@@ -13,6 +13,7 @@ import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateD
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import { isSupporter } from './vvs-user-helpers.js';
 import {
     DEFAULT_WRAPPED_THEMES, normalizeWrappedTheme, showWrappedPreview,
 } from './vvs-wrapped.js';
@@ -648,7 +649,9 @@ async function initMailTab() {
         const snap = await getDocs(collection(db, 'users'));
         snap.forEach(d => {
             const u = d.data();
-            if (u.email) allUsers.push({ uid: u.uid || d.id, naam: u.name || '?', email: u.email, team: u.team || [] });
+            if (u.email && !isSupporter(u)) {
+                allUsers.push({ uid: u.uid || d.id, naam: u.name || '?', email: u.email, team: u.team || [] });
+            }
         });
         allUsers.sort((a, b) => (a.naam || a.name || '').localeCompare(b.naam || b.name || ''));
     } catch (e) {

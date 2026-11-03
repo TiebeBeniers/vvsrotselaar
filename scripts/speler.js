@@ -20,7 +20,7 @@ import {
 
 // ── Cache configuratie ────────────────────────────────────────────────────────
 //
-// Profieldata:          5 minuten  — stats kunnen na een wedstrijd veranderen
+// Publieke profieldata: 10 minuten — stats kunnen na een wedstrijd veranderen
 // Wedstrijdgeschiedenis: 10 minuten — verandert zelden, bevat veel reads
 //
 const CACHE_TTL_PROFILE = 10 * 60 * 1000;   // 10 min — F5 vernieuwt altijd
@@ -28,6 +28,17 @@ const CACHE_TTL_HISTORY = 30 * 60 * 1000;   // 30 min — wedstrijdhistoriek ver
 
 function cacheKey(type, uid) {
     return `vvs_${type}_${uid}`;
+}
+
+try {
+    const oldProfileCacheKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('vvs_profile_')) oldProfileCacheKeys.push(key);
+    }
+    oldProfileCacheKeys.forEach(key => localStorage.removeItem(key));
+} catch (error) {
+    console.warn('Oude privéprofielcaches konden niet volledig worden verwijderd:', error);
 }
 
 // Detecteer page refresh → negeer localStorage cache zodat verse data geladen wordt
@@ -428,7 +439,7 @@ if (savePasswordBtn) {
 
 async function loadProfile(targetUid) {
     // 1. Probeer cache eerst
-    const cached = cacheGet('profile', targetUid, CACHE_TTL_PROFILE);
+    const cached = isOwnProfile ? null : cacheGet('public_profile_v3', targetUid, CACHE_TTL_PROFILE);
     if (cached) {
         console.log('[cache] profiel geladen uit localStorage voor', targetUid);
         profileDocId = cached._docId;
@@ -450,7 +461,10 @@ async function loadProfile(targetUid) {
 
     // 2. Cache miss — haal op uit Firestore (doc-ID = uid in v2 schema)
     console.log('[firestore] profiel ophalen voor', targetUid);
-    const snap = await getDoc(doc(db, 'users', targetUid));
+    const profileRef = isOwnProfile
+        ? doc(db, 'users', targetUid)
+        : doc(db, 'public_profiles', targetUid);
+    const snap = await getDoc(profileRef);
 
     if (!snap.exists()) {
         showOnly('stateNotFound');
@@ -461,12 +475,11 @@ async function loadProfile(targetUid) {
     const userData  = { uid: targetUid, _docId: targetUid, ...snap.data() };
 
     // Sla op in cache
-    cacheSet('profile', targetUid, userData);
+    if (!isOwnProfile) cacheSet('public_profile_v3', targetUid, userData);
 
     fillProfile(userData);
     showOnly('playerProfile');
-    // Wedstrijdgeschiedenis vereist auth (availability-subcollection queries)
-    // Alleen laden als de gebruiker is ingelogd
+    // Alleen ingelogde gebruikers krijgen hun wedstrijdgeschiedenis te zien.
     if (currentUser) {
         loadMatchHistory(targetUid);
     } else {
@@ -515,16 +528,9 @@ async function loadMatchHistory(targetUid) {
         for (const matchDoc of allMatches) {
             if (recentMatches.length >= 3) break;
 
-            const availDoc = await getDocs(
-                query(
-                    collection(db, 'matches', matchDoc.id, 'availability'),
-                    where('available', '==', true)
-                )
-            );
-
-            const wasPresent = availDoc.docs.some(d =>
-                d.id === targetUid || d.data().uid === targetUid
-            );
+            const lineup = matchDoc.lineup || matchDoc.lineupDraft || {};
+            const player = lineup[targetUid];
+            const wasPresent = player && ['starter', 'bench'].includes(player.status);
             if (wasPresent) recentMatches.push(matchDoc);
         }
 
@@ -628,7 +634,7 @@ onAuthStateChanged(auth, async (user) => {
         isOwnProfile    = targetUid === user.uid;
 
         if (params.get('refresh') === '1') {
-            cacheInvalidate('profile', targetUid);
+            cacheInvalidate('public_profile_v3', targetUid);
             cacheInvalidate('history', targetUid);
         }
 

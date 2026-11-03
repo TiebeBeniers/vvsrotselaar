@@ -5173,3 +5173,78 @@ html.dark .tour-btn-prev { background: rgba(255,255,255,0.1); }
     .tour-btn-next,
     .tour-btn-finish   { padding: 0.45rem 0.7rem; font-size: 0.8rem; }
 }
+
+/* Compacte, consistente admin-overlays met ruimte voor lange formulieren. */
+.modal {
+    padding: clamp(0.5rem, 2.5vw, 1rem);
+}
+
+.modal-content {
+    box-sizing: border-box;
+    padding: clamp(1rem, 2.5vw, 1.4rem);
+    border: 1px solid rgba(15, 35, 65, 0.08);
+    border-radius: 14px;
+    max-height: min(90vh, 900px);
+    max-height: min(90dvh, 900px);
+}
+
+.modal-content.large { max-width: 680px; }
+
+.modal-content h3 {
+    margin: 0 0 1rem;
+    font-size: 1.3rem;
+    line-height: 1.25;
+}
+
+.modal-content .modal-body { margin-bottom: 1rem; }
+
+.modal-content .admin-form { gap: 0.9rem; }
+
+.modal-content .form-group label {
+    margin-bottom: 0.35rem;
+    font-size: 0.88rem;
+}
+
+.modal-content .form-group input:not([type="checkbox"]):not([type="radio"]),
+.modal-content .form-group textarea,
+.modal-content .form-group select {
+    padding: 0.7rem 0.8rem;
+    border-radius: 7px;
+    font-size: 0.92rem;
+}
+
+.modal-content .form-group textarea { min-height: 84px; }
+.modal-content .form-row { gap: 0.75rem; }
+
+.modal-content .modal-actions {
+    gap: 0.65rem;
+    margin-top: 1rem;
+}
+
+.modal-content .modal-btn {
+    min-height: 42px;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.9rem;
+}
+
+#retroModal .modal-content,
+.retro-modal-content {
+    padding: clamp(0.9rem, 2vw, 1.2rem);
+    max-height: calc(100vh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+}
+
+@media (max-width: 600px) {
+    .modal-content {
+        max-height: calc(100vh - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+
+    .modal-content .modal-actions { flex-direction: row; }
+
+    .modal-content .modal-btn {
+        min-width: 0;
+        padding-inline: 0.55rem;
+        font-size: 0.84rem;
+    }
+}

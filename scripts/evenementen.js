@@ -2,14 +2,24 @@ import { auth, db } from './firebase-config.js';
 import { tcGet, tcSet, CACHE_TTL, PAGE_REFRESHED } from './vvs-cache.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
-    collection, getDocs, doc, setDoc, deleteDoc, getDoc
+    collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 let currentUser = null;
+let currentUserData = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    currentUserData = null;
+    if (user) {
+        try {
+            const profileSnap = await getDoc(doc(db, 'users', user.uid));
+            currentUserData = profileSnap.exists() ? profileSnap.data() : null;
+        } catch (error) {
+            console.error('Accounttype kon niet worden geladen:', error);
+        }
+    }
     const ll = document.getElementById('loginLink');
     if (ll) ll.textContent = user ? 'PROFIEL' : 'LOGIN';
     document.querySelectorAll('.inschrijf-btn-wrap').forEach(w => updateInschrijfButton(w));
@@ -242,9 +252,16 @@ function buildInschrijfWrap(ev) {
     wrap.className = 'inschrijf-btn-wrap';
     wrap.dataset.evenementId = ev.id;
     wrap.dataset.max = ev.maxDeelnemers || '';
+    wrap.dataset.inschrijvingenCount = String(ev.inschrijvingenCount || 0);
     wrap.dataset.secties = JSON.stringify(getEffectieveSecties(ev));
     wrap.dataset.inschrijfBeschrijving = ev.inschrijfBeschrijving || '';
     wrap.dataset.basisPrijs = ev.basisPrijs || 0;
+    const unsubscribeCount = onSnapshot(doc(db, 'evenementen', ev.id), snapshot => {
+        if (!snapshot.exists()) return;
+        wrap.dataset.inschrijvingenCount = String(snapshot.data().inschrijvingenCount || 0);
+        if (currentUser) updateInschrijfButton(wrap);
+    }, error => console.error('Inschrijvingsaantal kon niet worden geladen:', error));
+    window.addEventListener('beforeunload', unsubscribeCount, { once: true });
 
     const locked = isInschrijvingLocked(ev);
     wrap.dataset.locked = locked ? '1' : '';
@@ -323,6 +340,10 @@ async function updateInschrijfButton(wrap) {
     if (!btn) return;
 
     if (!currentUser) { btn.style.display = 'none'; return; }
+    if ((currentUserData?.permissions || []).includes('supporter')) {
+        btn.style.display = 'none';
+        return;
+    }
     btn.style.display = '';
     btn.disabled      = true;
     btn.textContent   = 'Laden...';
@@ -348,8 +369,7 @@ async function updateInschrijfButton(wrap) {
             return;
         }
 
-        const allSnap = await getDocs(collection(db, 'evenementen', evenementId, 'inschrijvingen'));
-        const total   = allSnap.size;
+        const total = Number(wrap.dataset.inschrijvingenCount) || 0;
         const vol     = maxD && total >= maxD && !isIn;
 
         const secties = JSON.parse(wrap.dataset.secties || '[]');
@@ -580,7 +600,6 @@ function openInschrijfPopup(wrap) {
                 extraAntwoorden,
                 ingeschrevenOp: new Date()
             });
-
             modal.style.display = 'none';
             await updateInschrijfButton(wrap);
         } catch (e) {

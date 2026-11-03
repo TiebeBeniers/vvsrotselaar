@@ -14,7 +14,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
-import { isAdmin, emptyStats, getStats } from './vvs-user-helpers.js';
+import { isAdmin, isSupporter, emptyStats, getStats } from './vvs-user-helpers.js';
  
 const storage = getStorage();
 
@@ -769,6 +769,7 @@ async function loadMemberCache() {
         _memberCache = [];
         snap.forEach(d => {
             const data = d.data();
+            if (isSupporter(data)) return;
             // Sla tijdelijke/externe accounts over
             if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
             if (data.name) _memberCache.push({ uid: data.uid || d.id, name: data.name });

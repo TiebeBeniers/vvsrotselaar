@@ -76,11 +76,11 @@ async function loadSearchData() {
 
     // Leden — publiek leesbaar (iedereen mag zoeken)
     try {
-        let users = tcGet('search_users', CACHE_TTL.medium);
+        let users = tcGet('search_public_profiles', CACHE_TTL.medium);
         if (!users) {
-            const snap = await getDocs(collection(db, 'users'));
+            const snap = await getDocs(collection(db, 'public_profiles'));
             users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-            tcSet('search_users', users);
+            tcSet('search_public_profiles', users);
         }
         searchData.users = users;
         loadedSomething = true;
@@ -166,13 +166,16 @@ function doSearch(q) {
             return (u.name || '').toLowerCase().includes(lower);
         })
         .slice(0, 5)
-        .forEach(u => results.push({
-            type:  'lid',
-            icon:  '👤',
-            title: u.name || '—',
-            sub:   '',
-            href:  u.uid ? `speler.html?uid=${u.uid}` : null,
-        }));
+        .forEach(u => {
+            const uid = u.id || u.uid;
+            results.push({
+                type:  'lid',
+                icon:  '👤',
+                title: u.name || '—',
+                sub:   '',
+                href:  uid ? `speler.html?uid=${encodeURIComponent(uid)}` : null,
+            });
+        });
 
     // Wedstrijden — live → live.html, anders → teampage
     searchData.matches

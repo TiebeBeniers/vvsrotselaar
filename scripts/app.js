@@ -6,7 +6,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, onSnapshot, getDocs, getDoc, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { isAdmin, hasPermission, isTijdelijk } from './vvs-user-helpers.js';
+import { isAdmin, hasPermission, isSupporter, isTijdelijk } from './vvs-user-helpers.js';
 import { checkAndShowWrapped } from './vvs-wrapped.js';
 import { applyLogoFromCache }  from './vvs-logo.js';
 
@@ -17,45 +17,6 @@ if (!applyLogoFromCache()) {
 }
 
 console.log('App.js loaded (with live overlay)');
-
-// ── Tijdelijke cache helpers (localStorage + TTL) ────────────────────────────
-const CACHE_TTL = {
-    profile: 10 * 60 * 1000,   // 10 min
-};
-
-const _PAGE_REFRESHED = (() => {
-    try {
-        const nav = performance.getEntriesByType?.('navigation')?.[0];
-        if (nav?.type === 'reload') {
-            if (!sessionStorage.getItem('vvs_app_refreshed')) {
-                sessionStorage.setItem('vvs_app_refreshed', '1');
-                return true;
-            }
-        } else {
-            sessionStorage.removeItem('vvs_app_refreshed');
-        }
-    } catch (_) {}
-    return false;
-})();
-
-function tcGet(key, ttl) {
-    if (_PAGE_REFRESHED) return null;
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return null;
-        const { ts, data } = JSON.parse(raw);
-        if (Date.now() - ts > ttl) { localStorage.removeItem(key); return null; }
-        return data;
-    } catch (_) { return null; }
-}
-
-function tcSet(key, data) {
-    try {
-        localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
-    } catch (_) { /* quota / privé-modus */ }
-}
-
-
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // How many minutes after the scheduled kick-off does a planned match stay visible
@@ -73,26 +34,52 @@ let currentSlide = 0;
 const slides = document.querySelectorAll('.carousel-slide');
 const dots = document.querySelectorAll('.dot');
 let carouselInterval;
+let slideRequestId = 0;
+const slideLoads = new WeakMap();
 
 function showSlide(index) {
     if (slides.length === 0) return;
-    slides.forEach(slide => slide.classList.remove('active'));
-    dots.forEach(dot => dot.classList.remove('active'));
-    if (index >= slides.length) currentSlide = 0;
-    if (index < 0) currentSlide = slides.length - 1;
-    slides[currentSlide].classList.add('active');
-    if (dots[currentSlide]) dots[currentSlide].classList.add('active');
+    const targetIndex = (index + slides.length) % slides.length;
+    const slide = slides[targetIndex];
+    const requestId = ++slideRequestId;
+
+    let load = slideLoads.get(slide);
+    if (!load) {
+        load = slide.style.backgroundImage
+            ? Promise.resolve()
+            : new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => {
+                    slide.style.backgroundImage = `url("${image.src}")`;
+                    resolve();
+                };
+                image.onerror = () => reject(new Error(`Carrouselfoto laden mislukt: ${image.src}`));
+                image.src = slide.dataset.background;
+            });
+        slideLoads.set(slide, load);
+    }
+
+    load.then(() => {
+        if (requestId !== slideRequestId) return;
+        currentSlide = targetIndex;
+        slides.forEach(item => item.classList.remove('active'));
+        dots.forEach(dot => dot.classList.remove('active'));
+        slide.classList.add('active');
+        if (dots[targetIndex]) dots[targetIndex].classList.add('active');
+    }).catch(error => {
+        slideLoads.delete(slide);
+        if (requestId === slideRequestId) console.error(error);
+    });
 }
 
-function nextSlide() { currentSlide++; showSlide(currentSlide); }
+function nextSlide() { showSlide(currentSlide + 1); }
 function startCarousel() { carouselInterval = setInterval(nextSlide, 12000); }
 function stopCarousel() { if (carouselInterval) clearInterval(carouselInterval); }
 
 if (dots.length > 0) {
     dots.forEach((dot, index) => {
         dot.addEventListener('click', () => {
-            currentSlide = index;
-            showSlide(currentSlide);
+            showSlide(index);
             stopCarousel();
             startCarousel();
         });
@@ -122,13 +109,9 @@ if (slides.length > 0) {
             const dy = Math.abs(touchEndY - touchStartY);
             if (dy >= 100) return;
             if (dx > 50) {
-                currentSlide--;
-                if (currentSlide < 0) currentSlide = slides.length - 1;
-                showSlide(currentSlide); stopCarousel(); startCarousel();
+                showSlide(currentSlide - 1); stopCarousel(); startCarousel();
             } else if (dx < -50) {
-                currentSlide++;
-                if (currentSlide >= slides.length) currentSlide = 0;
-                showSlide(currentSlide); stopCarousel(); startCarousel();
+                showSlide(currentSlide + 1); stopCarousel(); startCarousel();
             }
         }
     }
@@ -145,14 +128,8 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         try {
-            // Cache user role: 10 min (rol verandert zelden midden in een sessie)
-            const _rKey = `user_role_${user.uid}`;
-            let _rData   = tcGet(_rKey, CACHE_TTL.profile);
-            if (!_rData) {
-                const _uSnap = await getDoc(doc(db, 'users', user.uid));
-                _rData = _uSnap.exists() ? _uSnap.data() : null;
-                if (_rData) tcSet(_rKey, _rData);
-            }
+            const _uSnap = await getDoc(doc(db, 'users', user.uid));
+            const _rData = _uSnap.exists() ? _uSnap.data() : null;
             if (_rData) {
                 currentUserData = _rData;
                 if (loginLink) loginLink.textContent = 'PROFIEL';
@@ -432,6 +409,10 @@ async function checkForStartMatch() {
     if (!container) return;
 
     if (!currentUser || !currentUserData) {
+        container.style.display = 'none';
+        return;
+    }
+    if (isSupporter(currentUserData)) {
         container.style.display = 'none';
         return;
     }

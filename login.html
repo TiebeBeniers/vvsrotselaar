@@ -150,7 +150,27 @@
                         </div>
                         
                         <div class="form-group">
-                            <label>Ploeg(en) * <span style="font-weight:400;font-size:0.82rem;color:var(--text-gray);">(selecteer minimaal 1)</span></label>
+                            <label>Accounttype *</label>
+                            <div class="account-type-options">
+                                <label class="account-type-option">
+                                    <input type="radio" name="requestAccountType" value="speler" checked>
+                                    <span>
+                                        <strong>Speler</strong>
+                                        <small>Voor leden die deelnemen aan de ploeg.</small>
+                                    </span>
+                                </label>
+                                <label class="account-type-option">
+                                    <input type="radio" name="requestAccountType" value="supporter">
+                                    <span>
+                                        <strong>Supporter</strong>
+                                        <small>Om voor een gekozen ploeg op Man van de Match te stemmen.</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label id="requestTeamLabel">Ploeg(en) * <span style="font-weight:400;font-size:0.82rem;color:var(--text-gray);">(selecteer minimaal 1)</span></label>
                             <div class="team-checkboxes" id="requestTeamCheckboxes">
                                 <label class="team-checkbox-label">
                                     <input type="checkbox" name="requestTeam" value="veteranen"> Veteranen

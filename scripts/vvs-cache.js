@@ -50,6 +50,18 @@ export const PAGE_REFRESHED = (() => {
     return false;
 })();
 
+try {
+    localStorage.removeItem('vvs_search_users');
+    const oldProfileCacheKeys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.startsWith('vvs_profile_')) oldProfileCacheKeys.push(key);
+    }
+    oldProfileCacheKeys.forEach(key => localStorage.removeItem(key));
+} catch (error) {
+    console.warn('Oude privéprofielcaches konden niet volledig worden verwijderd:', error);
+}
+
 // ── Core: get / set / del / clear ─────────────────────────────────────────────
 
 export function tcGet(key, ttl, bypassRefresh = false) {

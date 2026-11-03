@@ -3,19 +3,22 @@
 // V.V.S Rotselaar
 // ===============================================
 
-import { auth, db } from './firebase-config.js';
+import { auth, db, app } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, getDocs, getDoc, orderBy, limit,
-    onSnapshot, doc, setDoc, deleteDoc, updateDoc, increment, arrayUnion
+    onSnapshot, doc, setDoc, deleteDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
 import {
-    isAdmin, isAfgevaardigde, getAfgevaardigdeTeam,
+    isAdmin, isAfgevaardigde, isSupporter, getAfgevaardigdeTeam,
     getTeams, getDisplayName, getStats
 } from './vvs-user-helpers.js';
 import {
     getPushCategories, setReminderPreference, setLiveTeamPreference, getPushPermissionStatus
 } from './push-notifications.js';
+
+const revealMotmResults = httpsCallable(getFunctions(app, 'europe-west1'), 'revealMotmResults');
 
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -118,25 +121,19 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         if (loginLink) loginLink.textContent = 'PROFIEL';
 
-        // Laad Firestore-profiel (gecached in localStorage, 30 min TTL)
+        // Laad actuele rechten zodat een rolwijziging meteen geldt na herladen.
         currentUserData = null;
         try {
-            const raw = localStorage.getItem(`vvs_authuser_${user.uid}`);
-            if (raw) {
-                const { ts, data } = JSON.parse(raw);
-                if (Date.now() - ts < 30 * 60 * 1000) currentUserData = data;
-            }
-        } catch (_) {}
-
-        if (!currentUserData) {
-            try {
-                const userSnap = await getDoc(doc(db, 'users', user.uid));
-                if (userSnap.exists()) {
-                    currentUserData = userSnap.data();
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+                currentUserData = userSnap.data();
+                try {
                     localStorage.setItem(`vvs_authuser_${user.uid}`,
                         JSON.stringify({ ts: Date.now(), data: currentUserData }));
-                }
-            } catch (_) {}
+                } catch (_) {}
+            }
+        } catch (error) {
+            console.error('Actuele gebruikersrechten konden niet worden geladen:', error);
         }
     } else {
         currentUser = null;
@@ -919,8 +916,9 @@ function displayPlannedMatch(match, container) {
         });
         const formattedTime = match.uur || 'Tijd niet beschikbaar';
         
-        // Availability section HTML - alleen voor ingelogde users
-        const availabilityHTML = currentUser ? `
+        // Supporters have no access to attendance features.
+        const canAccessAvailability = !!currentUser && !!currentUserData && !isSupporter(currentUserData);
+        const availabilityHTML = canAccessAvailability ? `
                 <!-- Availability Section -->
                 <div class="availability-section" id="availabilitySection">
                     <div class="availability-header">
@@ -1051,7 +1049,7 @@ function displayPlannedMatch(match, container) {
         console.log('Planned match displayed successfully');
         
         // Load availability data (alleen als user ingelogd is)
-        if (currentUser) {
+        if (canAccessAvailability) {
             loadAvailability(match.id, match);
         }
 
@@ -1892,7 +1890,7 @@ async function loadStatistics() {
     console.log('Loading statistics for', TEAM_TYPE);
 
     // ── Cache check ──────────────────────────────────────────────────────────
-    const cacheKey = `team_stats_${TEAM_TYPE}`;
+    const cacheKey = `team_stats_v2_${TEAM_TYPE}`;
     const cached = tcGet(cacheKey, CACHE_TTL.teamStats);
     if (cached) {
         console.log('[cache] stats geladen');
@@ -1903,7 +1901,7 @@ async function loadStatistics() {
     try {
         // NIEUW: team[] array-contains query
         const usersSnap = await getDocs(
-            query(collection(db, 'users'), where('team', 'array-contains', 'zondag'))
+            query(collection(db, 'public_profiles'), where('team', 'array-contains', 'zondag'))
         );
 
         if (usersSnap.empty) {
@@ -1914,13 +1912,11 @@ async function loadStatistics() {
         const players = [];
         usersSnap.forEach(d => {
             const u = d.data();
-            // Sla tijdelijke/externe accounts over
-            if ((u.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
             if (u.name) {
                 const s = u.stats || {};
                 players.push({
                     name:    u.name,
-                    uid:     u.uid || null,
+                    uid:     d.id,
                     goals:   s.goals   || 0,
                     assists: s.assists || 0,
                 });
@@ -2006,22 +2002,19 @@ let availabilitySetupToken = 0;
 // dit ook werkt wanneer een aangeduid persoon/bestuurslid de lijst van een
 // ANDER team bekijkt.
 const teamMembersCache = {};
-
 async function getTeamMembers(teamType) {
     if (teamMembersCache[teamType]) return teamMembersCache[teamType];
 
     const snap = await getDocs(
-        query(collection(db, 'users'), where('team', 'array-contains', teamType))
+        query(collection(db, 'public_profiles'), where('team', 'array-contains', teamType))
     );
 
     const members = [];
     snap.forEach(docSnap => {
         const data = docSnap.data();
         if (!data.name) return;
-        // Sla tijdelijke/externe accounts over (zelfde filter als elders)
-        if ((data.permissions || []).some(p => ['tijdelijk', 'extern'].includes(p))) return;
         members.push({
-            uid:  data.uid || docSnap.id,
+            uid:  docSnap.id,
             naam: data.name
         });
     });
@@ -2043,26 +2036,27 @@ async function loadAvailability(matchId, matchData = {}) {
     }
     
     try {
-        // Gebruik dezelfde authuser-cache als auth.js (30 min TTL)
-        let userData = null;
-        try {
-            const raw = localStorage.getItem(`vvs_authuser_${currentUser.uid}`);
-            if (raw) {
-                const { ts, data } = JSON.parse(raw);
-                if (Date.now() - ts < 30 * 60 * 1000) userData = data;
-            }
-        } catch (_) {}
-
+        let userData = currentUserData;
         if (!userData) {
             try {
                 const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
                 if (!userSnap.exists()) { contentDiv.innerHTML = ''; return; }
                 userData = userSnap.data();
+                currentUserData = userData;
                 try {
                     localStorage.setItem(`vvs_authuser_${currentUser.uid}`,
                         JSON.stringify({ ts: Date.now(), data: userData }));
                 } catch (_) {}
-            } catch (_) { contentDiv.innerHTML = ''; return; }
+            } catch (error) {
+                console.error('Gebruikersrechten voor beschikbaarheid konden niet worden geladen:', error);
+                contentDiv.innerHTML = '';
+                return;
+            }
+        }
+
+        if (isSupporter(userData)) {
+            contentDiv.innerHTML = '';
+            return;
         }
 
         // v2 schema: team[] array, permissions[]
@@ -2134,9 +2128,10 @@ async function loadAvailability(matchId, matchData = {}) {
             setupAvailabilityListener(matchId, true, true, isAdminUser);
             
         } else {
-            // Andere ploeg: alleen telling zien, geen lijst
-            contentDiv.innerHTML = `<div class="availability-summary-only"></div>`;
-            setupAvailabilityListener(matchId, false, false);
+            contentDiv.innerHTML = `
+                <p class="availability-summary-only">
+                    Beschikbaarheid is alleen zichtbaar voor ploegleden en wedstrijdbeheerders.
+                </p>`;
         }
         
     } catch (error) {
@@ -2154,15 +2149,13 @@ let allUsersCache = null;
 
 async function getAllUsers() {
     if (allUsersCache) return allUsersCache;
-    const snapshot = await getDocs(collection(db, 'users'));
+    const snapshot = await getDocs(collection(db, 'public_profiles'));
     allUsersCache = [];
     snapshot.forEach(docSnap => {
         const data = docSnap.data();
-        // Sla tijdelijke/externe accounts over
-        if ((data.permissions || []).some(p => ['tijdelijk','extern'].includes(p))) return;
         allUsersCache.push({
-            uid:      data.uid || docSnap.id,
-            naam:     data.name || data.displayName || '',
+            uid:      docSnap.id,
+            naam:     data.name || '',
             categorie: (data.team || [])[0] || ''
         });
     });
@@ -2438,12 +2431,11 @@ async function setupAvailabilityListener(matchId, showList = true, canManage = f
     // De lijst toont altijd de spelers van TEAM_TYPE, ook wanneer een
     // aangeduid persoon/bestuurslid van een ander team hem bekijkt.
     let teamMembers = [];
-    if (showList) {
-        try {
-            teamMembers = await getTeamMembers(TEAM_TYPE);
-        } catch (err) {
-            console.error('Error loading team members:', err);
-        }
+    try {
+        const loadedTeamMembers = await getTeamMembers(TEAM_TYPE);
+        if (showList) teamMembers = loadedTeamMembers;
+    } catch (err) {
+        console.error('Error loading team members:', err);
     }
 
     // Als er ondertussen alweer een nieuwere aanroep gebeurd is, stoppen we
@@ -2622,6 +2614,10 @@ async function setAvailability(matchId, available, userName) {
         showToast('Je moet ingelogd zijn', 'error');
         return;
     }
+    if (isSupporter(currentUserData)) {
+        showToast('Supporteraccounts kunnen geen beschikbaarheid aanduiden.', 'error');
+        return;
+    }
     
     const availableBtn = document.getElementById('availableBtn');
     const unavailableBtn = document.getElementById('unavailableBtn');
@@ -2702,6 +2698,7 @@ async function _renderMotmSection() {
 
     // Bepaal rechten via permissions[] (v2 schema)
     const permsMotm           = currentUserData.permissions || [];
+    const supporter           = isSupporter(currentUserData);
     const heeftWedstrijdRecht = permsMotm.includes('score_invullen');
     const isAfgevaardigdeMOTM = isAfgevaardigde(currentUserData, TEAM_TYPE);
     const isAdminUser         = permsMotm.includes('admin');
@@ -2719,14 +2716,15 @@ async function _renderMotmSection() {
     if (!match) return; // geen afgelopen wedstrijd vandaag
 
     // Sectie enkel zichtbaar voor stemgerechtigden, aangeduide personen, afgevaardigde, of admin
-    const canVote = (match.motmEligibleUids || []).includes(currentUser.uid)
-        || isAfgevaardigdeMOTM;
-    if (!canVote && !heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser) return;
+    const canVote = supporter
+        ? (currentUserData.team || []).includes(TEAM_TYPE)
+        : (match.motmEligibleUids || []).includes(currentUser.uid) || isAfgevaardigdeMOTM;
+    if (!canVote && (supporter || (!heeftWedstrijdRecht && !isAfgevaardigdeMOTM && !isAdminUser))) return;
 
     const motmResults   = match.motmResults || null;
     const isDesignated  = match.aangeduidePersonen?.includes(currentUser.uid);
     // Wie mag de uitslag onthullen: aangeduid persoon, wedstrijdrecht, afgevaardigde, admin
-    const canReveal     = isDesignated || heeftWedstrijdRecht || isAfgevaardigdeMOTM || isAdminUser;
+    const canReveal     = !supporter && (isDesignated || heeftWedstrijdRecht || isAfgevaardigdeMOTM || isAdminUser);
     const resultVisible = motmResults && motmResultsVisible(match);
 
     // Resultaten zijn bekendgemaakt maar de zichtbaarheidsperiode (24u) is voorbij → niets tonen
@@ -2772,12 +2770,21 @@ async function openMotmModal(match) {
     // Laad beschikbare spelers voor dit team uit het availability-subcollectie
     let players = [];
     try {
-        const avSnap = await getDocs(collection(db, 'matches', match.id, 'availability'));
-        avSnap.forEach(d => {
-            const av = d.data();
-            if (av.available && av.displayName) players.push({ uid: d.id, name: av.displayName });
+        const candidateUids = Array.isArray(match.motmCandidateUids)
+            ? match.motmCandidateUids
+            : Object.entries(match.lineup || {})
+                .filter(([uid, player]) => !uid.startsWith('manual_') &&
+                    ['starter', 'bench'].includes(player.status))
+                .map(([uid]) => uid);
+        const profiles = await Promise.all(candidateUids.map(uid =>
+            getDoc(doc(db, 'public_profiles', uid))
+        ));
+        profiles.forEach(profile => {
+            if (profile.exists()) players.push({ uid: profile.id, name: profile.data().name });
         });
-    } catch (_) {}
+    } catch (error) {
+        console.error('MotM-spelers konden niet worden geladen:', error);
+    }
 
     if (players.length === 0) {
         showToast('Geen spelers gevonden om op te stemmen.', 'error');
@@ -2804,7 +2811,7 @@ async function openMotmModal(match) {
     }
 
     const optionsHtml = selfPlayers.map(p =>
-        `<option value="${p.uid}" data-name="${p.name}">${p.name}</option>`
+        `<option value="${esc2(p.uid)}" data-name="${esc2(p.name)}">${esc2(p.name)}</option>`
     ).join('');
 
     modal.innerHTML = `
@@ -2885,7 +2892,13 @@ async function computeTally(matchId) {
 
 async function openStandModal(match) {
     let tally = [];
-    try { tally = await computeTally(match.id); } catch (_) {}
+    try {
+        tally = await computeTally(match.id);
+    } catch (error) {
+        console.error('MotM-stand kon niet worden geladen:', error);
+        showToast('De huidige stemstand kon niet worden geladen.', 'error');
+        return;
+    }
 
     let modal = document.getElementById('motmStandModal');
     if (!modal) {
@@ -2925,59 +2938,15 @@ async function openStandModal(match) {
     modal.querySelector('#standCancelBtn').addEventListener('click', () => modal.classList.remove('active'));
     modal.querySelector('#standRevealBtn').addEventListener('click', async () => {
         modal.classList.remove('active');
-        await revealMotm(match, tally);
+        await revealMotm(match);
     });
 }
 
-async function revealMotm(match, tallyArg = null) {
+async function revealMotm(match) {
     try {
-        // Voorkom dubbel tellen: is de uitslag ondertussen al bekendgemaakt?
-        const freshSnap = await getDoc(doc(db, 'matches', match.id));
-        if (freshSnap.exists() && freshSnap.data().motmResults) {
-            const fresh = freshSnap.data();
-            const i = allRecentMatches.findIndex(m => m.id === match.id);
-            if (i !== -1) {
-                allRecentMatches[i] = { ...allRecentMatches[i], motmResults: fresh.motmResults, motmRevealedAt: fresh.motmRevealedAt };
-            }
-            showToast('De uitslag was al bekendgemaakt.', 'error');
-            renderMotmSection();
-            return;
-        }
-
-        const tally = tallyArg || await computeTally(match.id);
-        const top3  = tally.slice(0, 3);
-        if (top3.length === 0) { showToast('Nog geen stemmen uitgebracht.', 'error'); return; }
-
-        const revealedAt = new Date().toISOString();
-        await setDoc(doc(db, 'matches', match.id),
-            { motmResults: top3, motmRevealedAt: revealedAt }, { merge: true });
-
-        // ── Sla MOTM-punten op per speler (1e: 3pnt, 2e: 2pnt, 3e: 1pnt) ──
-        // Wordt opgeslagen in users/{uid}: stats.motmPoints (totaal) en
-        // stats.motmHistory (per wedstrijd: positie + punten).
-        const MOTM_PTS = [3, 2, 1];
-        const failed = [];
-        for (let i = 0; i < top3.length; i++) {
-            const r   = top3[i];
-            const pts = MOTM_PTS[i] ?? 1;
-            // Sla enkel op voor echte Firebase-accounts (niet manual_...)
-            if (!r.uid || String(r.uid).startsWith('manual_')) continue;
-            try {
-                await updateDoc(doc(db, 'users', r.uid), {
-                    'stats.motmPoints':  increment(pts),
-                    'stats.motmHistory': arrayUnion({
-                        matchId:  match.id,
-                        datum:    match.datum,
-                        positie:  i + 1,
-                        punten:   pts,
-                        team:     TEAM_TYPE,
-                    })
-                });
-            } catch (e) {
-                console.warn('Kon MOTM-punten niet opslaan voor', r.name, ':', e.message);
-                failed.push(r.name);
-            }
-        }
+        const result = await revealMotmResults({ matchId: match.id });
+        const top3 = result.data.top3;
+        const revealedAt = result.data.revealedAt;
 
         // Update in-memory array direct zodat de kaart meteen refresht zonder herlaad
         const idx = allRecentMatches.findIndex(m => m.id === match.id);
@@ -2988,11 +2957,7 @@ async function revealMotm(match, tallyArg = null) {
         // Invalideer localStorage cache
         localStorage.removeItem(`vvs_recent_matches_${TEAM_TYPE}`);
 
-        if (failed.length) {
-            showToast(`🏆 Top 3 bekendgemaakt, maar punten niet opgeslagen voor: ${failed.join(', ')}. Pas ze manueel aan in het adminpaneel.`, 'error');
-        } else {
-            showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
-        }
+        showToast('🏆 Top 3 bekendgemaakt! Punten opgeslagen.', 'success');
 
         // Re-render kaarten en sectie direct
         const container = document.getElementById('recentMatchesList');

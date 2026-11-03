@@ -2,14 +2,16 @@
 // ROCKWERCHTER DRANKKAART  –  V.V.S Rotselaar
 // ===============================================
 
-import { auth, db } from './firebase-config.js';
+import { auth, db, app } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, deleteDoc, doc, serverTimestamp, onSnapshot }
+import { collection, query, where, orderBy, limit, getDocs, getDoc, deleteDoc, doc, onSnapshot }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
 import { isAdmin as _isAdmin, hasPermission, isTijdelijk as _isTijdelijk } from './vvs-user-helpers.js';
 
 // Cloud Function URL
 const BANCONTACT_FUNCTION_URL = 'https://createbancontactpayment-zqr63o77ia-ew.a.run.app';
+const createRockWerchterOrder = httpsCallable(getFunctions(app, 'europe-west1'), 'createRockWerchterOrder');
 
 // Houdt de actieve Firestore listener bij zodat we die kunnen stoppen
 // als de modal gesloten wordt
@@ -55,12 +57,18 @@ onAuthStateChanged(auth, async (user) => {
                 currentUserData = userSnap.data();
                 // v2 schema: permissions[]
                 isAdmin = _isAdmin(currentUserData);
+                if (hasPermission(currentUserData, 'supporter')) {
+                    $id('orderSummary') && ($id('orderSummary').style.display = 'block');
+                    $id('paymentButtons') && ($id('paymentButtons').style.display = 'none');
+                    $id('contact') && ($id('contact').style.display = 'flex');
+                    return;
+                }
 
                 // Toegangslogica:
-                //   - Tijdelijk/extern account: toegang als permissions[] 'rockwerchter' OF 'werken' bevat
+                //   - Tijdelijke/externe accounts: toegang met 'rockwerchter' of 'werken'
                 //   - Alle andere ingelogde accounts (speler, admin): altijd toegang
-                const isTijdelijk = _isTijdelijk(currentUserData);
-                const heeftToegang = isTijdelijk
+                const isBeperktAccount = _isTijdelijk(currentUserData) || hasPermission(currentUserData, 'extern');
+                const heeftToegang = isBeperktAccount
                     ? (hasPermission(currentUserData, 'rockwerchter') || hasPermission(currentUserData, 'werken'))
                     : true;
 
@@ -80,9 +88,9 @@ onAuthStateChanged(auth, async (user) => {
                 $id('paymentButtons').style.display = 'flex';
                 $id('contact') && ($id('contact').style.display = 'none');
 
-                // Bestellingen-knop + tour help-knop voor alle ingelogde users met toegang
+                // Alleen beheerders kunnen bestellingen en omzetgegevens bekijken.
                 const bestBtn = $id('bestellingenBtn');
-                if (bestBtn) bestBtn.style.display = 'flex';
+                if (bestBtn) bestBtn.style.display = isAdmin ? 'flex' : 'none';
                 const tourHelpBtn = $id('rwTourHelpBtn');
                 if (tourHelpBtn) tourHelpBtn.style.display = 'flex';
             } else { guestMode(); }
@@ -366,43 +374,22 @@ document.getElementById('resetBtn').addEventListener('click', resetAlles);
 // FIRESTORE – OPSLAAN
 // ═══════════════════════════════════════════════
 async function slaOp(methode, extra = {}) {
-    const items = {}; let aantalItems = 0;
+    const items = {};
     for (const n in drankjes) {
         if (drankjes[n].count > 0) {
-            items[n] = {
-                count: drankjes[n].count, prijs: drankjes[n].prijs,
-                subtotaal: +(drankjes[n].prijs * drankjes[n].count).toFixed(2)
-            };
-            aantalItems += drankjes[n].count;
+            items[n] = drankjes[n].count;
         }
     }
 
-    // Zorg dat we altijd de meest recente naam hebben.
-    // Als currentUserData nog niet geladen is (timing), haal het opnieuw op.
-    let userName = currentUserData?.name;
-    if (!userName && currentUser?.uid) {
-        try {
-            const freshSnap = await getDoc(doc(db, 'users', currentUser.uid));
-            if (freshSnap.exists()) {
-                currentUserData = freshSnap.data();
-                userName = currentUserData.name;
-            }
-        } catch (_) {}
-    }
-    // Laatste fallback: Firebase Auth displayName
-    if (!userName) userName = currentUser?.displayName || 'Onbekend';
+    if (!currentUser) throw new Error('Log in om een bestelling te plaatsen.');
 
     const bestellingDoc = {
-        userId:        currentUser?.uid ?? 'gast',
-        userName,
-        items, aantalItems,
-        totaal:        +getTotaal().toFixed(2),
+        items,
         betaalmethode: methode,
-        datum:         serverTimestamp(),
         ...extra
     };
-    const ref = await addDoc(collection(db, 'rockwerchter_bestellingen'), bestellingDoc);
-    return ref.id;
+    const result = await createRockWerchterOrder(bestellingDoc);
+    return result.data.id;
 }
 
 // ═══════════════════════════════════════════════
@@ -542,18 +529,20 @@ function _stopQrListener() {
 
 document.getElementById('qrBtn').addEventListener('click', async () => {
     const totaal = getTotaal();
-    const centen = Math.round(totaal * 100);
     document.getElementById('qrTotaal').textContent = `Te betalen: ${fmt(totaal)}`;
 
     const st          = document.getElementById('qrStatus');
     const qrImg       = document.getElementById('qrCanvas');
     const qrLoader    = document.getElementById('qrLoader');
     const bevestigBtn = document.getElementById('qrBevestig');
+    const canManuallyConfirm = ['admin', 'rockwerchter', 'werken']
+        .some(permission => hasPermission(currentUserData, permission));
 
     // Reset UI — toon loader, verberg QR
     st.style.display        = 'none';
     bevestigBtn.disabled    = true;
     bevestigBtn.textContent = '⏳ Wachten op betaling…';
+    bevestigBtn.style.display = canManuallyConfirm ? '' : 'none';
     qrImg.src               = '';
     qrImg.style.display     = 'none';
     qrLoader.style.display  = 'block';
@@ -562,10 +551,20 @@ document.getElementById('qrBtn').addEventListener('click', async () => {
 
     try {
         // 1) Maak betaling aan via Cloud Function
+        const idToken = await currentUser.getIdToken();
         const response = await fetch(BANCONTACT_FUNCTION_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: centen })
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+                items: Object.fromEntries(
+                    Object.entries(drankjes)
+                        .filter(([, item]) => item.count > 0)
+                        .map(([name, item]) => [name, item.count])
+                )
+            })
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || `Fout (${response.status})`);
@@ -605,7 +604,7 @@ document.getElementById('qrBtn').addEventListener('click', async () => {
                         closeModal('qrModal');
                         qrImg.style.display     = 'block';
                         qrLoader.style.display  = 'none';
-                        bevestigBtn.style.display = 'block';
+                        bevestigBtn.style.display = canManuallyConfirm ? 'block' : 'none';
                         bevestigBtn.textContent   = '✓ Betaling bevestigen';
                         bevestigBtn.disabled      = false;
                         resetNaBetaling();
@@ -618,6 +617,7 @@ document.getElementById('qrBtn').addEventListener('click', async () => {
                     st.style.display = 'block';
                     bevestigBtn.disabled    = false;
                     bevestigBtn.textContent = '✓ Betaling bevestigen';
+                    bevestigBtn.style.display = canManuallyConfirm ? '' : 'none';
                 }
             }
         );
@@ -630,6 +630,7 @@ document.getElementById('qrBtn').addEventListener('click', async () => {
         st.style.display = 'block';
         bevestigBtn.disabled    = false;
         bevestigBtn.textContent = '✓ Betaling bevestigen';
+        bevestigBtn.style.display = canManuallyConfirm ? '' : 'none';
         console.error('Bancontact fout:', e);
     }
 });
@@ -792,6 +793,7 @@ document.getElementById('bestellingenModalClose').addEventListener('click', () =
 document.getElementById('bestellingenSluiten').addEventListener('click',    () => closeModal('bestellingenModal'));
 
 async function laadBestellingen() {
+    if (!isAdmin) return;
     const lijstEl = document.getElementById('bestLijst');
     const statsEl = document.getElementById('bestStats');
     lijstEl.innerHTML = '<p class="loading-tekst"><div class="loader"></div></p>';

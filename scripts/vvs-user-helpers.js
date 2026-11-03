@@ -19,7 +19,13 @@ export function isAdmin(u) {
 
 /** Geeft true als de user een gewone speler is */
 export function isSpeler(u) {
-    return (u?.permissions || []).includes('speler');
+    const permissions = u?.permissions || [];
+    return permissions.includes('speler') && !permissions.includes('supporter');
+}
+
+/** Geeft true als de user een supporteraccount heeft */
+export function isSupporter(u) {
+    return (u?.permissions || []).includes('supporter');
 }
 
 /** Geeft true als de user een tijdelijk account is */
@@ -150,6 +156,7 @@ export function permissionsLabel(permissions = []) {
     const labels = {
         admin:           'Admin',
         speler:          'Speler',
+        supporter:       'Supporter',
         tijdelijk:       'Tijdelijk',
         extern:          'Extern',
         score_invullen:  'Score invullen',

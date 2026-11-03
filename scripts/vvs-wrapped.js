@@ -11,8 +11,9 @@
 
 import { db } from './firebase-config.js';
 import {
-    doc, getDoc, collection, query, where, getDocs
+    doc, getDoc, collection, getDocs
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { isSupporter } from './vvs-user-helpers.js';
 
 export const DEFAULT_WRAPPED_THEMES = [
     {
@@ -67,26 +68,31 @@ export function normalizeWrappedTheme(theme, fallback = DEFAULT_WRAPPED_THEMES[0
 // ── Triggered vanuit app.js na auth ──────────────────────────────────────────
 export async function checkAndShowWrapped(user, userData) {
     if (!user || !userData) return;
+    if (isSupporter(userData)) return;
 
     try {
         const settingsSnap = await getDoc(doc(db, 'settings', 'siteSettings'));
         if (!settingsSnap.exists() || !settingsSnap.data().wrappedEnabled) return;
 
         // Haal de stats van de huidige speler op
-        const userSnap = await getDocs(
-            query(collection(db, 'users'), where('uid', '==', user.uid))
-        );
-        if (userSnap.empty) return;
-        const stats = userSnap.docs[0].data();
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (!userSnap.exists()) return;
+        const stats = { ...userSnap.data(), ...userSnap.data().stats };
 
         const seasonKey    = settingsSnap.data().wrappedSeasonKey || 'default';
         const dismissedKey = `vvs_wrapped_dismissed_${user.uid}_${seasonKey}`;
         if (localStorage.getItem(dismissedKey) === '1') return;
 
         // ── Haal ALLE spelers op voor rangschikking ───────────────────────────
-        const allSnap = await getDocs(collection(db, 'users'));
-        const allPlayers = allSnap.docs.map(d => d.data()).filter(p =>
-            (p.goals ?? 0) + (p.assists ?? 0) + (p.matchen ?? 0) + (p.minuten ?? 0) > 0
+        const allSnap = await getDocs(collection(db, 'public_profiles'));
+        const allPlayers = allSnap.docs.map(d => ({
+            uid: d.id,
+            ...d.data(),
+            ...d.data().stats,
+            naam: d.data().name,
+            ploegen: d.data().team,
+        })).filter(p =>
+            (p.goals ?? 0) + (p.assists ?? 0) + (p.matches ?? 0) + (p.minutes ?? 0) > 0
         );
 
         // Bereken medailles voor de huidige speler
@@ -129,7 +135,9 @@ function computeBadges(me, all) {
     }
 
     // Bepaal het ploeg-veld van de speler (eerste ploeg in array of categorie)
-    const myPloeg = Array.isArray(me.ploegen) ? me.ploegen[0] : (me.categorie || me.ploeg || null);
+    const myPloeg = Array.isArray(me.team) ? me.team[0]
+        : Array.isArray(me.ploegen) ? me.ploegen[0]
+            : (me.categorie || me.ploeg || null);
 
     categories.forEach(cat => {
         const myVal = val(me, cat);
@@ -149,7 +157,9 @@ function computeBadges(me, all) {
         // ── Ploeg-ranking ─────────────────────────────────────────────────────
         if (myPloeg) {
             const ploegPlayers = all.filter(p => {
-                const pp = Array.isArray(p.ploegen) ? p.ploegen[0] : (p.categorie || p.ploeg || null);
+                const pp = Array.isArray(p.team) ? p.team[0]
+                    : Array.isArray(p.ploegen) ? p.ploegen[0]
+                        : (p.categorie || p.ploeg || null);
                 return pp === myPloeg;
             });
             const ploegSorted = [...ploegPlayers].sort((a, b) => val(b, cat) - val(a, cat));

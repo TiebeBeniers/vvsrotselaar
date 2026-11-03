@@ -15,6 +15,7 @@ import { isAdmin as _isAdmin, emptyStats, getStats, permissionsLabel, teamsLabel
 import { enablePushNotifications, disablePushNotifications, getPushPermissionStatus, listenForegroundMessages } from './push-notifications.js';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
 const storage = getStorage();
 
 console.log('Admin.js loaded (FINAL FIX VERSION with password decryption)');
@@ -96,6 +97,21 @@ onAuthStateChanged(auth, async (user) => {
         }
         
         console.log('Admin access granted, initializing page...');
+
+        if (localStorage.getItem('vvs_public_profiles_migration_v1') !== 'done') {
+            try {
+                const rebuildPublicProfiles = httpsCallable(
+                    getFunctions(app, 'europe-west1'),
+                    'rebuildPublicPlayerProfiles'
+                );
+                const result = await rebuildPublicProfiles();
+                localStorage.setItem('vvs_public_profiles_migration_v1', 'done');
+                console.info('Publieke spelersprofielen gesynchroniseerd:', result.data);
+            } catch (profileError) {
+                console.error('Publieke spelersprofielen konden niet worden gesynchroniseerd:', profileError);
+                showToast('Publieke spelersstatistieken konden niet worden bijgewerkt. Controleer de Cloud Functions-deployment.', 'error');
+            }
+        }
         
         await initializeSecondaryApp();
         await initializeAdminPage();
@@ -532,18 +548,32 @@ function getMemberRollen() {
 
 function setMemberRollen(rollen) {
     document.querySelectorAll('input[name="memberRol"]').forEach(cb => cb.checked = false);
-    const arr = Array.isArray(rollen) ? rollen : (rollen ? [rollen] : ['speler']);
+    const requestedRoles = Array.isArray(rollen) ? rollen : (rollen ? [rollen] : ['speler']);
+    const arr = requestedRoles.includes('supporter') ? ['supporter'] : requestedRoles;
     arr.forEach(r => {
         const cb = document.querySelector(`input[name="memberRol"][value="${r}"]`);
         if (cb) cb.checked = true;
     });
+    if (arr.includes('supporter')) setMemberRechten([], '');
 }
 
 function rollenLabel(rollen) {
-    const labels = { speler: 'Speler', admin: 'Admin' };
+    const labels = { speler: 'Speler', supporter: 'Supporter', admin: 'Admin' };
     const arr = Array.isArray(rollen) && rollen.length > 0 ? rollen : ['speler'];
     return arr.map(r => labels[r] || r).join(' + ');
 }
+
+document.querySelectorAll('input[name="memberRol"]').forEach(input => {
+    input.addEventListener('change', () => {
+        if (input.value === 'supporter' && input.checked) {
+            document.querySelectorAll('input[name="memberRol"]:not(#rolSupporter)').forEach(other => { other.checked = false; });
+            setMemberRechten([], '');
+        } else if (input.value !== 'supporter' && input.checked) {
+            const supporterRole = document.getElementById('rolSupporter');
+            if (supporterRole) supporterRole.checked = false;
+        }
+    });
+});
 
 function heeftAdminToegang(userData) {
     return (userData.permissions || []).includes('admin');
@@ -619,7 +649,7 @@ if (memberForm) {
 
                 // Bouw permissions[] exact zoals bij het aanmaken van een nieuw lid
                 const nieuwePermissions = [...rollen];
-                rechten.forEach(r => {
+                if (!rollen.includes('supporter')) rechten.forEach(r => {
                     if (r === 'afgevaardigde') nieuwePermissions.push(`afgevaardigde:${afgevaardigdeTeam || '*'}`);
                     else nieuwePermissions.push(r);
                 });
@@ -668,7 +698,7 @@ if (memberForm) {
                 const rechten = getMemberRechten();
                 const afgevaardigdeTeam = getMemberAfgevaardigdeTeam();
                 const newPermissions2 = [...rollen];
-                rechten.forEach(r => {
+                if (!rollen.includes('supporter')) rechten.forEach(r => {
                     if (r === 'afgevaardigde') newPermissions2.push(`afgevaardigde:${afgevaardigdeTeam || '*'}`);
                     else newPermissions2.push(r);
                 });
@@ -806,10 +836,10 @@ function createMemberCard(member) {
     card.className = 'member-card';
     
     const categorieText = teamsLabel(member.team || []);
-    const effectieveRollen = (member.permissions || []).filter(p => p === 'admin' || p === 'speler');
+    const effectieveRollen = (member.permissions || []).filter(p => ['admin', 'speler', 'supporter'].includes(p));
     const rolBadges = (effectieveRollen.length > 0 ? effectieveRollen : ['speler']).map(r => {
-        const kleur = r === 'admin' ? 'var(--danger)' : 'var(--primary-blue)';
-        const label = r === 'admin' ? 'Admin' : 'Speler';
+        const kleur = r === 'admin' ? 'var(--danger)' : r === 'supporter' ? '#7c3aed' : 'var(--primary-blue)';
+        const label = r === 'admin' ? 'Admin' : r === 'supporter' ? 'Supporter' : 'Speler';
         return `<span class="member-badge" style="background:${kleur}">${label}</span>`;
     }).join('');
     
@@ -857,9 +887,13 @@ function showMemberDetail(member) {
         const ploegBadges = (member.team || []).map(p =>
             `<span class="member-badge">${p.charAt(0).toUpperCase() + p.slice(1)}</span>`
         ).join('') || `<span class="member-badge">—</span>`;
-        const isAdm = (member.permissions || []).includes('admin');
+        const roles = (member.permissions || []).filter(p => ['admin', 'speler', 'supporter'].includes(p));
+        const roleBadges = (roles.length > 0 ? roles : ['speler']).map(role => {
+            const label = role === 'admin' ? 'Admin' : role === 'supporter' ? 'Supporter' : 'Speler';
+            return `<span class="member-badge">${label}</span>`;
+        }).join('');
         badgesEl.innerHTML = `
-            <span class="member-badge">${isAdm ? 'Admin' : 'Speler'}</span>
+            ${roleBadges}
             ${ploegBadges}`;
     }
 
@@ -903,11 +937,11 @@ function editMember(member) {
     document.getElementById('memberTelefoon').value = member.telnr || '';
     setMemberPloegen(member.team || []);
     // Rechten uit permissions extraheren
-    const rechtenUitPerms = (member.permissions || []).filter(p => !['admin','speler'].includes(p));
+    const rechtenUitPerms = (member.permissions || []).filter(p => !['admin','speler','supporter'].includes(p));
     const afgevaardigdeTeamVal = rechtenUitPerms.find(p => p.startsWith('afgevaardigde:'))?.split(':')[1] || '';
     const rechtenSimple = rechtenUitPerms.map(p => p.startsWith('afgevaardigde:') ? 'afgevaardigde' : p);
     setMemberRechten([...new Set(rechtenSimple)], afgevaardigdeTeamVal);
-    const memberRollen = (member.permissions || []).filter(p => p === 'admin' || p === 'speler');
+    const memberRollen = (member.permissions || []).filter(p => ['admin', 'speler', 'supporter'].includes(p));
     setMemberRollen(memberRollen.length > 0 ? memberRollen : ['speler']);
 
     const s = getStats(member);
@@ -1317,6 +1351,8 @@ async function loadAccountRequests() {
 function createRequestCard(request) {
     const card = document.createElement('div');
     card.className = 'request-card';
+    const accountType = request.accountType === 'supporter' ? 'supporter' : 'speler';
+    const accountTypeLabel = accountType === 'supporter' ? 'Supporter' : 'Speler';
     
     let dateText = 'Onbekend';
     if (request.createdAt) {
@@ -1351,13 +1387,14 @@ function createRequestCard(request) {
             <h4>${request.naam || request.name}</h4>
             <p><strong>Email:</strong> ${request.email}</p>
             ${phoneDisplay}
+            <p><strong>Accounttype:</strong> ${accountTypeLabel}</p>
             <p style="margin-bottom:0.35rem;"><strong>Aangevraagde ploeg(en):</strong></p>
             <div class="admin-team-checkboxes request-ploegen-selector">
                 ${ploegCheckboxesHtml}
             </div>
             <p class="request-date" style="margin-top:0.6rem;"><strong>Aangevraagd op:</strong> ${dateText}</p>
             <p class="request-ploeg-hint" style="font-size:0.82rem;color:var(--text-gray);margin-top:0.3rem;">
-                ✏️ Deselecteer ploegen die de speler <em>niet</em> mag deelnemen.
+                ✏️ Deselecteer ploegen die ${accountType === 'supporter' ? 'de supporter niet mag volgen' : 'de speler niet mag deelnemen'}.
             </p>
         </div>
         <div class="request-actions">
@@ -1371,7 +1408,7 @@ function createRequestCard(request) {
         const selectedPloegen = Array.from(card.querySelectorAll('.req-ploeg-cb:checked'))
             .map(cb => cb.dataset.ploeg);
         if (selectedPloegen.length === 0) {
-            showToast('Selecteer minstens één ploeg voor de speler.', 'error');
+            showToast(`Selecteer minstens één ploeg voor ${accountTypeLabel.toLowerCase()}.`, 'error');
             return;
         }
         acceptRequest(
@@ -1381,7 +1418,8 @@ function createRequestCard(request) {
             encryptedPwd,
             request.categorie || '',
             request.telefoon || '',
-            selectedPloegen
+            selectedPloegen,
+            accountType
         );
     });
     
@@ -1394,8 +1432,9 @@ function createRequestCard(request) {
 
 // ── FIX 1b: acceptRequest accepteert nu een ploegen-array ──
 
-window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorieOriginal, telefoon = '', ploegen = []) {
+window.acceptRequest = async function(requestId, naam, email, encryptedPassword, categorieOriginal, telefoon = '', ploegen = [], accountType = 'speler') {
     console.log('Accepting request:', requestId, 'for ploegen:', ploegen);
+    const normalizedAccountType = accountType === 'supporter' ? 'supporter' : 'speler';
     
     try {
         if (!confirm(`Account goedkeuren voor ${naam}?\nPloegen: ${ploegen.join(', ')}`)) {
@@ -1429,7 +1468,6 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         
         // Bepaal de ploegen om op te slaan
         const ploegenToSave = ploegen.length > 0 ? ploegen : [categorieOriginal || 'veteranen'];
-        const primaryCategorie = ploegenToSave[0];
         
         // Add user to Firestore — doc-ID = Auth UID
         await setDoc(doc(db, 'users', newUser.uid), {
@@ -1438,7 +1476,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
             email,
             telnr:       telefoon || '',
             team:        ploegenToSave,
-            permissions: ['speler'],
+            permissions: [normalizedAccountType],
             stats:       emptyStats(),
             registered:  serverTimestamp(),
         });
@@ -1453,7 +1491,8 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
         await loadMembers();
         updateRequestsBadge();
         
-        showToast(`Account aangemaakt voor ${naam} (${ploegenToSave.join(', ')})`, 'success');
+        const roleLabel = normalizedAccountType === 'supporter' ? 'supporter' : 'speler';
+        showToast(`Account aangemaakt voor ${naam} (${roleLabel}: ${ploegenToSave.join(', ')})`, 'success');
 
         // Bevestigingsmail naar de aanvrager — via Trigger Email Firestore Extension.
         // Niet-blokkerend: als dit faalt, blijft de accountaanvraag toch gewoon geaccepteerd.
@@ -1465,7 +1504,7 @@ window.acceptRequest = async function(requestId, naam, email, encryptedPassword,
                     html: `
                         <p>Hallo ${naam},</p>
                         <p>Goed nieuws — je accountaanvraag bij <strong>V.V.S Rotselaar</strong> is goedgekeurd! 🎉</p>
-                        <p>Je bent toegevoegd bij: <strong>${ploegenToSave.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}</strong>.</p>
+                            <p>${normalizedAccountType === 'supporter' ? 'Je kan nu stemmen voor Man van de Match bij' : 'Je bent toegevoegd bij'}: <strong>${ploegenToSave.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(', ')}</strong>.</p>
                         <p>Je kan nu inloggen op de website met het e-mailadres en wachtwoord die je hebt opgegeven bij je aanvraag.</p>
                         <p>Tot binnenkort!<br>V.V.S Rotselaar</p>
                     `,

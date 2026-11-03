@@ -1,4 +1,7 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
@@ -6,6 +9,7 @@
       "**/.*",
       "**/node_modules/**",
       "functions/**",
+      "firestore.rules",
       "build-tools/**"
     ],
     "rewrites": [

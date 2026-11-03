@@ -27,7 +27,7 @@ import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     collection, query, where, onSnapshot, getDocs,
-    doc, getDoc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp
+    doc, getDoc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp, increment
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 
 console.log('Live.js loaded (with lineup + stat tracking)');
@@ -684,16 +684,15 @@ async function incrementUserStats(uid, delta) {
     try {
         // v2: doc-ID = uid, stats in stats.* map
         const userRef  = doc(db, 'users', uid);
-        const userSnap = await getDoc(userRef);
-        if (!userSnap.exists()) return;
-        const s = userSnap.data().stats || {};
+        const profileSnap = await getDoc(doc(db, 'public_profiles', uid));
+        if (!profileSnap.exists()) return;
         await updateDoc(userRef, {
-            'stats.goals':      (s.goals      || 0) + delta.goals,
-            'stats.assists':    (s.assists    || 0) + delta.assists,
-            'stats.yellowCard': (s.yellowCard || 0) + delta.yellowCard,
-            'stats.redCard':    (s.redCard    || 0) + delta.redCard,
-            'stats.matches':    (s.matches    || 0) + delta.matches,
-            'stats.minutes':    (s.minutes    || 0) + delta.minutes,
+            'stats.goals':      increment(delta.goals),
+            'stats.assists':    increment(delta.assists),
+            'stats.yellowCard': increment(delta.yellowCard),
+            'stats.redCard':    increment(delta.redCard),
+            'stats.matches':    increment(delta.matches),
+            'stats.minutes':    increment(delta.minutes),
         });
     } catch (e) {
         console.error(`Error updating stats for uid ${uid}:`, e);

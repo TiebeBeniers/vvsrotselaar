@@ -17,6 +17,7 @@ import { onAuthStateChanged }
 import { collection, query, where, getDocs, getDoc, doc }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { enablePushNotifications } from './push-notifications.js';
+import { isSupporter } from './vvs-user-helpers.js';
 
 const DISMISSED_KEY  = 'vvs_notif_dismissed';
 const CHECK_INTERVAL = 2 * 60 * 60 * 1000;  // Om de 2 uur opnieuw checken
@@ -276,7 +277,7 @@ async function checkAvailability(user, team) {
     }
 }
 
-async function checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded) {
+async function checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded, supporterAccount = false) {
     // ploegen is een array van strings, bv. ['zaterdag', 'zondag']
     const today = new Date().toISOString().slice(0, 10);
 
@@ -294,6 +295,7 @@ async function checkCustomNotifications(user, ploegen, hasFcmToken, profileLoade
 
             // Doelgroep check
             const dg = m.doelgroep || 'iedereen';
+            if (supporterAccount && (dg !== 'iedereen' || m.pushOptIn)) return;
             if (dg === 'ingelogd' && !user) return;
             if (m.pushOptIn && (!user || !profileLoaded || hasFcmToken)) return;
             // Ploeg-specifieke check: de speler moet in die ploeg zitten
@@ -321,12 +323,14 @@ async function runChecks(user) {
     let ploegen = [];
     let hasFcmToken = false;
     let profileLoaded = !user;
+    let supporterAccount = false;
     if (user) {
         try {
             const snap = await getDoc(doc(db, 'users', user.uid));
             if (snap.exists()) {
                 const data = snap.data();
                 profileLoaded = true;
+                supporterAccount = isSupporter(data);
                 hasFcmToken = Array.isArray(data.fcmTokens)
                     && data.fcmTokens.some(token => typeof token === 'string' && token.trim());
                 // Ondersteun zowel het nieuwe ploegen-array als het oude categorie-veld
@@ -344,11 +348,11 @@ async function runChecks(user) {
     }
 
     // Beide checks parallel uitvoeren
-    const tasks = [checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded)];
+    const tasks = [checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded, supporterAccount)];
 
     // Beschikbaarheidscheck voor elke ploeg van de speler (behalve bestuurslid)
     const spelersploegen = ploegen.filter(t => t !== 'bestuurslid');
-    if (user && spelersploegen.length > 0) {
+    if (user && !supporterAccount && spelersploegen.length > 0) {
         spelersploegen.forEach(team => tasks.push(checkAvailability(user, team)));
     }
 
