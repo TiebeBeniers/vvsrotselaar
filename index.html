@@ -131,6 +131,8 @@
             </div>
         </section>
 
+        <section class="match-management-section" id="matchManagementSection" hidden></section>
+
         <!-- Team Buttons -->
         <section class="teams-section">
             <div class="team-buttons">
@@ -178,6 +180,65 @@
         </section>
     </main>
 
+    <div class="feedback-widget" id="feedbackWidget">
+        <button class="feedback-toggle" id="feedbackToggle" type="button" aria-expanded="false" aria-controls="feedbackPanel">
+            <span class="feedback-toggle-icon" aria-hidden="true">✦</span>
+            <span class="feedback-toggle-copy">
+                <strong>Help onze website verbeteren</strong>
+                <span>Deel je feedback · tik hier</span>
+            </span>
+        </button>
+        <button class="feedback-dismiss-collapsed" id="feedbackDismissCollapsed" type="button" aria-label="Feedbackbalk sluiten en niet meer tonen">×</button>
+
+        <section class="feedback-panel" id="feedbackPanel" aria-labelledby="feedbackTitle" aria-hidden="true" inert>
+            <div class="feedback-panel-header" id="feedbackPanelHandle">
+                <div>
+                    <p class="feedback-eyebrow">JOUW MENING TELT</p>
+                    <h2 id="feedbackTitle">Help ons verbeteren</h2>
+                </div>
+                <div class="feedback-panel-actions">
+                    <button class="feedback-collapse" id="feedbackCollapse" type="button" aria-label="Formulier inklappen">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <button class="feedback-dismiss" id="feedbackDismiss" type="button" aria-label="Feedbackbalk sluiten en niet meer tonen">×</button>
+                </div>
+            </div>
+            <p class="feedback-intro">Wat vind je van de website? Je ideeën voor een betere indeling of handige functies zijn welkom.</p>
+
+            <form class="feedback-form" id="feedbackForm">
+                <label class="feedback-label" for="feedbackPage">Over welke pagina gaat je feedback?</label>
+                <input id="feedbackPage" name="pagina" type="text" maxlength="150" value="Homepagina" placeholder="Bijvoorbeeld: Kalender">
+
+                <fieldset class="feedback-topics">
+                    <legend>Waar gaat je feedback over?</legend>
+                    <label><input type="checkbox" name="onderwerp" value="Uiterlijk en indeling"> Uiterlijk en indeling</label>
+                    <label><input type="checkbox" name="onderwerp" value="Werking en functies"> Werking en functies</label>
+                    <label><input type="checkbox" name="onderwerp" value="Anders"> Anders</label>
+                </fieldset>
+
+                <label class="feedback-label" for="feedbackMessage">Wat vind je goed of kan beter?</label>
+                <textarea id="feedbackMessage" name="feedback" rows="3" maxlength="3000" placeholder="Vertel wat je opvalt of waar je tegenaan loopt..."></textarea>
+
+                <label class="feedback-label" for="feedbackSuggestion">Heb je een suggestie of idee?</label>
+                <textarea id="feedbackSuggestion" name="suggesties" rows="3" maxlength="3000" placeholder="Denk aan een aanpassing, verbetering of nieuwe functie..."></textarea>
+
+                <div class="feedback-account" id="feedbackAccount" hidden>
+                    <label><input id="feedbackUseAccount" type="checkbox"> Verstuur met mijn accountnaam</label>
+                    <span id="feedbackAccountName"></span>
+                    <span class="feedback-account-anonymous">Laat dit uitgevinkt om anoniem te versturen.</span>
+                </div>
+                <p class="feedback-anonymous" id="feedbackAnonymous">
+                    Je feedback wordt anoniem verstuurd.
+                    <a href="login.html">Log in</a> als je die aan je account wilt koppelen.
+                </p>
+                <p class="feedback-privacy">Je accountnaam wordt alleen meegestuurd als je daarvoor kiest. <a href="privacy.html">Privacy</a></p>
+
+                <p class="feedback-status" id="feedbackStatus" role="status" aria-live="polite" hidden></p>
+                <button class="feedback-submit" id="feedbackSubmit" type="submit">Feedback versturen</button>
+            </form>
+        </section>
+    </div>
+
     <!-- Footer -->
     <footer class="main-footer">
         <p>&copy; Tiebe Beniers - Alle rechten voorbehouden. &nbsp;&middot;&nbsp;
@@ -190,6 +251,7 @@
     <script type="module" src="scripts/announcement.js"></script>
     <script type="module" src="scripts/theme.js"></script>
     <script type="module" src="scripts/notifications.js"></script>
+    <script type="module" src="scripts/feedback.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tsparticles/confetti@4.0.5/tsparticles.confetti.bundle.min.js"></script>
     <script src="scripts/vvs-seasonal.js" defer></script>
     <script src="scripts/vvs-extras.js" defer></script>

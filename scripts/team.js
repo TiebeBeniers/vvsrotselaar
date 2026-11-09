@@ -14,6 +14,7 @@ import {
     isAdmin, isAfgevaardigde, isSupporter, getAfgevaardigdeTeam,
     getTeams, getDisplayName, getStats
 } from './vvs-user-helpers.js';
+import { canManageMatch, renderTeamMatchActions } from './match-management.js';
 import {
     getPushCategories, setReminderPreference, setLiveTeamPreference, getPushPermissionStatus
 } from './push-notifications.js';
@@ -139,6 +140,10 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = null;
         currentUserData = null;
         if (loginLink) loginLink.textContent = 'LOGIN';
+    }
+
+    try { await loadNextMatch(); } catch (error) {
+        console.error('Wedstrijdacties konden niet worden bijgewerkt:', error);
     }
 
     // Re-render MOTM sectie zodra auth + userData bekend zijn.
@@ -297,6 +302,7 @@ async function initPushBell() {
 // ===============================================
 
 let liveMatchListener = null;
+let clubLiveMatchesListener = null;
 let allPlannedMatches  = [];   // alle geplande wedstrijden van dit team
 let currentPlannedIdx  = 0;   // index van de huidige weergegeven geplande wedstrijd
 let liveUpdateInterval = null;
@@ -695,7 +701,7 @@ async function loadNextMatch() {
     const container = document.getElementById('nextMatchContainer');
     
     if (!container) return;
-    
+
     // First check for live match
     const liveQuery = query(
         collection(db, 'matches'),
@@ -710,7 +716,7 @@ async function loadNextMatch() {
         }
         
         liveMatchListener = onSnapshot(liveQuery, (snapshot) => {
-            if (!snapshot.empty) {
+            if (snapshot.docs.length) {
                 // Live match found
                 const matchData = snapshot.docs[0].data();
                 const matchId = snapshot.docs[0].id;
@@ -733,11 +739,64 @@ async function loadNextMatch() {
                 if (container) loadPlannedMatch(container);
             }
         });
+
+        if (clubLiveMatchesListener) clubLiveMatchesListener();
+        const clubLiveQuery = query(collection(db, 'matches'), where('status', 'in', ['live', 'rust']));
+        clubLiveMatchesListener = onSnapshot(clubLiveQuery, snapshot => {
+            const matches = snapshot.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() }));
+            renderClubLiveMatches(matches);
+        }, error => {
+            console.error('Club livewedstrijden laden mislukt:', error);
+        });
         
     } catch (error) {
         console.error('Error loading match:', error);
         container.innerHTML = '<p class="error">Fout bij laden van wedstrijd.</p>';
     }
+}
+
+function renderClubLiveMatches(matches) {
+    let section = document.getElementById('clubLiveMatches');
+    if (matches.length <= 1) {
+        section?.remove();
+        return;
+    }
+
+    if (!section) {
+        section = document.createElement('section');
+        section.id = 'clubLiveMatches';
+        section.className = 'club-live-matches';
+        const nextMatchSection = document.getElementById('nextMatchSection');
+        nextMatchSection?.after(section);
+    }
+    section.replaceChildren();
+
+    const heading = document.createElement('h2');
+    heading.textContent = 'Meerdere wedstrijden live';
+    const intro = document.createElement('p');
+    intro.className = 'club-live-intro';
+    intro.textContent = 'Kies welke ploeg je live wilt volgen.';
+    const grid = document.createElement('div');
+    grid.className = 'club-live-grid';
+
+    matches.forEach(match => {
+        const link = document.createElement('a');
+        link.className = 'club-live-card';
+        link.href = `live.html?match=${encodeURIComponent(match.id)}`;
+        const label = document.createElement('small');
+        label.textContent = (CAL_TEAM_LABELS[match.team] || match.team || 'VVS Rotselaar').toUpperCase();
+        const names = document.createElement('strong');
+        names.textContent = `${match.thuisploeg || 'Thuis'} – ${match.uitploeg || 'Uit'}`;
+        const score = document.createElement('span');
+        score.textContent = `${match.scoreThuis ?? 0} – ${match.scoreUit ?? 0}`;
+        const status = document.createElement('span');
+        status.className = `club-live-status${match.status === 'rust' ? ' rust' : ''}`;
+        status.textContent = match.status === 'rust' ? 'RUST' : match.extraTimeStarted ? 'VERLENGINGEN' : 'LIVE';
+        link.append(label, names, score, status);
+        grid.appendChild(link);
+    });
+
+    section.append(heading, intro, grid);
 }
 
 async function loadPlannedMatch(container) {
@@ -768,7 +827,14 @@ async function loadPlannedMatch(container) {
         }
 
         const matches = [];
-        snapshot.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
+        snapshot.forEach(matchDoc => {
+            const data = matchDoc.data();
+            matches.push({ id: matchDoc.id, ...data });
+        });
+        if (!matches.length) {
+            container.innerHTML = '<p class="no-matches">Het veld heeft rust nodig — nieuwe matchen volgen binnenkort!</p>';
+            return;
+        }
 
         matches.sort((a, b) =>
             new Date(`${a.datum}T${a.uur || '00:00'}`) - new Date(`${b.datum}T${b.uur || '00:00'}`)
@@ -1047,6 +1113,7 @@ function displayPlannedMatch(match, container) {
         `;
         
         console.log('Planned match displayed successfully');
+        renderTeamMatchActions(match, currentUser, currentUserData, container.querySelector('.next-match-card'));
         
         // Load availability data (alleen als user ingelogd is)
         if (canAccessAvailability) {
@@ -1091,7 +1158,7 @@ function displayLiveMatch(match, container) {
                     <div class="live-score" id="liveAwayScore">${match.scoreUit ?? 0}</div>
                 </div>
             </div>
-            <button class="watch-live-btn" onclick="window.location.href='live.html'">
+            <button class="watch-live-btn" onclick="window.location.href='live.html?match=${encodeURIComponent(match.id)}'">
                 VOLG LIVE →
             </button>
         </div>
@@ -1407,8 +1474,8 @@ async function loadRecentMatches() {
     const cached = tcGet(cacheKey, CACHE_TTL.recentMatches);
     const motmDeepLink = new URLSearchParams(window.location.search).has('motm');
     if (cached && !motmDeepLink) {
-        console.log('[cache] recent matches geladen:', cached.length);
         allRecentMatches = cached;
+        console.log('[cache] recente wedstrijden geladen:', allRecentMatches.length);
         currentlyShowing = INITIAL_SHOW;
         renderRecentMatches(container);
         renderFormBarFromMatches();
@@ -1433,8 +1500,9 @@ async function loadRecentMatches() {
 
         // Verzamel en sorteer
         allRecentMatches = [];
-        snapshot.forEach(doc => {
-            allRecentMatches.push({ id: doc.id, ...doc.data() });
+        snapshot.forEach(matchDoc => {
+            const data = matchDoc.data();
+            allRecentMatches.push({ id: matchDoc.id, ...data });
         });
         allRecentMatches.sort((a, b) => {
             const dateA = new Date(`${a.datum}T${a.uur || '00:00'}`);
@@ -2663,6 +2731,7 @@ window.addEventListener('beforeunload', () => {
     if (liveMatchListener) {
         liveMatchListener();
     }
+    if (clubLiveMatchesListener) clubLiveMatchesListener();
     stopLiveUpdate();
 });
 

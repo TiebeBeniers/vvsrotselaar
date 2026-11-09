@@ -48,6 +48,9 @@ service cloud.firestore {
         isAdmin()
         || hasPermission('score_invullen')
         || isDelegate(matchInfo.team)
+        || (hasUserProfile()
+          && matchInfo.aangeduidePersonen is list
+          && matchInfo.aangeduidePersonen.hasAny([request.auth.uid]))
       );
     }
 
@@ -221,16 +224,47 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    match /feedback/{feedbackId} {
+      allow create: if request.resource.data.keys().hasAll([
+          'pagina', 'onderwerpen', 'feedback', 'suggesties', 'userId', 'naam', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'pagina', 'onderwerpen', 'feedback', 'suggesties', 'userId', 'naam', 'createdAt'
+        ])
+        && request.resource.data.pagina is string
+        && request.resource.data.pagina.size() <= 150
+        && request.resource.data.onderwerpen is string
+        && request.resource.data.onderwerpen.size() <= 100
+        && request.resource.data.feedback is string
+        && request.resource.data.feedback.size() <= 3000
+        && request.resource.data.suggesties is string
+        && request.resource.data.suggesties.size() <= 3000
+        && (request.resource.data.feedback.size() > 0 || request.resource.data.suggesties.size() > 0)
+        && request.resource.data.createdAt == request.time
+        && (
+          (request.resource.data.userId == null && request.resource.data.naam == 'Anoniem')
+          || (signedIn()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.naam is string
+            && request.resource.data.naam.size() > 0
+            && request.resource.data.naam.size() <= 100)
+        );
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     match /matches/{matchId} {
       allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin()
         || (canManageMatch(resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status', 'scoreThuis', 'scoreUit', 'lineup', 'lineupDraft',
-            'lineupDraftConfirmed', 'phase', 'pausedAt', 'extraTimeStarted',
-            'currentMinute', 'timerStartedAt', 'timerPausedAt', 'timerOffset',
-            'halfDuration', 'extraTimePhase', 'wedstrijdEvents'
+            'status', 'startedAt', 'scoreThuis', 'scoreUit', 'lineup', 'lineupDraft',
+            'lineupDraftConfirmed', 'lineupConfirmed', 'phase', 'pausedAt', 'extraTimeStarted',
+            'halfTimeReached', 'etHalfTimeReached', 'resumeStartedAt',
+            'etStartedAt', 'etResumeStartedAt', 'currentMinute',
+            'timerStartedAt', 'timerPausedAt', 'timerOffset', 'halfDuration',
+            'extraTimePhase', 'wedstrijdEvents'
           ]));
 
       match /availability/{availabilityUid} {

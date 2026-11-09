@@ -9,7 +9,7 @@
 
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp }
+import { collection, query, where, orderBy, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, deleteField, onSnapshot, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
@@ -79,8 +79,76 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById(`${btn.dataset.tab}Tab`).classList.add('active');
+        if (btn.dataset.tab === 'websitefeedback') loadWebsiteFeedback();
     });
 });
+
+async function loadWebsiteFeedback() {
+    const container = document.getElementById('websitefeedbackList');
+    if (!container) return;
+
+    container.replaceChildren();
+    const loading = document.createElement('div');
+    loading.className = 'loading';
+    loading.innerHTML = '<div class="loader"></div>';
+    container.appendChild(loading);
+
+    try {
+        const snapshot = await getDocs(query(collection(db, 'feedback'), orderBy('createdAt', 'desc')));
+        container.replaceChildren();
+
+        if (snapshot.empty) {
+            const emptyMessage = document.createElement('p');
+            emptyMessage.className = 'messages-empty';
+            emptyMessage.textContent = 'Er is nog geen websitefeedback ontvangen.';
+            container.appendChild(emptyMessage);
+            return;
+        }
+
+        snapshot.forEach((feedbackDoc) => {
+            const data = feedbackDoc.data();
+            const card = document.createElement('article');
+            card.className = 'message-card website-feedback-card';
+
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            const title = document.createElement('h4');
+            title.className = 'message-email';
+            title.textContent = `${data.naam || 'Anoniem'} · ${data.pagina || 'Pagina niet vermeld'}`;
+            const metadata = document.createElement('p');
+            metadata.className = 'message-date';
+            const date = data.createdAt?.toDate?.();
+            metadata.textContent = date instanceof Date && !Number.isNaN(date.getTime())
+                ? `${data.onderwerpen || 'Geen onderwerp'} · ${new Intl.DateTimeFormat('nl-BE', { dateStyle: 'medium', timeStyle: 'short' }).format(date)}`
+                : `${data.onderwerpen || 'Geen onderwerp'} · Datum onbekend`;
+            header.append(title, metadata);
+            card.appendChild(header);
+
+            for (const [label, value] of [['Feedback', data.feedback], ['Suggesties', data.suggesties]]) {
+                if (typeof value !== 'string' || !value.trim()) continue;
+                const section = document.createElement('section');
+                section.className = 'website-feedback-field';
+                const heading = document.createElement('h5');
+                heading.textContent = label;
+                const message = document.createElement('p');
+                message.textContent = value;
+                section.append(heading, message);
+                card.appendChild(section);
+            }
+
+            container.appendChild(card);
+        });
+    } catch (error) {
+        console.error('Websitefeedback laden is mislukt:', error);
+        container.replaceChildren();
+        const errorMessage = document.createElement('p');
+        errorMessage.className = 'error';
+        errorMessage.textContent = error.code === 'permission-denied'
+            ? 'Geen toegang. Controleer of je account de admin-permissie heeft en of de Firestore-regels zijn gepubliceerd.'
+            : 'Websitefeedback laden is niet gelukt. Probeer het later opnieuw.';
+        container.appendChild(errorMessage);
+    }
+}
 
 // ── Unieke ID-teller ──────────────────────────────────────────────────────────
 let _sectionCounter = 0;

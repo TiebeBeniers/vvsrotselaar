@@ -20,8 +20,8 @@
 // ============================================================
 
 const BASE        = '';
-const CACHE_NAME  = 'vvs-static-v1';
-const PAGES_CACHE = 'vvs-pages-v1';
+const CACHE_NAME  = 'vvs-static-v3';
+const PAGES_CACHE = 'vvs-pages-v3';
 const OFFLINE_URL = BASE + '/offline.html';
 const NOTFOUND_URL = BASE + '/404.html';
 
@@ -99,6 +99,8 @@ self.addEventListener('activate', event => {
         keys.filter(k => ![CACHE_NAME, PAGES_CACHE].includes(k)).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then(clients => clients.forEach(client => client.postMessage({ type: 'KIOSK_RELOAD' })))
   );
 });
 

@@ -29,6 +29,7 @@ import {
     collection, query, where, onSnapshot, getDocs,
     doc, getDoc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp, increment
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { canManageMatch } from './match-management.js';
 
 console.log('Live.js loaded (with lineup + stat tracking)');
 
@@ -40,8 +41,12 @@ let currentMatch    = null;
 let currentMatchId  = null;
 let matchListener   = null;
 let eventsListener  = null;
+let matchCatalogListener = null;
 let displayInterval = null;
 let hasAccess       = false;
+let controlButtonsInitialized = false;
+let currentMatchCollection = 'matches';
+let availableLiveMatches = [];
 
 // All players who marked available for this match
 // { uid, name, isExternal }
@@ -93,31 +98,93 @@ onAuthStateChanged(auth, async (user) => {
 
 async function loadLiveMatch() {
     try {
-        const snap = await getDocs(query(
-            collection(db, 'matches'),
-            where('status', 'in', ['live', 'rust'])
-        ));
-        if (snap.empty) {
-            showNoMatchState();
-            return;
-        }
+        const liveQuery = query(collection(db, 'matches'), where('status', 'in', ['live', 'rust']));
+        matchCatalogListener = onSnapshot(liveQuery, snapshot => {
+            availableLiveMatches = snapshot.docs
+                .map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() }));
+            const requestedId = new URLSearchParams(location.search).get('match');
+            const requestedMatch = availableLiveMatches.find(match => match.id === requestedId);
+            renderLiveMatchSelector(availableLiveMatches, requestedMatch?.id || currentMatchId);
 
-        currentMatchId = snap.docs[0].id;
-        currentMatch   = snap.docs[0].data();
-
-        checkAccess();
-        setupMatchListener();
-        setupEventsListener();
-        updateMatchDisplay();
-        startDisplayInterval();
-
-        if (hasAccess) {
-            await loadAvailablePlayers();
-        }
+            if (requestedMatch && requestedMatch.id !== currentMatchId) {
+                selectLiveMatch(requestedMatch.id, requestedMatch);
+            } else if (!currentMatch && availableLiveMatches.length) {
+                selectLiveMatch(availableLiveMatches[0].id, availableLiveMatches[0]);
+            } else if (currentMatch?.status === 'finished'
+                && !availableLiveMatches.some(match => match.id === currentMatchId)
+                && availableLiveMatches.length) {
+                selectLiveMatch(availableLiveMatches[0].id, availableLiveMatches[0]);
+            } else if (!currentMatch && !availableLiveMatches.length) {
+                showNoMatchState();
+            }
+        }, error => {
+            console.error('Live wedstrijden laden mislukt:', error);
+            showToast('Fout bij laden van wedstrijden: ' + error.message, 'error');
+        });
     } catch (e) {
         console.error('Error loading live match:', e);
         showToast('Fout bij laden wedstrijd: ' + e.message, 'error');
     }
+}
+
+function currentMatchRef() {
+    return doc(db, currentMatchCollection, currentMatchId);
+}
+
+function currentMatchSubcollection(name) {
+    return collection(db, currentMatchCollection, currentMatchId, name);
+}
+
+function selectLiveMatch(matchId, matchData) {
+    if (matchListener) matchListener();
+    if (eventsListener) eventsListener();
+    if (displayInterval) clearInterval(displayInterval);
+    currentMatchId = matchId;
+    currentMatchCollection = 'matches';
+    currentMatch = matchData;
+    matchFinishedHandled = false;
+    checkAccess();
+    setupMatchListener();
+    setupEventsListener();
+    updateMatchDisplay();
+    startDisplayInterval();
+    if (hasAccess) loadAvailablePlayers();
+
+    const url = new URL(location.href);
+    url.searchParams.set('match', matchId);
+    history.replaceState(null, '', url);
+}
+
+function renderLiveMatchSelector(matches, selectedId) {
+    const selector = document.getElementById('liveMatchSelector');
+    if (!selector) return;
+    selector.replaceChildren();
+    if (matches.length <= 1) {
+        selector.hidden = true;
+        return;
+    }
+    selector.hidden = false;
+    const title = document.createElement('h2');
+    title.textContent = 'Kies een wedstrijd om te volgen';
+    const choices = document.createElement('div');
+    choices.className = 'live-match-choices';
+    matches.forEach(match => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `live-match-choice${match.id === selectedId ? ' active' : ''}`;
+        button.setAttribute('aria-pressed', String(match.id === selectedId));
+        const teamNames = document.createElement('strong');
+        teamNames.textContent = `${match.thuisploeg || 'Thuis'} – ${match.uitploeg || 'Uit'}`;
+        const score = document.createElement('span');
+        score.textContent = `${match.scoreThuis ?? 0} – ${match.scoreUit ?? 0}`;
+        const status = document.createElement('small');
+        const statusText = match.status === 'rust' ? 'RUST' : match.extraTimeStarted ? 'VERLENGINGEN' : 'LIVE';
+        status.textContent = `${(match.team || 'VVS').toUpperCase()} · ${statusText}`;
+        button.append(teamNames, score, status);
+        button.addEventListener('click', () => selectLiveMatch(match.id, match));
+        choices.appendChild(button);
+    });
+    selector.append(title, choices);
 }
 
 function checkAccess() {
@@ -127,10 +194,7 @@ function checkAccess() {
         if (panel) panel.style.display = 'none';
         return;
     }
-    const perms              = currentUserData.permissions || [];
-    const isDesignated       = currentMatch.aangeduidePersonen?.includes(currentUser.uid);
-    const heeftWedstrijdRecht = perms.includes('score_invullen') || perms.includes('admin');
-    hasAccess = isDesignated || heeftWedstrijdRecht;
+    hasAccess = canManageMatch(currentUser, currentUserData, currentMatch);
     if (hasAccess) {
         if (panel) panel.style.display = 'block';
         setupControlButtons();
@@ -144,8 +208,12 @@ function checkAccess() {
 async function loadAvailablePlayers() {
     if (!currentMatchId) return;
     try {
-        const snap = await getDocs(collection(db, 'matches', currentMatchId, 'availability'));
+        const snap = await getDocs(currentMatchSubcollection('availability'));
         availablePlayers = [];
+        activePlayers = [];
+        benchPlayers = [];
+        outPlayers = [];
+        playerUidMap = {};
         snap.forEach(d => {
             const data = d.data();
             if (data.available) {
@@ -198,7 +266,7 @@ function rebuildLineupFromMatch() {
 
 function setupMatchListener() {
     if (matchListener) matchListener();
-    matchListener = onSnapshot(doc(db, 'matches', currentMatchId), snap => {
+    matchListener = onSnapshot(currentMatchRef(), snap => {
         if (snap.exists()) {
             currentMatch = snap.data();
             // Sync lineup arrays whenever match updates
@@ -231,7 +299,7 @@ function setupMatchListener() {
 function setupEventsListener() {
     if (eventsListener) eventsListener();
     eventsListener = onSnapshot(
-        collection(db, 'matches', currentMatchId, 'events'),
+        currentMatchSubcollection('events'),
         snap => {
             const counts = {};
             snap.forEach(d => {
@@ -405,6 +473,10 @@ function updateControlButtonStates() {
 // ── Setup control buttons ─────────────────────────────────────────────────────
 
 function setupControlButtons() {
+    if (controlButtonsInitialized) {
+        updateControlButtonStates();
+        return;
+    }
     document.querySelectorAll('.control-btn[data-action]').forEach(btn => {
         btn.addEventListener('click', handleControlClick);
     });
@@ -422,6 +494,7 @@ function setupControlButtons() {
     if (scoreCorrectBtn) scoreCorrectBtn.addEventListener('click', openScoreModal);
 
     updateControlButtonStates();
+    controlButtonsInitialized = true;
 }
 
 // ── Pause handler ─────────────────────────────────────────────────────────────
@@ -430,14 +503,14 @@ async function handlePause() {
     try {
         const minute   = getCurrentMinuteForEvent();
         const phase    = currentMatch.phase || 1;
-        const matchRef = doc(db, 'matches', currentMatchId);
+        const matchRef = currentMatchRef();
         const now      = Timestamp.fromDate(new Date());
         const upd      = { status: 'rust', pausedAt: now };
         if (phase === 1) { upd.halfTimeReached = true; upd.phase = 2; }
         else if (phase === 3) { upd.etHalfTimeReached = true; upd.phase = 4; }
 
         await updateDoc(matchRef, upd);
-        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+        await addDoc(currentMatchSubcollection('events'), {
             minuut: minute, half: phase,
             type: 'rust', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
@@ -486,7 +559,7 @@ function confirmResume() {
 async function handleResume() {
     try {
         const phase    = currentMatch.phase || 1;
-        const matchRef = doc(db, 'matches', currentMatchId);
+        const matchRef = currentMatchRef();
         const now      = Timestamp.fromDate(new Date());
         const upd      = { status: 'live', pausedAt: null };
 
@@ -506,11 +579,11 @@ async function handleExtraTime() {
     if (!confirm(`Verlengingen starten? De timer springt naar ${fullDur}' en er volgen 2 × 15 minuten.`)) return;
     try {
         const minute = getCurrentMinuteForEvent();
-        await updateDoc(doc(db, 'matches', currentMatchId), {
+        await updateDoc(currentMatchRef(), {
             status: 'rust', pausedAt: Timestamp.fromDate(new Date()),
             extraTimeStarted: true, phase: 3
         });
-        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+        await addDoc(currentMatchSubcollection('events'), {
             minuut: minute, half: 2,
             type: 'einde-regulier', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
@@ -525,8 +598,8 @@ async function handleEndMatch() {
         const minute = getCurrentMinuteForEvent();
         const phase  = currentMatch.phase || 1;
 
-        await updateDoc(doc(db, 'matches', currentMatchId), { status: 'finished' });
-        await addDoc(collection(db, 'matches', currentMatchId, 'events'), {
+        await updateDoc(currentMatchRef(), { status: 'finished' });
+        await addDoc(currentMatchSubcollection('events'), {
             minuut: minute, half: phase,
             type: 'einde', ploeg: 'center', speler: '', timestamp: serverTimestamp()
         });
@@ -566,12 +639,12 @@ async function finalizePlayerStats(finalMinute) {
     try {
         // 1. Get all playerMinutes records
         const pmSnap = await getDocs(
-            collection(db, 'matches', currentMatchId, 'playerMinutes')
+            currentMatchSubcollection('playerMinutes')
         );
 
         // 2. Fetch all events — subcollection
         const eventsSnap = await getDocs(
-            collection(db, 'matches', currentMatchId, 'events')
+            currentMatchSubcollection('events')
         );
         const events = [];
         eventsSnap.forEach(d => events.push(d.data()));
@@ -1009,7 +1082,7 @@ async function executeMultiSub(team, pairs) {
     };
 
     try {
-        await addDoc(collection(db, 'matches', currentMatchId, 'events'), eventData);
+        await addDoc(currentMatchSubcollection('events'), eventData);
 
         // Update lineup + playerMinutes for each VVS pair
         if (team === vvsSide) {
@@ -1031,7 +1104,7 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
     try {
         const minute   = getCurrentMinuteForEvent();
         const phase    = currentMatch.phase || 1;
-        const matchRef = doc(db, 'matches', currentMatchId);
+        const matchRef = currentMatchRef();
 
         let resolvedAction = action;
         if (action === 'yellow' && playerName && (yellowCardCounts[playerName] || 0) >= 1) {
@@ -1076,7 +1149,7 @@ async function executeAction(team, action, playerName = '', playerOut = '', play
             if (options.injured) eventData.injured = true;
         }
 
-        await addDoc(collection(db, 'matches', currentMatchId, 'events'), eventData);
+        await addDoc(currentMatchSubcollection('events'), eventData);
         console.log('Action:', resolvedAction, 'min:', minute, 'phase:', phase);
 
     } catch (e) {
@@ -1110,13 +1183,13 @@ async function handleSubstitutionLineup(playerOutName, playerInName, minute) {
     }
 
     if (Object.keys(updates).length > 0) {
-        await updateDoc(doc(db, 'matches', currentMatchId), updates);
+        await updateDoc(currentMatchRef(), updates);
     }
 
     // FIX 2: accumuleer minuten over meerdere stints
     // Speler die ERAF gaat: lees huidige minuteOn, voeg stint toe aan totalMinutes
     if (uidOut && !uidOut.startsWith('manual_')) {
-        const pmRef = doc(db, 'matches', currentMatchId, 'playerMinutes', uidOut);
+        const pmRef = doc(db, currentMatchCollection, currentMatchId, 'playerMinutes', uidOut);
         const pmSnap = await getDoc(pmRef);
         const pmData = pmSnap.exists() ? pmSnap.data() : null;
         const prevOn = pmData?.minuteOn ?? 0;
@@ -1133,7 +1206,7 @@ async function handleSubstitutionLineup(playerOutName, playerInName, minute) {
     // Speler die EROP komt: begin nieuw stint
     if (uidIn && !uidIn.startsWith('manual_')) {
         await setDoc(
-            doc(db, 'matches', currentMatchId, 'playerMinutes', uidIn),
+            doc(db, currentMatchCollection, currentMatchId, 'playerMinutes', uidIn),
             { uid: uidIn, name: playerInName, minuteOn: minute, minuteOff: null },
             { merge: true }
         );
@@ -1158,7 +1231,7 @@ if (scoreModalConfirm) {
         const h = parseInt(document.getElementById('homeScoreInput').value) || 0;
         const a = parseInt(document.getElementById('awayScoreInput').value) || 0;
         try {
-            await updateDoc(doc(db, 'matches', currentMatchId), { scoreThuis: h, scoreUit: a });
+            await updateDoc(currentMatchRef(), { scoreThuis: h, scoreUit: a });
             document.getElementById('scoreModal').classList.remove('active');
         } catch (e) { console.error('Score correction error:', e); showToast('Fout: ' + e.message, 'error'); }
     });
@@ -1466,7 +1539,7 @@ async function openEditEventModal(event) {
                     for (const [uid, info] of Object.entries(lineup)) {
                         if (info.name === name && !uid.startsWith('manual_')) {
                             await setDoc(
-                                doc(db, 'matches', currentMatchId, 'playerMinutes', uid),
+                                doc(db, currentMatchCollection, currentMatchId, 'playerMinutes', uid),
                                 { uid, name, ...fields }, { merge: true }
                             );
                         }
@@ -1484,7 +1557,7 @@ async function openEditEventModal(event) {
         const btn = modal.querySelector('#editEventSave');
         btn.disabled = true;
         try {
-            await updateDoc(doc(db, 'matches', currentMatchId, 'events', event.id), updates);
+            await updateDoc(doc(db, currentMatchCollection, currentMatchId, 'events', event.id), updates);
             modal.classList.remove('active');
             showToast('✅ Event bijgewerkt!', 'success');
         } catch (e) {
@@ -1499,6 +1572,7 @@ async function openEditEventModal(event) {
 window.addEventListener('beforeunload', () => {
     if (matchListener)   matchListener();
     if (eventsListener)  eventsListener();
+    if (matchCatalogListener) matchCatalogListener();
     if (displayInterval) clearInterval(displayInterval);
 });
 

@@ -210,6 +210,88 @@ exports.rebuildPublicPlayerProfiles = onCall(
     }
 );
 
+exports.updateMemberEmail = onCall(
+    { region: 'europe-west1' },
+    async request => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Log in als beheerder.');
+
+        const { uid, email } = request.data || {};
+        if (typeof uid !== 'string' || !uid || typeof email !== 'string') {
+            throw new HttpsError('invalid-argument', 'Geef een geldig account en e-mailadres op.');
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            throw new HttpsError('invalid-argument', 'Vul een geldig e-mailadres in.');
+        }
+
+        const db = getFirestore();
+        const callerSnap = await db.collection('users').doc(request.auth.uid).get();
+        const callerPermissions = callerSnap.exists && Array.isArray(callerSnap.data().permissions)
+            ? callerSnap.data().permissions : [];
+        if (!callerPermissions.includes('admin') || callerPermissions.includes('supporter')) {
+            throw new HttpsError('permission-denied', 'Alleen beheerders mogen account-e-mailadressen aanpassen.');
+        }
+
+        const userRef = db.collection('users').doc(uid);
+        const userSnap = await userRef.get();
+        if (!userSnap.exists) {
+            throw new HttpsError('not-found', 'Het gebruikersprofiel werd niet gevonden.');
+        }
+
+        const auth = getAuth();
+        let authUser;
+        try {
+            authUser = await auth.getUser(uid);
+        } catch (error) {
+            if (error.code === 'auth/user-not-found') {
+                throw new HttpsError('not-found', 'Het Firebase Authentication-account werd niet gevonden.');
+            }
+            throw error;
+        }
+        if (!authUser.email) {
+            throw new HttpsError('failed-precondition', 'Dit Authentication-account heeft nog geen e-mailadres.');
+        }
+
+        const authEmailChanged = authUser.email.trim().toLowerCase() !== normalizedEmail;
+        if (authEmailChanged) {
+            try {
+                await auth.updateUser(uid, { email: normalizedEmail, emailVerified: false });
+            } catch (error) {
+                if (error.code === 'auth/email-already-exists') {
+                    throw new HttpsError('already-exists', 'Dit e-mailadres is al aan een ander account gekoppeld.');
+                }
+                if (error.code === 'auth/invalid-email') {
+                    throw new HttpsError('invalid-argument', 'Firebase Authentication aanvaardt dit e-mailadres niet.');
+                }
+                throw error;
+            }
+        }
+
+        try {
+            await userRef.update({ email: normalizedEmail });
+        } catch (error) {
+            if (authEmailChanged) {
+                try {
+                    await auth.updateUser(uid, {
+                        email: authUser.email,
+                        emailVerified: authUser.emailVerified
+                    });
+                } catch (rollbackError) {
+                    console.error('Authentication e-mail rollback mislukt:', rollbackError);
+                    throw new HttpsError(
+                        'internal',
+                        'Het e-mailadres in Authentication is aangepast, maar het profiel kon niet worden bijgewerkt. Neem contact op met een beheerder.'
+                    );
+                }
+            }
+            throw error;
+        }
+
+        return { uid, email: normalizedEmail, authEmailChanged };
+    }
+);
+
 exports.updateShiftSignup = onCall(
     { region: 'europe-west1' },
     async request => {

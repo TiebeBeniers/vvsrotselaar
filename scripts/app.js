@@ -6,9 +6,10 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, onSnapshot, getDocs, getDoc, doc, updateDoc, addDoc, setDoc, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { isAdmin, hasPermission, isSupporter, isTijdelijk } from './vvs-user-helpers.js';
+import { isSupporter } from './vvs-user-helpers.js';
 import { checkAndShowWrapped } from './vvs-wrapped.js';
 import { applyLogoFromCache }  from './vvs-logo.js';
+import { canManageMatch } from './match-management.js';
 
 // ── Logo: laad snel vanuit cache, async Firestore-check via vvs-logo.js ───────
 if (!applyLogoFromCache()) {
@@ -154,6 +155,8 @@ let liveMatchListener   = null;
 let plannedMatchPoller  = null;   // interval that re-checks planned matches every 30s
 let liveOverlayUpdateInterval = null;
 let currentLiveMatch = null;
+let currentLiveMatches = [];
+let singleLiveOverlayMarkup = null;
 
 // The planned match currently shown as "bezig" (no live tracking)
 let currentBezigMatch = null;
@@ -161,45 +164,34 @@ let currentBezigMatch = null;
 function checkForLiveMatches() {
     const liveOverlay = document.getElementById('liveMatchOverlay');
     if (!liveOverlay) { console.error('Live overlay element not found'); return; }
+    if (singleLiveOverlayMarkup === null) singleLiveOverlayMarkup = liveOverlay.innerHTML;
 
     if (liveMatchListener) liveMatchListener();
-
     const liveMatchesQuery = query(
         collection(db, 'matches'),
         where('status', 'in', ['live', 'rust'])
     );
 
     liveMatchListener = onSnapshot(liveMatchesQuery, (snapshot) => {
-        if (!snapshot.empty) {
-            // ── Echte live wedstrijd ──────────────────────────────────────
-            const matchData = snapshot.docs[0].data();
-            const matchId   = snapshot.docs[0].id;
-            currentLiveMatch  = { id: matchId, ...matchData };
-            currentBezigMatch = null;
+        currentLiveMatches = snapshot.docs
+            .map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() }))
+        currentLiveMatch = currentLiveMatches[0] || null;
 
+        if (currentLiveMatch) {
+            currentBezigMatch = null;
             stopPlannedMatchPoller();
             liveOverlay.style.display = 'flex';
-
-            const startMatchContainer = document.getElementById('startMatchContainer');
-            if (startMatchContainer) startMatchContainer.style.display = 'none';
-
-            showLiveOverlay(currentLiveMatch);
+            renderLiveOverlayMatches();
             startLiveOverlayUpdate();
-
         } else {
             // ── Geen live wedstrijd ───────────────────────────────────────
-            currentLiveMatch = null;
             stopLiveOverlayUpdate();
-
-            // Check for a planned match that should be shown as "bezig"
             checkBezigMatch();
-
-            // Poll every 30 s so the overlay appears/disappears at the right moment
             startPlannedMatchPoller();
-
-            // Start-button for designated person
-            if (currentUser && currentUserData) checkForStartMatch();
         }
+        if (currentUser && currentUserData) checkForStartMatch();
+    }, error => {
+        console.error('Live wedstrijden laden mislukt:', error);
     });
 }
 
@@ -217,7 +209,7 @@ async function checkBezigMatch() {
             where('status', '==', 'planned')
         ));
 
-        let bezigMatch = null;
+        const bezigMatches = [];
 
         snap.forEach(docSnap => {
             const d = docSnap.data();
@@ -225,17 +217,24 @@ async function checkBezigMatch() {
             const windowEnd = new Date(matchTime.getTime() + MATCH_VISIBLE_WINDOW_MINUTES * 60 * 1000);
 
             if (now >= matchTime && now <= windowEnd) {
-                bezigMatch = { id: docSnap.id, ...d };
+                bezigMatches.push({ id: docSnap.id, ...d });
             }
         });
 
-        if (bezigMatch) {
+        if (bezigMatches.length > 1) {
+            currentBezigMatch = null;
+            liveOverlay.style.display = 'flex';
+            renderMultiLiveOverlay(bezigMatches, true);
+        } else if (bezigMatches.length === 1) {
+            const bezigMatch = bezigMatches[0];
             currentBezigMatch = bezigMatch;
             liveOverlay.style.display = 'flex';
+            restoreSingleLiveOverlay();
             showBezigOverlay(bezigMatch);
         } else {
             currentBezigMatch = null;
             liveOverlay.style.display = 'none';
+            restoreSingleLiveOverlay();
         }
 
     } catch (err) {
@@ -270,6 +269,7 @@ function showLiveOverlay(match) {
     const overlayScoreSep = document.getElementById('overlayScoreSeparator'); // optional
 
     if (!liveBadge || !overlayHomeTeam) return;
+    restoreSingleLiveOverlay();
 
     const watchBtn = document.getElementById('overlayWatchBtn');
 
@@ -297,6 +297,9 @@ function showLiveOverlay(match) {
 
     // Knop tonen — dit is een echte live wedstrijd
     if (watchBtn) watchBtn.style.display = '';
+    if (watchBtn) watchBtn.onclick = () => {
+        window.location.href = `live.html?match=${encodeURIComponent(match.id)}`;
+    };
 }
 
 /**
@@ -313,6 +316,7 @@ function showBezigOverlay(match) {
     const overlayScoreSep = document.getElementById('overlayScoreSeparator');
 
     if (!liveBadge || !overlayHomeTeam) return;
+    restoreSingleLiveOverlay();
 
     liveBadge.textContent = 'BEZIG';
     liveBadge.className   = 'live-badge bezig';
@@ -331,6 +335,70 @@ function showBezigOverlay(match) {
     // Knop verbergen — geen live data beschikbaar
     const watchBtn = document.getElementById('overlayWatchBtn');
     if (watchBtn) watchBtn.style.display = 'none';
+}
+
+function restoreSingleLiveOverlay() {
+    const overlay = document.getElementById('liveMatchOverlay');
+    if (overlay?.classList.contains('multi')) {
+        overlay.innerHTML = singleLiveOverlayMarkup;
+        overlay.classList.remove('multi');
+        document.getElementById('heroSection')?.classList.remove('multi-live-active');
+    }
+}
+
+function renderLiveOverlayMatches() {
+    if (currentLiveMatches.length > 1) {
+        renderMultiLiveOverlay(currentLiveMatches);
+    } else if (currentLiveMatch) {
+        showLiveOverlay(currentLiveMatch);
+    }
+}
+
+function renderMultiLiveOverlay(matches, bezig = false) {
+    const overlay = document.getElementById('liveMatchOverlay');
+    if (!overlay) return;
+    overlay.classList.add('multi');
+    document.getElementById('heroSection')?.classList.add('multi-live-active');
+    overlay.replaceChildren();
+
+    const header = document.createElement('div');
+    header.className = 'multi-live-heading';
+    header.textContent = bezig ? 'Wedstrijden bezig' : 'Wedstrijden live';
+    const grid = document.createElement('div');
+    grid.className = 'multi-live-grid';
+
+    matches.forEach(match => {
+        const card = document.createElement('a');
+        card.className = 'multi-live-card';
+        card.dataset.matchId = match.id;
+        card.href = LOCAL_MULTI_LIVE_PREVIEW
+            ? '#local-preview'
+            : `live.html?match=${encodeURIComponent(match.id)}`;
+        if (LOCAL_MULTI_LIVE_PREVIEW) card.addEventListener('click', event => event.preventDefault());
+        const badge = document.createElement('span');
+        badge.className = `multi-live-badge${match.status === 'rust' ? ' rust' : ''}`;
+        badge.textContent = bezig ? 'BEZIG' : (match.status === 'rust' ? 'RUST' : match.extraTimeStarted ? 'VERL.' : 'LIVE');
+        const teamLabel = document.createElement('span');
+        teamLabel.className = 'multi-live-team';
+        teamLabel.textContent = (match.team || 'VVS Rotselaar').toUpperCase();
+        const teams = document.createElement('span');
+        teams.className = 'multi-live-teams';
+        teams.textContent = `${match.thuisploeg || 'Thuis'} – ${match.uitploeg || 'Uit'}`;
+        const scoreTime = document.createElement('span');
+        scoreTime.className = 'multi-live-scoretime';
+        scoreTime.innerHTML = `<span class="multi-live-score"></span><span class="multi-live-time"></span>`;
+        scoreTime.querySelector('.multi-live-score').textContent = bezig
+            ? '— : —'
+            : `${match.scoreThuis ?? 0} : ${match.scoreUit ?? 0}`;
+        scoreTime.querySelector('.multi-live-time').textContent = bezig ? '' : calculateDisplayTime(match);
+        const follow = document.createElement('span');
+        follow.className = 'multi-live-follow';
+        follow.textContent = 'VOLG WEDSTRIJD →';
+        card.append(badge, teamLabel, teams, scoreTime, follow);
+        grid.appendChild(card);
+    });
+
+    overlay.append(header, grid);
 }
 
 // ── Live timer (phase-aware, mirrors live.js logic) ───────────────────────────
@@ -391,7 +459,14 @@ function calculateDisplayTime(match) {
 function startLiveOverlayUpdate() {
     stopLiveOverlayUpdate();
     liveOverlayUpdateInterval = setInterval(() => {
-        if (currentLiveMatch) showLiveOverlay(currentLiveMatch);
+        if (currentLiveMatches.length > 1) {
+            currentLiveMatches.forEach(match => {
+                const card = [...document.querySelectorAll('.multi-live-card')]
+                    .find(item => item.dataset.matchId === match.id);
+                const time = card?.querySelector('.multi-live-time');
+                if (time) time.textContent = calculateDisplayTime(match);
+            });
+        } else if (currentLiveMatch) showLiveOverlay(currentLiveMatch);
     }, 1000);
 }
 
@@ -406,107 +481,121 @@ function stopLiveOverlayUpdate() {
 
 async function checkForStartMatch() {
     const container = document.getElementById('startMatchContainer');
-    if (!container) return;
+    const section = document.getElementById('matchManagementSection');
+    if (!container || !section) return;
 
     if (!currentUser || !currentUserData) {
         container.style.display = 'none';
+        section.hidden = true;
         return;
     }
     if (isSupporter(currentUserData)) {
         container.style.display = 'none';
+        section.hidden = true;
         return;
     }
 
-    // v2 schema: permissions[]
-    const heeftWedstrijdRecht = hasPermission(currentUserData, 'score_invullen')
-        || isAdmin(currentUserData);
     const now = new Date();
-    // Window: from 24u before match kick-off, until end of match day
     const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     try {
-        const snap = await getDocs(query(
-            collection(db, 'matches'),
-            where('status', '==', 'planned')
-        ));
+    const snap = await getDocs(query(collection(db, 'matches'), where('status', '==', 'planned')));
+    let matches = snap.docs.map(matchDoc => ({ id: matchDoc.id, ...matchDoc.data() }));
 
-        // Grace period: toon lineup/start-knop ook tot START_LATE_THRESHOLD_MINUTES na geplande aftrap
-        const graceCutoff = new Date(now.getTime() - START_LATE_THRESHOLD_MINUTES * 60 * 1000);
+    const graceCutoff = new Date(now.getTime() - START_LATE_THRESHOLD_MINUTES * 60 * 1000);
+    matches = matches.filter(match => {
+        if (!canManageMatch(currentUser, currentUserData, match)) return false;
+        const kickoff = new Date(`${match.datum}T${match.uur || '00:00'}`);
+        return kickoff <= in24Hours && kickoff >= graceCutoff;
+        }).sort((a, b) =>
+            new Date(`${a.datum}T${a.uur || '00:00'}`) - new Date(`${b.datum}T${b.uur || '00:00'}`)
+        );
 
-        let todayMatch = null;
+        if (!matches.length) {
+            container.style.display = 'none';
+            section.hidden = true;
+            return;
+        }
 
-        snap.forEach(docSnap => {
-            const d             = docSnap.data();
-            const matchDateTime = new Date(`${d.datum}T${d.uur}`);
-            const isDesignated  = d.aangeduidePersonen?.includes(currentUser.uid);
+        if (matches.length === 1 && currentLiveMatches.length === 0) {
+            section.hidden = true;
+            const match = matches[0];
+            const kickoff = new Date(`${match.datum}T${match.uur || '00:00'}`);
+            const inStartWindow = now >= new Date(kickoff.getTime() - 30 * 60 * 1000);
+            container.style.display = 'flex';
 
-            // Match moet binnen de volgende 24 uur vallen OF binnen de grace period liggen
-            if ((isDesignated || heeftWedstrijdRecht) && matchDateTime <= in24Hours && matchDateTime >= graceCutoff) {
-                // Kies de eerstvolgende kwalificerende wedstrijd
-                if (!todayMatch || matchDateTime < new Date(`${todayMatch.datum}T${todayMatch.uur}`)) {
-                    todayMatch = { id: docSnap.id, ...d };
+            if (!match.lineupDraftConfirmed) {
+                container.innerHTML = '<button class="start-match-btn" id="lineupSelectBtn">Line-up selecteren</button>';
+                document.getElementById('lineupSelectBtn').onclick = () => openLineupForDraft(match);
+            } else if (inStartWindow) {
+                container.innerHTML = `
+                    <div class="start-match-btn-group">
+                        <button class="start-match-btn" id="startMatchBtn">▶ Start wedstrijd</button>
+                        <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
+                            <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
+                        </button>
+                    </div>`;
+                document.getElementById('startMatchBtn').onclick = () => confirmStartMatch(match);
+                document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(match, true);
+            } else {
+                container.innerHTML = `
+                    <div class="start-match-btn-group">
+                        <div class="lineup-saved-badge">✓ Opstelling opgeslagen</div>
+                        <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
+                            <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
+                        </button>
+                    </div>`;
+                document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(match, true);
+            }
+            return;
+        }
+
+        container.style.display = 'none';
+        section.hidden = false;
+        section.innerHTML = `
+            <div class="match-management-heading">
+                <span>WEDSTRIJDEN BEHEREN</span>
+                <p>Selecteer de juiste ploeg voor je opstelling of aftrap.</p>
+            </div>
+            <div class="match-management-grid"></div>`;
+        const grid = section.querySelector('.match-management-grid');
+        matches.forEach(match => {
+            const card = document.createElement('article');
+            card.className = 'match-management-card';
+            const title = document.createElement('h3');
+            title.textContent = `${match.thuisploeg} – ${match.uitploeg}`;
+            const meta = document.createElement('p');
+            meta.textContent = `${match.team || 'Wedstrijd'} · ${new Date(`${match.datum}T${match.uur || '00:00'}`).toLocaleString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+            card.append(title, meta);
+            const actions = document.createElement('div');
+            actions.className = 'match-management-actions';
+            if (!match.lineupDraftConfirmed) {
+                const lineupButton = document.createElement('button');
+                lineupButton.className = 'start-match-btn';
+                lineupButton.textContent = 'Line-up selecteren';
+                lineupButton.onclick = () => openLineupForDraft(match);
+                actions.appendChild(lineupButton);
+            } else {
+                const editButton = document.createElement('button');
+                editButton.className = 'wijzig-lineup-btn';
+                editButton.textContent = 'Wijzig lineup';
+                editButton.onclick = () => openLineupForDraft(match, true);
+                actions.appendChild(editButton);
+                if (now >= new Date(new Date(`${match.datum}T${match.uur || '00:00'}`).getTime() - 30 * 60 * 1000)) {
+                    const startButton = document.createElement('button');
+                    startButton.className = 'start-match-btn';
+                    startButton.textContent = '▶ Start wedstrijd';
+                    startButton.onclick = () => confirmStartMatch(match);
+                    actions.appendChild(startButton);
                 }
             }
+            card.appendChild(actions);
+            grid.appendChild(card);
         });
-
-        if (!todayMatch) {
-            container.style.display = 'none';
-            return;
-        }
-
-        const matchDateTime  = new Date(`${todayMatch.datum}T${todayMatch.uur}`);
-        const graceEnd       = new Date(matchDateTime.getTime() + START_LATE_THRESHOLD_MINUTES * 60 * 1000);
-        const pastGraceWindow = now > graceEnd;
-
-        // Na de grace period alles verbergen — de match had al gestart moeten zijn
-        if (pastGraceWindow) {
-            container.style.display = 'none';
-            return;
-        }
-
-        const thirtyBefore  = new Date(matchDateTime.getTime() - 30 * 60 * 1000);
-        const inStartWindow = now >= thirtyBefore; // tot 10 min na aftrap (grace period bewaakt de bovengrens)
-        const lineupSaved   = !!todayMatch.lineupDraftConfirmed;
-
-        container.style.display = 'flex';
-
-        // ── Build the right button set ────────────────────────────────────
-        if (!lineupSaved) {
-            // State 1: lineup not yet confirmed — show only "Line-up selecteren"
-            container.innerHTML = `
-                <button class="start-match-btn" id="lineupSelectBtn">
-                    Line-up selecteren
-                </button>`;
-            document.getElementById('lineupSelectBtn').onclick = () => openLineupForDraft(todayMatch);
-
-        } else if (inStartWindow) {
-            // State 3: lineup confirmed + within 30-min window — show start + wijzig
-            container.innerHTML = `
-                <div class="start-match-btn-group">
-                    <button class="start-match-btn" id="startMatchBtn">
-                        ▶ Start wedstrijd
-                    </button>
-                    <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
-                        <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
-                    </button>
-                </div>`;
-            document.getElementById('startMatchBtn').onclick   = () => confirmStartMatch(todayMatch);
-            document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(todayMatch, true);
-
-        } else {
-            // State 2: lineup confirmed but not yet in start window — show only wijzig
-            container.innerHTML = `
-                <div class="start-match-btn-group">
-                    <div class="lineup-saved-badge">✓ Opstelling opgeslagen</div>
-                    <button class="wijzig-lineup-btn" id="wijzigLineupBtn">
-                        <img src="assets/edit.png" class="icon" alt=""> Wijzig lineup
-                    </button>
-                </div>`;
-            document.getElementById('wijzigLineupBtn').onclick = () => openLineupForDraft(todayMatch, true);
-        }
-
     } catch (err) {
         console.error('Error checking for start match:', err);
+        container.style.display = 'none';
+        section.hidden = true;
     }
 }
 
@@ -555,6 +644,7 @@ function confirmStartMatch(matchData) {
 
 let lineupMatchData        = null;
 let lineupAvailablePlayers = [];
+let lineupRequestSequence  = 0;
 
 /**
  * Open the lineup modal in "draft" mode.
@@ -562,19 +652,22 @@ let lineupAvailablePlayers = [];
  * @param {boolean} isEdit     - true when editing an already-saved draft
  */
 async function openLineupForDraft(matchData, isEdit = false) {
-    lineupMatchData = matchData;
+    const requestId = ++lineupRequestSequence;
 
     try {
         const snap = await getDocs(collection(db, 'matches', matchData.id, 'availability'));
-        lineupAvailablePlayers = [];
+        const availablePlayers = [];
         snap.forEach(d => {
             if (d.data().available) {
-                lineupAvailablePlayers.push({ uid: d.id, name: d.data().displayName || d.id });
+                availablePlayers.push({ uid: d.id, name: d.data().displayName || d.id });
             }
         });
-        lineupAvailablePlayers.sort((a, b) => a.name.localeCompare(b.name));
+        availablePlayers.sort((a, b) => a.name.localeCompare(b.name));
+        if (requestId !== lineupRequestSequence) return;
+        lineupMatchData = matchData;
+        lineupAvailablePlayers = availablePlayers;
     } catch (e) {
-        showToast('Fout bij laden spelers: ' + e.message, 'error');
+        if (requestId === lineupRequestSequence) showToast('Fout bij laden spelers: ' + e.message, 'error');
         return;
     }
 
@@ -864,7 +957,7 @@ async function finalizeMatchStart(matchData) {
             timestamp: serverTimestamp()
         });
 
-        window.location.href = 'live.html';
+        window.location.href = `live.html?match=${encodeURIComponent(matchData.id)}`;
 
     } catch (e) {
         console.error('Error finalizing match start:', e);

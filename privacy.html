@@ -81,6 +81,12 @@
         <!-- Dynamisch geladen vanuit Firestore (settings/privacy). Valt terug op hard-coded inhoud. -->
         <div id="privacyDynamic"></div>
 
+        <div class="privacy-section">
+            <h3>Websitefeedback</h3>
+            <p>Feedback die je via de website instuurt, gebruiken we om de website te verbeteren. We bewaren de pagina, gekozen onderwerpen, je feedback of suggestie en het tijdstip van inzenden. Als je kiest voor inzenden met je accountnaam, koppelen we ook je account-ID en naam aan de feedback; anders wordt geen account aan je inzending gekoppeld. Vermeld je zelf persoonsgegevens in de tekst, dan worden die uiteraard wel meegestuurd.</p>
+            <p>Feedback is alleen toegankelijk voor beheerders van de website. Je kan inzage of verwijdering vragen via <a href="mailto:info@vvsrotselaar.be">info@vvsrotselaar.be</a>.</p>
+        </div>
+
         <div id="privacyFallback" style="display:none;">
         <div class="privacy-section">
             <h3>1. Wie zijn wij?</h3>
@@ -118,7 +124,7 @@
         </div>
         <div class="privacy-section">
             <h3>4. Lokale opslag (localStorage)</h3>
-            <p>Deze website gebruikt <strong>localStorage</strong> &mdash; een technologie in je browser vergelijkbaar met cookies &mdash; uitsluitend voor twee strikt noodzakelijke doeleinden:</p>
+            <p>Deze website gebruikt <strong>localStorage</strong> &mdash; een technologie in je browser vergelijkbaar met cookies &mdash; uitsluitend voor strikt noodzakelijke doeleinden:</p>
             <div class="info-cards">
                 <div class="info-card">
                     <div class="info-card-title">firebase:authUser:*</div>
@@ -129,6 +135,11 @@
                     <div class="info-card-title">vvs_*</div>
                     <p style="font-size:0.9rem;margin:0;">Tijdelijke cache van wedstrijdresultaten, statistieken en profielgegevens om het aantal serververzoeken te beperken.</p>
                     <div class="info-card-meta"><span>Eigen</span><span>10 min &ndash; 1 week (automatisch gewist)</span></div>
+                </div>
+                <div class="info-card">
+                    <div class="info-card-title">vvs_feedback_*</div>
+                    <p style="font-size:0.9rem;margin:0;">Onthoudt dat je de feedbackbalk hebt gesloten en voorkomt herhaalde inzendingen binnen vijf minuten.</p>
+                    <div class="info-card-meta"><span>Eigen</span><span>Voorkeur blijft bewaard; verzendlimiet 5 min</span></div>
                 </div>
             </div>
             <p style="margin-top:0.75rem;">Er worden <strong>geen tracking-, analytics- of marketingcookies</strong> gebruikt.</p>

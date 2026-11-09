@@ -11,6 +11,42 @@
 }
 
 /* ── Match Header ── */
+.live-match-selector {
+    max-width: 1000px;
+    margin: 0 auto 1.25rem;
+}
+
+.live-match-selector h2 {
+    margin: 0 0 .75rem;
+    color: var(--primary-blue);
+    font: 800 1.35rem 'Barlow Condensed', sans-serif;
+}
+
+.live-match-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+    gap: .75rem;
+}
+
+.live-match-choice {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: .25rem .75rem;
+    align-items: center;
+    padding: .8rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 11px;
+    background: var(--white);
+    color: var(--text-dark);
+    cursor: pointer;
+    text-align: left;
+}
+
+.live-match-choice strong { overflow-wrap: anywhere; }
+.live-match-choice > span { grid-row: span 2; color: var(--primary-blue); font: 800 1.6rem 'Barlow Condensed', sans-serif; }
+.live-match-choice small { color: var(--text-gray); font-weight: 800; letter-spacing: .06em; }
+.live-match-choice.active { border-color: var(--primary-blue); box-shadow: 0 0 0 2px rgba(0,71,171,.13); }
+
 .match-header {
     background: var(--white);
     padding: 2rem;

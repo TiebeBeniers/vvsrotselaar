@@ -59,6 +59,16 @@
         .section-item.drag-above { box-shadow: 0 -3px 0 var(--primary-blue); border-top-color: var(--primary-blue); }
         .section-item.drag-below { box-shadow: 0 3px 0 var(--primary-blue); border-bottom-color: var(--primary-blue); }
 
+        .website-feedback-card .message-header {
+            flex-direction: column;
+            gap: 0.2rem;
+            margin-bottom: 0.75rem;
+        }
+        .website-feedback-card .message-email { color: var(--text-dark); font-size: 1rem; }
+        .website-feedback-field + .website-feedback-field { margin-top: 0.9rem; }
+        .website-feedback-field h5 { margin-bottom: 0.2rem; color: var(--primary-blue); }
+        .website-feedback-field p { white-space: pre-wrap; overflow-wrap: anywhere; }
+
         /* ── Section header ───────────────────────────── */
         .section-item-header {
             display: flex;
@@ -743,6 +753,7 @@
                 <button class="tab-btn" data-tab="wrapped">&#127942; VVS Wrapped</button>
                 <button class="tab-btn" data-tab="logo">&#127279; Logo</button>
                 <button class="tab-btn" data-tab="webshop">&#128722; Webshop</button>
+                <button class="tab-btn" data-tab="websitefeedback">Websitefeedback</button>
             </div>
 
             <!-- ══ Tab: Algemene Voorwaarden ═══════════════════════════════════ -->
@@ -1101,6 +1112,16 @@
                 </div>
 
                 <div class="shop-admin-grid" id="webshopProductList"></div>
+            </div>
+
+            <div class="tab-content" id="websitefeedbackTab">
+                <div class="section-header">
+                    <h3>Websitefeedback</h3>
+                </div>
+                <p class="ce-intro">Feedback van bezoekers. Alleen beheerders met de juiste Firestore-toegang kunnen inzendingen bekijken.</p>
+                <div class="contactberichten-list" id="websitefeedbackList" aria-live="polite">
+                    <div class="loading"><div class="loader"></div></div>
+                </div>
             </div>
 
         </div>

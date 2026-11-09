@@ -669,6 +669,12 @@ if (memberForm) {
                     'stats.motmPoints': motmPoints,
                 };
 
+                const updateMemberEmail = httpsCallable(
+                    getFunctions(app, 'europe-west1'),
+                    'updateMemberEmail'
+                );
+                await updateMemberEmail({ uid, email });
+
                 console.log('Updating document:', uid, updateData);
                 await updateDoc(doc(db, 'users', uid), updateData);
                 console.log('Member updated successfully');
@@ -1851,15 +1857,15 @@ function renderMatchList() {
         filtered = allMatchesCache.filter(m => m.status === 'planned');
         filtered.sort(sortPlanned);
     } else if (currentMatchFilter === 'finished') {
-        filtered = allMatchesCache.filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust');
+        filtered = allMatchesCache.filter(m => ['finished', 'live', 'rust'].includes(m.status));
         filtered.sort(sortRecentFirst);
     } else {
         const planned = allMatchesCache.filter(m => m.status === 'planned').sort(sortPlanned);
         const played = allMatchesCache
-            .filter(m => m.status === 'finished' || m.status === 'live' || m.status === 'rust')
+            .filter(m => ['finished', 'live', 'rust'].includes(m.status))
             .sort(sortRecentFirst);
         const other = allMatchesCache
-            .filter(m => m.status !== 'planned' && m.status !== 'finished' && m.status !== 'live' && m.status !== 'rust')
+            .filter(m => !['planned', 'finished', 'live', 'rust'].includes(m.status))
             .sort(sortRecentFirst);
         filtered = [...planned, ...played, ...other];
     }
@@ -1905,7 +1911,7 @@ function createMatchCard(match) {
         <div class="card-actions match-card-actions">
             ${match.status === 'planned' ? `<button class="action-btn edit match-action-edit" data-id="${match.id}">Bewerken</button>` : ''}
             ${(() => {
-                const isAfgelopen = match.status === 'finished' || match.status === 'live' || match.status === 'rust';
+                const isAfgelopen = ['finished', 'live', 'rust'].includes(match.status);
                 if (!isAfgelopen) return '';
                 if (match.isForfait) {
                     return `<span class="match-badge match-badge-forfait" title="Forfaitwedstrijd — geen tijdslijn nodig">🏳 Forfait</span>`;
@@ -1940,7 +1946,7 @@ function getMatchStatusBadge(status) {
         'planned': { class: 'upcoming', text: 'Gepland' },
         'live': { class: 'live', text: 'Live' },
         'rust': { class: 'live', text: 'Rust' },
-        'finished': { class: 'finished', text: 'Afgelopen' }
+        'finished': { class: 'finished', text: 'Afgelopen' },
     };
     const s = statusMap[status] || { class: '', text: status };
     return `<span class="match-badge ${s.class}">${s.text}</span>`;
@@ -1965,7 +1971,6 @@ function editMatch(match) {
     document.getElementById('matchHomeTeam').value = match.thuisploeg;
     document.getElementById('matchAwayTeam').value = match.uitploeg;
     document.getElementById('matchTeam').value     = match.team || 'veteranen';
-
     const descField = document.getElementById('matchDescription');
     if (descField) descField.value = match.beschrijving || '';
 
