@@ -333,7 +333,8 @@ function calculateElapsedSeconds() {
     else                  startMs = currentMatch.etResumeStartedAt?.toMillis();
 
     if (!startMs) return 0;
-    return Math.max(0, Math.floor((now - startMs) / 1000));
+    const timerOffset = Number.isFinite(currentMatch.timerOffset) ? currentMatch.timerOffset : 0;
+    return Math.max(0, Math.floor((now - startMs) / 1000) + timerOffset);
 }
 
 function calculateTimeDisplay() {
@@ -449,7 +450,9 @@ function updateControlButtonStates() {
     const pauseBtn     = document.getElementById('pauseBtn');
     const resumeBtn    = document.getElementById('resumeBtn');
     const extraTimeBtn = document.getElementById('extraTimeBtn');
+    const adjustClockBtn  = document.getElementById('adjustClockBtn');
 
+    if (adjustClockBtn) adjustClockBtn.style.display = status === 'live' ? 'inline-block' : 'none';
     if (pauseBtn) {
         const showPause = status === 'live' && (phase === 1 || phase === 3);
         pauseBtn.style.display = showPause ? 'inline-block' : 'none';
@@ -486,15 +489,53 @@ function setupControlButtons() {
     const extraTimeBtn    = document.getElementById('extraTimeBtn');
     const endMatchBtn     = document.getElementById('endMatchBtn');
     const scoreCorrectBtn = document.getElementById('scoreCorrectBtn');
+    const adjustClockBtn  = document.getElementById('adjustClockBtn');
 
     if (pauseBtn)        pauseBtn.addEventListener('click', handlePause);
     if (resumeBtn)       resumeBtn.addEventListener('click', confirmResume);
     if (extraTimeBtn)    extraTimeBtn.addEventListener('click', handleExtraTime);
     if (endMatchBtn)     endMatchBtn.addEventListener('click', handleEndMatch);
     if (scoreCorrectBtn) scoreCorrectBtn.addEventListener('click', openScoreModal);
+    if (adjustClockBtn)  adjustClockBtn.addEventListener('click', adjustMatchClock);
 
     updateControlButtonStates();
     controlButtonsInitialized = true;
+}
+
+function adjustMatchClock() {
+    if (!hasAccess || !currentMatch || currentMatch.status !== 'live') return;
+
+    const phase = currentMatch.phase || 1;
+    const halfDuration = getRegularHalfDuration();
+    const phaseStartMinute = phase === 1 ? 0
+        : phase === 2 ? halfDuration
+        : phase === 3 ? halfDuration * 2
+        : halfDuration * 2 + ET_HALF_DURATION;
+    const currentMinute = getCurrentMinuteForEvent();
+    const answer = window.prompt(
+        `Welke speelminuut moet de klok tonen? Vul een geheel getal in (${phaseStartMinute}–180).`,
+        String(currentMinute)
+    );
+    if (answer === null) return;
+
+    const targetMinute = Number(answer.trim());
+    if (!Number.isInteger(targetMinute) || targetMinute < phaseStartMinute || targetMinute > 180) {
+        showToast(`Vul een speelminuut tussen ${phaseStartMinute} en 180 in.`, 'error');
+        return;
+    }
+
+    const targetElapsed = (targetMinute - phaseStartMinute) * 60;
+    const timerOffset = targetElapsed - calculateElapsedSeconds();
+    updateDoc(currentMatchRef(), { timerOffset })
+        .then(() => {
+            currentMatch = { ...currentMatch, timerOffset };
+            updateMatchDisplay();
+            showToast(`Wedstrijdklok aangepast naar minuut ${targetMinute}.`, 'success');
+        })
+        .catch(error => {
+            console.error('Wedstrijdklok aanpassen mislukt:', error);
+            showToast('Wedstrijdklok aanpassen mislukt: ' + error.message, 'error');
+        });
 }
 
 // ── Pause handler ─────────────────────────────────────────────────────────────
@@ -506,8 +547,8 @@ async function handlePause() {
         const matchRef = currentMatchRef();
         const now      = Timestamp.fromDate(new Date());
         const upd      = { status: 'rust', pausedAt: now };
-        if (phase === 1) { upd.halfTimeReached = true; upd.phase = 2; }
-        else if (phase === 3) { upd.etHalfTimeReached = true; upd.phase = 4; }
+        if (phase === 1) { upd.halfTimeReached = true; upd.phase = 2; upd.timerOffset = 0; }
+        else if (phase === 3) { upd.etHalfTimeReached = true; upd.phase = 4; upd.timerOffset = 0; }
 
         await updateDoc(matchRef, upd);
         await addDoc(currentMatchSubcollection('events'), {
@@ -581,7 +622,7 @@ async function handleExtraTime() {
         const minute = getCurrentMinuteForEvent();
         await updateDoc(currentMatchRef(), {
             status: 'rust', pausedAt: Timestamp.fromDate(new Date()),
-            extraTimeStarted: true, phase: 3
+            extraTimeStarted: true, phase: 3, timerOffset: 0
         });
         await addDoc(currentMatchSubcollection('events'), {
             minuut: minute, half: 2,

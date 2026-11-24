@@ -363,6 +363,7 @@ html.dark .timeline-icon-img.Penalty { filter: invert(1); }
 .match-control-btn.pause     { background: var(--warning); color: var(--text-dark); }
 .match-control-btn.resume    { background: var(--success); color: #fff; }
 .match-control-btn.end       { background: var(--danger);  color: #fff; }
+.match-control-btn.adjust-clock { background: var(--primary-blue); color: #fff; }
 .match-control-btn.extra-time {
     background: #9C27B0; color: #fff; border: none;
     font-weight: 700; cursor: pointer; font-size: 0.9rem; letter-spacing: 0.05em; transition: background 0.2s;

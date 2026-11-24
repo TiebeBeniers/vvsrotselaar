@@ -24,9 +24,8 @@ console.log('App.js loaded (with live overlay)');
 // as "bezig" even without live tracking.
 const MATCH_VISIBLE_WINDOW_MINUTES = 150;
 
-// Within how many minutes of kick-off does the designated person get
-// "real" start time (serverTimestamp). After this threshold the scheduled
-// time is used as startedAt so the timer reflects the actual match time.
+// How long after the scheduled kick-off a designated person may still start
+// the match from the homepage.
 const START_LATE_THRESHOLD_MINUTES = 10;
 
 // ── Carousel ──────────────────────────────────────────────────────────────────
@@ -427,7 +426,8 @@ function calculateDisplayTime(match) {
         }
         if (!startMs) return "0'";
 
-        const elapsedSeconds = Math.max(0, Math.floor((now - startMs) / 1000));
+        const timerOffset = Number.isFinite(match.timerOffset) ? match.timerOffset : 0;
+        const elapsedSeconds = Math.max(0, Math.floor((now - startMs) / 1000) + timerOffset);
         const mins = Math.floor(elapsedSeconds / 60);
 
         if (phase === 1) {
@@ -910,16 +910,12 @@ async function finalizeMatchStart(matchData) {
                 .map(([uid]) => uid)
         );
 
-        const scheduledTime = new Date(`${matchData.datum}T${matchData.uur}`);
-        const now           = new Date();
-        const lateMinutes   = (now.getTime() - scheduledTime.getTime()) / 60_000;
-        const startedAt     = lateMinutes > START_LATE_THRESHOLD_MINUTES
-            ? Timestamp.fromDate(scheduledTime)
-            : Timestamp.fromDate(now);
+        const startedAt = Timestamp.fromDate(new Date());
 
         await updateDoc(matchRef, {
             status:            'live',
             startedAt,
+            timerOffset:       0,
             scoreThuis:        0,
             scoreUit:          0,
             phase:             1,

@@ -306,6 +306,7 @@ let clubLiveMatchesListener = null;
 let allPlannedMatches  = [];   // alle geplande wedstrijden van dit team
 let currentPlannedIdx  = 0;   // index van de huidige weergegeven geplande wedstrijd
 let liveUpdateInterval = null;
+const plannedSwipeContainers = new WeakSet();
 
 // ════════════════════════════════════════════════
 // KALENDER: .ics GENERATIE + GOOGLE CALENDAR LINKS
@@ -898,23 +899,24 @@ function renderPlannedNav(container) {
     nav.querySelector('#plannedPrev').addEventListener('click', () => navigatePlanned(-1, container));
     nav.querySelector('#plannedNext').addEventListener('click', () => navigatePlanned(1, container));
 
-    // Touch/swipe on the card container
-    let touchStartX = 0;
-    let touchStartY = 0;
-    container.addEventListener('touchstart', e => {
-        touchStartX = e.changedTouches[0].screenX;
-        touchStartY = e.changedTouches[0].screenY;
-    }, { passive: true });
-    container.addEventListener('touchend', e => {
-        const dx = e.changedTouches[0].screenX - touchStartX;
-        const dy = e.changedTouches[0].screenY - touchStartY;
-        // Enkel wisselen bij een duidelijk horizontale swipe: voldoende afstand
-        // én overduidelijk meer horizontale dan verticale beweging (anders is het
-        // gewoon scrollen en willen we niet per ongeluk van wedstrijd wisselen).
-        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
-            navigatePlanned(dx < 0 ? 1 : -1, container);
-        }
-    }, { passive: true });
+    // The card container is reused when match data refreshes; bind swipe once.
+    if (!plannedSwipeContainers.has(container)) {
+        plannedSwipeContainers.add(container);
+        let touchStartX = 0;
+        let touchStartY = 0;
+        container.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+        container.addEventListener('touchend', e => {
+            const dx = e.changedTouches[0].screenX - touchStartX;
+            const dy = e.changedTouches[0].screenY - touchStartY;
+            // Ignore vertical scrolling; each horizontal gesture changes one match.
+            if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 2) {
+                navigatePlanned(dx < 0 ? 1 : -1, container);
+            }
+        }, { passive: true });
+    }
 }
 
 function updatePlannedNavState() {

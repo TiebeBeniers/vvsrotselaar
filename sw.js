@@ -20,8 +20,8 @@
 // ============================================================
 
 const BASE        = '';
-const CACHE_NAME  = 'vvs-static-v3';
-const PAGES_CACHE = 'vvs-pages-v3';
+const CACHE_NAME  = 'vvs-static-v4';
+const PAGES_CACHE = 'vvs-pages-v4';
 const OFFLINE_URL = BASE + '/offline.html';
 const NOTFOUND_URL = BASE + '/404.html';
 

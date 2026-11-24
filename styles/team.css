@@ -87,10 +87,14 @@
 .team-match-lineup-saved { color: #16803c; font-size: .88rem; font-weight: 700; }
 .team-match-action-message { flex-basis: 100%; margin: .25rem 0 0; color: #16803c; font-size: .9rem; }
 .team-match-action-message.error, .team-lineup-feedback.error { color: #b42318; }
-.team-lineup-player-list { display: grid; gap: .5rem; max-height: min(52vh, 480px); overflow-y: auto; margin: 1rem 0; }
-.team-lineup-player { display: flex; justify-content: space-between; align-items: center; gap: .8rem; padding: .55rem .7rem; border: 1px solid var(--border-color); border-radius: 8px; }
-.team-lineup-player span { min-width: 0; overflow-wrap: anywhere; }
-.team-lineup-player select { flex: 0 0 145px; min-height: 38px; border: 1px solid var(--border-color); border-radius: 7px; padding: .35rem; background: var(--white); color: var(--text-dark); }
+.team-lineup-summary { position: sticky; top: 0; z-index: 1; padding: .7rem; border-radius: 8px; background: var(--off-white); color: var(--primary-blue); font-weight: 800; text-align: center; }
+.team-lineup-player-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: .5rem; max-height: min(52vh, 480px); overflow-y: auto; margin: 1rem 0; }
+.team-lineup-player { min-height: 46px; padding: .65rem .8rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--white); color: var(--text-dark); cursor: pointer; font: inherit; font-weight: 700; text-align: left; transition: background .15s, border-color .15s, color .15s; }
+.team-lineup-player:hover { border-color: var(--primary-blue); }
+.team-lineup-player[data-status="starter"] { border-color: #16803c; background: #e8f6ec; color: #11632e; }
+.team-lineup-player[data-status="bench"] { border-color: #d08b00; background: #fff6df; color: #765500; }
+.team-lineup-player:focus-visible { outline: 3px solid rgba(0, 71, 171, .3); outline-offset: 2px; }
+.team-lineup-player-list ~ .team-lineup-feedback { min-height: 1.4em; }
 .team-lineup-feedback { color: var(--text-gray); font-size: .9rem; }
 
 .club-live-matches {
@@ -1300,9 +1304,6 @@ html.dark .motm-pos-pts         { color: #f0c040; background: rgba(201,146,10,0.
 @media (max-width: 480px) {
     .team-title { font-size: 2rem; }
     .team-hero  { padding: 3rem 1rem; }
-    .team-lineup-player { align-items: flex-start; flex-direction: column; }
-    .team-lineup-player select { flex-basis: auto; width: 100%; }
-
     .match-date-text  { font-size: 0.85rem; flex-wrap: wrap; align-items: center; }
     .match-date-text svg { flex-shrink: 0; margin-top: 0; }
     .match-date-label { flex: 1 1 130px; min-width: 0; white-space: normal; overflow: visible; }

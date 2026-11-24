@@ -78,56 +78,108 @@ async function openLineupEditor(match, actions, user, userData) {
     modal.innerHTML = `
         <div class="modal-content lineup-modal-content">
             <h3>Opstelling — ${escapeHtml(match.thuisploeg)} – ${escapeHtml(match.uitploeg)}</h3>
-            <p class="lineup-subtitle">Kies exact 11 basisspelers en maximaal 5 wisselspelers.</p>
+            <p class="lineup-subtitle">Tik op een speler om basis te kiezen; na 11 basisplaatsen worden extra keuzes wissels. Tik nogmaals om die speler door te schuiven of te verwijderen.</p>
+            <div class="team-lineup-summary" aria-live="polite"></div>
             <div class="team-lineup-player-list"></div>
             <p class="team-lineup-feedback" role="status"></p>
             <div class="modal-actions">
                 <button class="modal-btn cancel" type="button">Annuleren</button>
-                <button class="modal-btn confirm" type="button">Opstelling opslaan</button>
+                <button class="modal-btn confirm" type="button" disabled>Opstelling opslaan</button>
             </div>
         </div>`;
 
     const list = modal.querySelector('.team-lineup-player-list');
+    const summary = modal.querySelector('.team-lineup-summary');
     const feedback = modal.querySelector('.team-lineup-feedback');
     const saved = match.lineupDraft || {};
+    const buttons = new Map();
+    const selections = new Map(players.map(player => [
+        player.uid,
+        saved[player.uid]?.status === 'starter' || saved[player.uid]?.status === 'bench'
+            ? saved[player.uid].status
+            : 'niet_geselecteerd'
+    ]));
+
+    const refresh = () => {
+        const starterCount = [...selections.values()].filter(status => status === 'starter').length;
+        const subCount = [...selections.values()].filter(status => status === 'bench').length;
+        summary.textContent = `Basis ${starterCount}/11 · Wissels ${subCount}/5`;
+        modal.querySelector('.confirm').disabled = starterCount !== 11;
+    };
+
     for (const player of players) {
-        const row = document.createElement('label');
-        row.className = 'team-lineup-player';
-        const name = document.createElement('span');
-        name.textContent = player.name;
-        const select = document.createElement('select');
-        select.dataset.uid = player.uid;
-        select.dataset.name = player.name;
-        select.innerHTML = `
-            <option value="niet_geselecteerd">Niet geselecteerd</option>
-            <option value="starter">Basis</option>
-            <option value="bench">Wissel</option>`;
-        select.value = saved[player.uid]?.status || 'niet_geselecteerd';
-        row.append(name, select);
-        list.appendChild(row);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'team-lineup-player';
+        button.textContent = player.name;
+        buttons.set(player.uid, button);
+        button.addEventListener('click', () => {
+            const status = selections.get(player.uid);
+            const starterCount = [...selections.values()].filter(value => value === 'starter').length;
+            const subCount = [...selections.values()].filter(value => value === 'bench').length;
+
+            if (status === 'starter') {
+                selections.set(player.uid, subCount < 5 ? 'bench' : 'niet_geselecteerd');
+            } else if (status === 'bench') {
+                selections.set(player.uid, 'niet_geselecteerd');
+            } else if (starterCount < 11) {
+                selections.set(player.uid, 'starter');
+            } else if (subCount < 5) {
+                selections.set(player.uid, 'bench');
+            } else {
+                feedback.textContent = 'De opstelling bevat al 11 basisspelers en 5 wisselspelers.';
+                return;
+            }
+
+            const nextStatus = selections.get(player.uid);
+            const statusLabel = nextStatus === 'starter' ? 'Basis' : nextStatus === 'bench' ? 'Wissel' : 'Niet geselecteerd';
+            button.dataset.status = nextStatus;
+            button.textContent = `${player.name} · ${statusLabel}`;
+            button.setAttribute('aria-label', `${player.name}, ${statusLabel}`);
+            button.setAttribute('aria-pressed', String(nextStatus !== 'niet_geselecteerd'));
+            button.title = nextStatus === 'starter' ? 'Tik om naar wissel te verplaatsen'
+                : nextStatus === 'bench' ? 'Tik om te verwijderen'
+                    : 'Tik om als basis te kiezen';
+            feedback.textContent = '';
+            feedback.classList.remove('error');
+            refresh();
+        });
+        list.appendChild(button);
     }
 
     if (!players.length) feedback.textContent = 'Er zijn nog geen spelers beschikbaar voor deze wedstrijd.';
+    for (const player of players) {
+        const button = buttons.get(player.uid);
+        const status = selections.get(player.uid);
+        const statusLabel = status === 'starter' ? 'Basis' : status === 'bench' ? 'Wissel' : 'Niet geselecteerd';
+        button.dataset.status = status;
+        button.textContent = `${player.name} · ${statusLabel}`;
+        button.setAttribute('aria-label', `${player.name}, ${statusLabel}`);
+        button.setAttribute('aria-pressed', String(status !== 'niet_geselecteerd'));
+        button.title = status === 'starter' ? 'Tik om naar wissel te verplaatsen'
+            : status === 'bench' ? 'Tik om te verwijderen'
+                : 'Tik om als basis te kiezen';
+    }
+    refresh();
     modal.querySelector('.cancel').addEventListener('click', () => modal.classList.remove('active'));
     modal.onclick = event => {
         if (event.target === modal) modal.classList.remove('active');
     };
     modal.querySelector('.confirm').addEventListener('click', async event => {
         const button = event.currentTarget;
-        const selections = [...list.querySelectorAll('select')];
-        const starters = selections.filter(select => select.value === 'starter');
-        const subs = selections.filter(select => select.value === 'bench');
-        if (starters.length !== 11 || subs.length > 5) {
-            feedback.textContent = `Selecteer exact 11 basisspelers. Je hebt er ${starters.length} en ${subs.length} wisselspelers.`;
+        const starterCount = [...selections.values()].filter(status => status === 'starter').length;
+        const subCount = [...selections.values()].filter(status => status === 'bench').length;
+        if (starterCount !== 11 || subCount > 5) {
+            feedback.textContent = `Selecteer exact 11 basisspelers. Je hebt er ${starterCount} en ${subCount} wisselspelers.`;
             feedback.classList.add('error');
             return;
         }
 
         button.disabled = true;
         button.textContent = 'Opslaan...';
-        const lineupDraft = Object.fromEntries(selections.map(select => [
-            select.dataset.uid,
-            { name: select.dataset.name, status: select.value }
+        const lineupDraft = Object.fromEntries(players.map(player => [
+            player.uid,
+            { name: player.name, status: selections.get(player.uid) }
         ]));
         try {
             await updateDoc(doc(db, 'matches', match.id), { lineupDraft, lineupDraftConfirmed: true });
@@ -158,13 +210,11 @@ async function startTeamMatch(match, button, user, userData) {
             throw new Error('De opgeslagen opstelling bevat niet exact 11 basisspelers.');
         }
 
-        const scheduled = new Date(`${match.datum}T${match.uur || '00:00'}`);
-        const startedAt = (Date.now() - scheduled.getTime()) / 60_000 > 10
-            ? Timestamp.fromDate(scheduled)
-            : Timestamp.fromDate(new Date());
+        const startedAt = Timestamp.fromDate(new Date());
         await updateDoc(matchRef, {
             status: 'live',
             startedAt,
+            timerOffset: 0,
             scoreThuis: 0,
             scoreUit: 0,
             phase: 1,
