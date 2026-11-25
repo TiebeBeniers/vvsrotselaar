@@ -15,7 +15,7 @@ import {
     collection, query, where, getDocs, getDoc, doc, updateDoc
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import {
-    getPushCategories, setReminderPreference, setLiveTeamPreference, getPushPermissionStatus
+    getPushCategories, setLiveTeamPreference, getPushPermissionStatus
 } from './push-notifications.js';
 
 // ── Cache configuratie ────────────────────────────────────────────────────────
@@ -312,31 +312,16 @@ async function showNotificationsSection() {
     if (notificationsInitialized) return;
     notificationsInitialized = true;
 
-    const reminderCb    = document.getElementById('notifReminderToggle');
     const liveTeamCbs    = Array.from(document.querySelectorAll('.notif-live-team-cb'));
 
     const categories = await getPushCategories(currentUser.uid);
-    reminderCb.checked = categories.reminder;
     liveTeamCbs.forEach(cb => { cb.checked = categories.liveTeams.includes(cb.dataset.team); });
 
     if (getPushPermissionStatus() === 'denied') {
         setNotificationsStatus('Meldingen staan geblokkeerd in je browser- of systeeminstellingen. Zet ze daar eerst terug aan.');
-        reminderCb.disabled = true;
         liveTeamCbs.forEach(cb => { cb.disabled = true; });
         return;
     }
-
-    reminderCb.addEventListener('change', async () => {
-        reminderCb.disabled = true;
-        const ok = await setReminderPreference(currentUser.uid, reminderCb.checked);
-        if (!ok) {
-            reminderCb.checked = !reminderCb.checked;
-            setNotificationsStatus('Kon deze instelling niet opslaan. Probeer opnieuw.');
-        } else {
-            setNotificationsStatus('');
-        }
-        reminderCb.disabled = false;
-    });
 
     liveTeamCbs.forEach(cb => {
         cb.addEventListener('change', async () => {

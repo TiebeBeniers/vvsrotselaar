@@ -16,10 +16,11 @@ import {
 } from './vvs-user-helpers.js';
 import { canManageMatch, renderTeamMatchActions } from './match-management.js';
 import {
-    getPushCategories, setReminderPreference, setLiveTeamPreference, getPushPermissionStatus
+    getPushCategories, setLiveTeamPreference, getPushPermissionStatus
 } from './push-notifications.js';
 
 const revealMotmResults = httpsCallable(getFunctions(app, 'europe-west1'), 'revealMotmResults');
+let openedMotmDeepLink = false;
 
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
@@ -151,7 +152,7 @@ onAuthStateChanged(auth, async (user) => {
     // Elk in eigen try/catch: een fout in de ene mag de andere niet blokkeren.
     try { renderMotmSection(); } catch (err) { console.error('renderMotmSection fout:', err); }
 
-    // Belknop (herinnering + live meldingen) tonen/verbergen o.b.v. lidmaatschap
+    // Belknop voor live meldingen tonen/verbergen.
     try { await initPushBell(); } catch (err) { console.error('initPushBell fout:', err); }
 });
 
@@ -161,8 +162,6 @@ onAuthStateChanged(auth, async (user) => {
 // zodat dit automatisch op zaterdag.html, zondag.html én
 // veteranen.html werkt zonder die bestanden te moeten aanpassen.
 //
-// - "Herinnering aanwezig/afwezig": enkel zichtbaar voor leden van
-//   DIT team (heeft anders geen betekenis).
 // - "Live wedstrijdmeldingen": zichtbaar voor iedereen die ingelogd
 //   is, ook niet-leden — je kan live meldingen van eender welke
 //   ploeg volgen, los van of je er zelf in speelt.
@@ -191,14 +190,11 @@ function buildPushBellUI() {
             </svg>
         </button>
         <div class="push-bell-dropdown" id="pushBellDropdown">
-            <label class="push-bell-option" id="pushReminderOption" style="display:none;">
-                <input type="checkbox" id="pushReminderToggle">
-                <span>Herinnering aanwezig/afwezig</span>
-            </label>
             <label class="push-bell-option">
                 <input type="checkbox" id="pushLiveToggle">
                 <span>Live wedstrijdmeldingen</span>
             </label>
+            <p class="push-bell-info">De website hoeft niet open te staan. Browser- en toestelmeldingen moeten wel zijn toegestaan; op iPhone/iPad is installatie op het beginscherm doorgaans nodig.</p>
             <p class="push-bell-note" id="pushBellNote"></p>
         </div>
     `;
@@ -210,7 +206,6 @@ function buildPushBellUI() {
 
     const bellBtn   = wrap.querySelector('#pushBellBtn');
     const dropdown  = wrap.querySelector('#pushBellDropdown');
-    const reminderCb = wrap.querySelector('#pushReminderToggle');
     const liveCb      = wrap.querySelector('#pushLiveToggle');
     const note        = wrap.querySelector('#pushBellNote');
 
@@ -232,18 +227,6 @@ function buildPushBellUI() {
             : 'Kon meldingen niet instellen. Probeer opnieuw.';
     }
 
-    reminderCb.addEventListener('change', async () => {
-        reminderCb.disabled = true;
-        const ok = await setReminderPreference(currentUser.uid, reminderCb.checked);
-        if (!ok) {
-            reminderCb.checked = !reminderCb.checked;
-            showNoteError(getPushPermissionStatus());
-        } else {
-            note.textContent = '';
-        }
-        reminderCb.disabled = false;
-    });
-
     liveCb.addEventListener('change', async () => {
         liveCb.disabled = true;
         const ok = await setLiveTeamPreference(currentUser.uid, TEAM_TYPE, liveCb.checked);
@@ -262,12 +245,8 @@ async function initPushBell() {
     const wrap = document.getElementById('pushBellWrap');
     if (!wrap) return;
 
-    const isMember = !!(currentUser && currentUserData &&
-        (currentUserData.team || []).includes(TEAM_TYPE));
-
     console.log('[push-bell] ingelogd:', !!currentUser, '| team van pagina:', TEAM_TYPE,
-        '| teams van gebruiker:', currentUserData?.team, '| lid:', isMember,
-        '| push support:', getPushPermissionStatus());
+        '| teams van gebruiker:', currentUserData?.team, '| push support:', getPushPermissionStatus());
 
     // Belknop is zichtbaar voor iedere ingelogde gebruiker (live meldingen
     // zijn niet aan lidmaatschap gebonden) — enkel verbergen als niet
@@ -278,21 +257,14 @@ async function initPushBell() {
     }
 
     wrap.style.display = '';
-    const reminderOption = document.getElementById('pushReminderOption');
-    const reminderCb      = document.getElementById('pushReminderToggle');
     const liveCb           = document.getElementById('pushLiveToggle');
     const note             = document.getElementById('pushBellNote');
 
-    // Herinnering enkel tonen/aanbieden aan leden van dit team
-    reminderOption.style.display = isMember ? '' : 'none';
-
     const categories = await getPushCategories(currentUser.uid);
-    reminderCb.checked = categories.reminder;
     liveCb.checked      = categories.liveTeams.includes(TEAM_TYPE);
 
     if (getPushPermissionStatus() === 'denied') {
         note.textContent = 'Meldingen staan geblokkeerd in je browserinstellingen.';
-        reminderCb.disabled = true;
         liveCb.disabled = true;
     }
 }
@@ -1592,7 +1564,7 @@ function createRecentMatchCard(match) {
         </div>
         ${match.beschrijving ? `<div class="recent-match-desc">${match.beschrijving}</div>` : ''}
         ${motmResults && currentUser && motmResultsVisible(match) ? `<div class="motm-result">
-            🏆 Man van de Match: ${motmResults.slice(0,3).map((r,i) => `<span class="motm-pos">${['🥇','🥈','🥉'][i]} ${r.name} (${r.points}pnt)</span>`).join('')}
+            🏆 Man van de Match: ${motmResults.map((r, i) => `<span class="motm-pos">${motmMedal(motmPosition(motmResults, r, i))} ${r.name} (${r.points}pnt)</span>`).join('')}
         </div>` : ''}
     `;
 
@@ -2755,6 +2727,17 @@ function motmResultsVisible(match) {
     return Date.now() - new Date(match.motmRevealedAt).getTime() < 24 * 60 * 60 * 1000;
 }
 
+function motmPosition(results, result, index) {
+    if (Number.isInteger(result.position) && result.position > 0) return result.position;
+    const higherScores = new Set(results.slice(0, index).filter(other => other.points > result.points)
+        .map(other => other.points));
+    return higherScores.size + 1;
+}
+
+function motmMedal(position) {
+    return ['🥇', '🥈', '🥉'][position - 1] || `${position}.`;
+}
+
 function renderMotmSection() {
     _renderMotmSection().catch(err => console.error('renderMotmSection fout:', err));
 }
@@ -2777,12 +2760,15 @@ async function _renderMotmSection() {
     const now = new Date();
 
     // De MOTM-stemming opent pas nadat de wedstrijd is afgelopen.
-    let match = allRecentMatches.find(m => {
+    const requestedMatchId = new URLSearchParams(window.location.search).get('motm');
+    const isVotingMatch = m => {
         if (m.status !== 'finished') return false;
         const dt     = new Date(`${m.datum}T${m.uur || '00:00'}`);
         const dayEnd = new Date(dt); dayEnd.setHours(23, 59, 59, 999);
         return now >= dt && now <= dayEnd;
-    });
+    };
+    let match = allRecentMatches.find(m => m.id === requestedMatchId && isVotingMatch(m)) ||
+        allRecentMatches.find(isVotingMatch);
 
     if (!match) return; // geen afgelopen wedstrijd vandaag
 
@@ -2811,6 +2797,14 @@ async function _renderMotmSection() {
             voteBtn.innerHTML = '🏆 Stem Man van de Match';
             voteBtn.addEventListener('click', () => openMotmModal(match));
             section.appendChild(voteBtn);
+
+            if (!openedMotmDeepLink && requestedMatchId === match.id) {
+                openedMotmDeepLink = true;
+                const url = new URL(window.location.href);
+                url.searchParams.delete('motm');
+                window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+                openMotmModal(match);
+            }
         }
 
         // ── Bekijk stand + onthul: voor aangeduide persoon / afgevaardigde / admin
@@ -2823,10 +2817,9 @@ async function _renderMotmSection() {
         }
     } else if (resultVisible) {
         // ── Toon bekendgemaakte top 3 als verticale ranglijst-kader
-        const medals = ['🥇','🥈','🥉'];
-        const rows = motmResults.slice(0, 3).map((r, i) => `
+        const rows = motmResults.map((r, i) => `
             <div class="motm-pos">
-                <span class="motm-pos-medal">${medals[i]}</span>
+                <span class="motm-pos-medal">${motmMedal(motmPosition(motmResults, r, i))}</span>
                 <span class="motm-pos-name">${r.name}</span>
                 <span class="motm-pos-pts">${r.points} pnt</span>
             </div>`).join('');
@@ -2958,7 +2951,17 @@ async function computeTally(matchId) {
             tally[v.uid].points += pts;
         });
     });
-    return Object.values(tally).sort((a, b) => b.points - a.points);
+    let position = 0;
+    let previousPoints = null;
+    return Object.values(tally)
+        .sort((a, b) => b.points - a.points || a.uid.localeCompare(b.uid))
+        .map(result => {
+            if (result.points !== previousPoints) {
+                position += 1;
+                previousPoints = result.points;
+            }
+            return { ...result, position };
+        });
 }
 
 async function openStandModal(match) {
@@ -2981,9 +2984,9 @@ async function openStandModal(match) {
     }
 
     const rows = tally.length
-        ? tally.map((r, i) => `
+        ? tally.map(r => `
             <div class="motm-stand-row">
-                <span class="motm-stand-pos">${i + 1}</span>
+                <span class="motm-stand-pos">${r.position}</span>
                 <span class="motm-stand-name">${r.name}</span>
                 <span class="motm-stand-pts">${r.points} pnt</span>
             </div>`).join('')

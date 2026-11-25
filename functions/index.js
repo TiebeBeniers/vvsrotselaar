@@ -1,7 +1,6 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
-const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -503,10 +502,20 @@ exports.revealMotmResults = onCall(
             });
         });
 
-        const ranked = [...tally.entries()]
+        const sorted = [...tally.entries()]
             .map(([candidateUid, points]) => ({ uid: candidateUid, points }))
-            .sort((a, b) => b.points - a.points || a.uid.localeCompare(b.uid))
-            .slice(0, 3);
+            .sort((a, b) => b.points - a.points || a.uid.localeCompare(b.uid));
+        let position = 0;
+        let previousPoints = null;
+        const ranked = sorted
+            .map(result => {
+                if (result.points !== previousPoints) {
+                    position += 1;
+                    previousPoints = result.points;
+                }
+                return { ...result, position };
+            })
+            .filter(result => result.position <= 3);
         if (ranked.length === 0) {
             throw new HttpsError('failed-precondition', 'Er zijn nog geen geldige stemmen uitgebracht.');
         }
@@ -530,13 +539,14 @@ exports.revealMotmResults = onCall(
             transaction.update(matchRef, { motmResults: top3, motmRevealedAt: revealedAt });
             userSnaps.forEach((userSnap, index) => {
                 if (!userSnap.exists) return;
-                const points = [3, 2, 1][index];
+                const result = top3[index];
+                const points = [3, 2, 1][result.position - 1];
                 transaction.update(resultUserRefs[index], {
                     'stats.motmPoints': FieldValue.increment(points),
                     'stats.motmHistory': FieldValue.arrayUnion({
                         matchId,
                         datum: match.datum,
-                        positie: index + 1,
+                        positie: result.position,
                         punten: points,
                         team: match.team,
                     }),
@@ -719,13 +729,21 @@ async function sendPushToUserDocs(db, userDocs, title, body, clickUrl, extra = {
 
     // Ongeldige/verlopen tokens netjes opkuisen zodat de lijst niet blijft aangroeien
     const invalidTokens = [];
+    const failureCounts = {};
     response.responses.forEach((r, i) => {
         const code = r.error?.code;
+        if (!r.success) {
+            const failureCode = code || 'unknown';
+            failureCounts[failureCode] = (failureCounts[failureCode] || 0) + 1;
+        }
         if (code === 'messaging/invalid-registration-token' ||
             code === 'messaging/registration-token-not-registered') {
             invalidTokens.push(tokens[i]);
         }
     });
+    if (Object.keys(failureCounts).length > 0) {
+        console.warn('[push] FCM-verzendfouten per foutcode:', failureCounts);
+    }
     if (invalidTokens.length > 0) {
         const batch = db.batch();
         userDocs.forEach(docSnap => {
@@ -861,99 +879,6 @@ exports.onMotmVotingOpened = onDocumentWritten(
                 console.error('[motm] Pushclaim vrijgeven mislukt:', releaseErr);
             }
             throw err;
-        }
-    }
-);
-
-// ═══════════════════════════════════════════════
-// HERINNERING AANWEZIGHEID (ZONDAG/ZATERDAG/VETERANEN)
-// Draait elke dag om 09:00 (Brussel). Voor elk team wordt de
-// eerstvolgende wedstrijd opgezocht; valt die over exact 3 dagen,
-// dan krijgen teamleden die nog niets hebben aangeduid in
-// matches/{id}/availability EN pushSettings.reminder === true
-// een herinneringsmelding. Werkt automatisch voor alle teams en
-// past zich vanzelf aan als een wedstrijd verzet wordt, in plaats
-// van vaste dagen (woensdag/donderdag) te hardcoden.
-// ═══════════════════════════════════════════════
-
-const REMINDER_DAYS_BEFORE = 3;
-const TEAMS = ['zaterdag', 'zondag', 'veteranen'];
-
-function startOfBrusselsDay(date) {
-    // Vergelijkt enkel kalenderdagen (Brusselse tijdzone), niet exacte uren
-    const brusselsStr = date.toLocaleDateString('en-CA', { timeZone: 'Europe/Brussels' }); // YYYY-MM-DD
-    return brusselsStr;
-}
-
-function daysBetween(dateStrA, dateStrB) {
-    const a = new Date(dateStrA + 'T00:00:00Z');
-    const b = new Date(dateStrB + 'T00:00:00Z');
-    return Math.round((b - a) / 86400000);
-}
-
-exports.sendAvailabilityReminders = onSchedule(
-    { schedule: '0 9 * * *', timeZone: 'Europe/Brussels', region: 'europe-west1' },
-    async () => {
-        const db = getFirestore();
-        const todayStr = startOfBrusselsDay(new Date());
-
-        for (const team of TEAMS) {
-            try {
-                // Eerstvolgende (nog niet gespeelde) wedstrijd van dit team, op datum gesorteerd
-                const matchesSnap = await db.collection('matches')
-                    .where('team', '==', team)
-                    .where('datum', '>=', todayStr)
-                    .orderBy('datum', 'asc')
-                    .limit(1)
-                    .get();
-
-                if (matchesSnap.empty) continue;
-
-                const matchDoc = matchesSnap.docs[0];
-                const match    = matchDoc.data();
-                const diff     = daysBetween(todayStr, match.datum);
-
-                if (diff !== REMINDER_DAYS_BEFORE) continue;
-
-                // Alle teamleden ophalen
-                const membersSnap = await db.collection('users')
-                    .where('team', 'array-contains', team)
-                    .get();
-
-                if (membersSnap.empty) continue;
-
-                // Wie heeft al aan-/afwezigheid doorgegeven?
-                const availabilitySnap = await db.collection('matches')
-                    .doc(matchDoc.id)
-                    .collection('availability')
-                    .get();
-                const respondedUids = new Set(availabilitySnap.docs.map(d => d.id));
-
-                const toRemind = membersSnap.docs.filter(docSnap => {
-                    if (respondedUids.has(docSnap.id)) return false;
-                    return docSnap.data()?.pushSettings?.reminder === true;
-                });
-
-                if (toRemind.length === 0) {
-                    console.log(`[reminder] ${team}: iedereen heeft al gereageerd of niemand heeft herinneringen aan.`);
-                    continue;
-                }
-
-                const home = match.thuisploeg || 'Thuis';
-                const away = match.uitploeg || 'Uit';
-
-                await sendPushToUserDocs(
-                    db,
-                    toRemind,
-                    '🔔 Geef je aanwezigheid door',
-                    `${home} - ${away}: je hebt nog niet aangeduid of je aanwezig bent.`,
-                    `https://vvsrotselaar.be/${team}.html`
-                );
-
-                console.log(`[reminder] ${team}: ${toRemind.length} herinnering(en) verstuurd.`);
-            } catch (err) {
-                console.error(`[reminder] Fout bij team ${team}:`, err);
-            }
         }
     }
 );

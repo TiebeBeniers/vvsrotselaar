@@ -2,9 +2,7 @@
 // NOTIFICATIONS.JS
 // V.V.S Rotselaar – Meldingen
 //
-// Twee types:
-//   1. Beschikbaarheidsherinnering (automatisch, per wedstrijd)
-//   2. Admin-meldingen (Firestore: notificaties/{id})
+// Admin-meldingen (Firestore: notificaties/{id}) en MOTM-stemherinneringen.
 //
 // Banners stapelen in een gedeelde #notifStack container.
 // Versie-mechanisme: dismiss-key = vvs_custom_{id}_v{versie}
@@ -16,16 +14,11 @@ import { onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { collection, query, where, getDocs, getDoc, doc }
     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-import { enablePushNotifications } from './push-notifications.js';
+import { enablePushNotifications, refreshPushTokenIfEnabled } from './push-notifications.js';
 import { isSupporter } from './vvs-user-helpers.js';
 
-const DISMISSED_KEY  = 'vvs_notif_dismissed';
 const CHECK_INTERVAL = 2 * 60 * 60 * 1000;  // Om de 2 uur opnieuw checken
 const LAST_CHECK_KEY = 'vvs_notif_last_check';
-const WINDOW_HOURS   = 72;
-// Na hoeveel tijd de melding voor dezelfde wedstrijd opnieuw getoond wordt
-// als beschikbaarheid nog steeds niet ingevuld is (2 uur).
-const AV_REMIND_INTERVAL = 2 * 60 * 60 * 1000;
 
 // Bijhouden welke UID het laatst gecheckt werd → bij login altijd direct checken
 let _lastCheckedUid = null;
@@ -39,28 +32,6 @@ function getStack() {
         document.body.appendChild(stack);
     }
     return stack;
-}
-
-// ── Dismiss helpers — beschikbaarheid ─────────────────────────────────────────
-function isAvDismissed(matchId) {
-    try {
-        const map = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
-        const ts  = map[matchId];
-        // Beschouw als "gezien" gedurende AV_REMIND_INTERVAL (2 uur).
-        // Na die tijd wordt de melding opnieuw getoond als beschikbaarheid
-        // nog altijd niet ingevuld is.
-        return ts && Date.now() - ts < AV_REMIND_INTERVAL;
-    } catch (_) { return false; }
-}
-
-function avDismiss(matchId) {
-    try {
-        const map = JSON.parse(localStorage.getItem(DISMISSED_KEY) || '{}');
-        map[matchId] = Date.now();
-        // Verwijder vermeldingen ouder dan 4 dagen (opruimen)
-        Object.keys(map).forEach(k => { if (Date.now() - map[k] > 4 * 24 * 60 * 60 * 1000) delete map[k]; });
-        localStorage.setItem(DISMISSED_KEY, JSON.stringify(map));
-    } catch (_) {}
 }
 
 // ── Dismiss helpers — admin meldingen ─────────────────────────────────────────
@@ -121,63 +92,7 @@ function makeBanner(id, html, onDismiss, autoHideMs = 15000) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 1. BESCHIKBAARHEIDS-BANNER
-// ══════════════════════════════════════════════════════════════════════════════
-
-function showAvailabilityBanner(matches) {
-    document.getElementById('notifAvailability')?.remove();
-
-    const TEAM_PAGES  = { zaterdag: 'zaterdag.html', zondag: 'zondag.html', veteranen: 'veteranen.html' };
-    const TEAM_LABELS = { zaterdag: 'Zaterdag', zondag: 'Zondag', veteranen: 'Veteranen' };
-
-    const matchCards = matches.map(m => {
-        const dt      = new Date(`${m.datum}T${m.uur || '00:00'}`);
-        const dag     = dt.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
-        const uur     = m.uur || '';
-        const pagina  = TEAM_PAGES[m.team] || 'index.html';
-        const ploeg   = TEAM_LABELS[m.team] || m.team || '';
-        const uren    = Math.round((dt - Date.now()) / 3_600_000);
-        const urgency = uren <= 24 ? '🔴' : '🟡';
-        return `
-            <div class="notif-match-card">
-                <div class="notif-match-top">
-                    <span class="notif-urgency">${urgency}</span>
-                    <span class="notif-match-teams">${m.thuisploeg} – ${m.uitploeg}</span>
-                </div>
-                <div class="notif-match-meta">
-                    <span class="notif-meta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        ${dag}
-                    </span>
-                    ${uur ? `<span class="notif-meta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        ${uur}
-                    </span>` : ''}
-                    <span class="notif-meta-item">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                        ${ploeg}
-                    </span>
-                </div>
-                <a class="notif-match-btn" href="${pagina}#nextMatchSection">Beschikbaarheid invullen →</a>
-            </div>`;
-    }).join('');
-
-    const html = `
-        <div class="notif-banner-header">
-            <div class="notif-banner-title-row">
-                <span class="notif-banner-icon">🔔</span>
-                <span class="notif-banner-title">Beschikbaarheid nog niet ingevuld</span>
-                <button class="notif-banner-close" title="Sluiten">✕</button>
-            </div>
-            <p class="notif-banner-text">Je hebt binnenkort een wedstrijd, vul je beschikbaarheid in.</p>
-            <div class="notif-banner-matches">${matchCards}</div>
-        </div>`;
-
-    makeBanner('notifAvailability', html, () => matches.forEach(m => avDismiss(m.id)), 6000);
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// 2. ADMIN-MELDING BANNERS
+// ADMIN-MELDING BANNERS
 // ══════════════════════════════════════════════════════════════════════════════
 
 const TYPE_META = {
@@ -244,36 +159,80 @@ function escHtml(s) {
 // HOOFDLOGICA
 // ══════════════════════════════════════════════════════════════════════════════
 
-async function checkAvailability(user, team) {
-    const now       = new Date();
-    const cutoff    = new Date(now.getTime() + WINDOW_HOURS * 3_600_000);
-    const todayStr  = now.toISOString().slice(0, 10);
-    const cutoffStr = cutoff.toISOString().slice(0, 10);
+function motmReminderKey(uid, matchId) {
+    return `vvs_motm_reminder_${uid}_${matchId}`;
+}
 
+function showMotmReminder(user, match) {
+    const key = motmReminderKey(user.uid, match.id);
     try {
-        const snap = await getDocs(query(
-            collection(db, 'matches'),
-            where('team',   '==', team),
-            where('status', '==', 'planned'),
-            where('datum',  '>=', todayStr),
-            where('datum',  '<=', cutoffStr)
-        ));
+        if (localStorage.getItem(key) === '1') return;
+        localStorage.setItem(key, '1');
+    } catch (_) {}
 
-        if (snap.empty) return;
+    const teamPages = { zaterdag: 'zaterdag.html', zondag: 'zondag.html', veteranen: 'veteranen.html' };
+    const teamPage = teamPages[match.team];
+    if (!teamPage) return;
 
-        const missing = [];
-        for (const d of snap.docs) {
-            const m  = { id: d.id, ...d.data() };
-            const dt = new Date(`${m.datum}T${m.uur || '00:00'}`);
-            if (dt <= now || dt > cutoff) continue;
-            if (isAvDismissed(m.id)) continue;
-            const avSnap = await getDoc(doc(db, 'matches', m.id, 'availability', user.uid));
-            if (!avSnap.exists()) missing.push(m);
+    const home = escHtml(match.thuisploeg || 'Thuis');
+    const away = escHtml(match.uitploeg || 'Uit');
+    const href = `${teamPage}?motm=${encodeURIComponent(match.id)}#motmSection`;
+    const html = `
+        <div class="notif-banner-header notif-custom" style="--notif-accent:#f0b429;border-top-color:#f0b429">
+            <div class="notif-banner-title-row">
+                <span class="notif-banner-icon">🏆</span>
+                <span class="notif-banner-title">Stem op Man van de Match</span>
+                <button class="notif-banner-close" title="Sluiten" aria-label="Sluiten">✕</button>
+            </div>
+            <p class="notif-banner-text notif-text-center">De wedstrijd ${home} – ${away} is afgelopen. Breng je stem uit!</p>
+            <a class="notif-match-btn" href="${href}">Ga naar de stemming →</a>
+        </div>`;
+    makeBanner(`notifMotm_${match.id}`, html, null, 0);
+}
+
+async function checkMotmReminders(user, userData) {
+    const permissions = Array.isArray(userData.permissions) ? userData.permissions : [];
+    const isGlobalDelegate = permissions.includes('afgevaardigde:*');
+    const teams = new Set([
+        ...(Array.isArray(userData.team) ? userData.team : []),
+        ...(isGlobalDelegate ? ['zaterdag', 'zondag', 'veteranen'] : permissions
+            .filter(permission => typeof permission === 'string' && permission.startsWith('afgevaardigde:'))
+            .map(permission => permission.slice('afgevaardigde:'.length)))
+    ].filter(team => ['zaterdag', 'zondag', 'veteranen'].includes(team)));
+    if (teams.size === 0) return;
+
+    const now = new Date();
+    try {
+        for (const team of teams) {
+            const snap = await getDocs(query(
+                collection(db, 'matches'),
+                where('team', '==', team),
+                where('status', '==', 'finished')
+            ));
+
+            for (const matchDoc of snap.docs) {
+                const match = { id: matchDoc.id, ...matchDoc.data() };
+                if (match.motmResults || !Array.isArray(match.motmCandidateUids)) continue;
+
+                const matchDate = new Date(`${match.datum}T${match.uur || '00:00'}`);
+                const dayEnd = new Date(matchDate);
+                dayEnd.setHours(23, 59, 59, 999);
+                if (!Number.isFinite(matchDate.getTime()) || now < matchDate || now > dayEnd) continue;
+
+                const isDelegate = isGlobalDelegate ||
+                    permissions.includes(`afgevaardigde:${team}`);
+                const isEligible = isSupporter(userData)
+                    ? (userData.team || []).includes(team)
+                    : isDelegate || (userData.team || []).includes(team) &&
+                        (match.motmEligibleUids || []).includes(user.uid);
+                if (!isEligible) continue;
+
+                const voteSnap = await getDoc(doc(db, 'matches', match.id, 'motm', user.uid));
+                if (!voteSnap.exists()) showMotmReminder(user, match);
+            }
         }
-
-        if (missing.length > 0) showAvailabilityBanner(missing);
     } catch (err) {
-        console.warn('Beschikbaarheidscheck mislukt:', err);
+        console.warn('MOTM-herinnering kon niet worden gecontroleerd:', err);
     }
 }
 
@@ -324,11 +283,13 @@ async function runChecks(user) {
     let hasFcmToken = false;
     let profileLoaded = !user;
     let supporterAccount = false;
+    let userData = null;
     if (user) {
         try {
             const snap = await getDoc(doc(db, 'users', user.uid));
             if (snap.exists()) {
                 const data = snap.data();
+                userData = data;
                 profileLoaded = true;
                 supporterAccount = isSupporter(data);
                 hasFcmToken = Array.isArray(data.fcmTokens)
@@ -349,11 +310,9 @@ async function runChecks(user) {
 
     // Beide checks parallel uitvoeren
     const tasks = [checkCustomNotifications(user, ploegen, hasFcmToken, profileLoaded, supporterAccount)];
-
-    // Beschikbaarheidscheck voor elke ploeg van de speler (behalve bestuurslid)
-    const spelersploegen = ploegen.filter(t => t !== 'bestuurslid');
-    if (user && !supporterAccount && spelersploegen.length > 0) {
-        spelersploegen.forEach(team => tasks.push(checkAvailability(user, team)));
+    if (user && userData) {
+        tasks.push(checkMotmReminders(user, userData));
+        tasks.push(refreshPushTokenIfEnabled(user.uid, userData));
     }
 
     await Promise.allSettled(tasks);
@@ -367,7 +326,5 @@ onAuthStateChanged(auth, (user) => {
     } else {
         // Niet ingelogd: wel custom meldingen checken voor doelgroep "iedereen"
         setTimeout(() => runChecks(null), 2000);
-        // Verwijder beschikbaarheids-banner bij uitloggen
-        document.getElementById('notifAvailability')?.remove();
     }
 });

@@ -238,6 +238,13 @@ html.dark .push-bell-dropdown {
     flex-shrink: 0;
 }
 
+.push-bell-info {
+    margin: 0.4rem 0 0;
+    font-size: 0.76rem;
+    color: var(--text-gray);
+    line-height: 1.4;
+}
+
 .push-bell-note {
     margin: 0.4rem 0 0;
     font-size: 0.78rem;

@@ -2,7 +2,7 @@
 // PUSH NOTIFICATIONS (Firebase Cloud Messaging)
 // V.V.S Rotselaar — gebruikt in het admin-paneel
 // (nieuwe contactberichten/accountaanvragen) én door leden
-// (herinnering aanwezigheid + live wedstrijdmeldingen)
+// (live wedstrijdmeldingen)
 // ===============================================
 
 import { db, app } from './firebase-config.js';
@@ -16,13 +16,53 @@ const VAPID_KEY = 'BFKrgBtZOxR2vaDslxAfveQiGh9NmMDjEdnfKpHMqQEBzH-Okn_fOTs0RcxBy
 // Scope waarop de FCM-service worker geregistreerd staat (zie enablePushNotifications
 // hieronder) — apart van scope '/' zodat er geen conflict ontstaat met pwa.js.
 const PUSH_SCOPE = '/firebase-push-scope/';
+const DEVICE_DISABLED_KEY = 'vvs_push_device_disabled';
+const ADMIN_ENABLED_KEY = 'vvs_push_enabled';
 
-/**
- * Vraagt toestemming voor pushmeldingen, registreert de service worker,
- * en slaat het FCM-token op bij de ingelogde admin in Firestore.
- * @param {string} uid - uid van de ingelogde admin (users/{uid})
- * @returns {Promise<boolean>} true als succesvol ingeschakeld
- */
+async function getPushWorkerRegistration() {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const reg of registrations) {
+        const scriptUrl = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
+        if (scriptUrl.includes('firebase-messaging-sw.js') && !reg.scope.endsWith(PUSH_SCOPE)) {
+            console.log('[push] Oude service worker-registratie opgeruimd:', reg.scope);
+            await reg.unregister();
+        }
+    }
+
+    let registration = registrations.find(reg => reg.scope.endsWith(PUSH_SCOPE));
+    if (!registration) {
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+            scope: PUSH_SCOPE
+        });
+    }
+
+    if (registration.active) return registration;
+
+    const worker = registration.installing || registration.waiting;
+    if (!worker) throw new Error('De push-service-worker kon niet worden geactiveerd.');
+
+    await new Promise((resolve, reject) => {
+        const onStateChange = () => {
+            if (registration.active) {
+                worker.removeEventListener('statechange', onStateChange);
+                resolve();
+            } else if (worker.state === 'redundant') {
+                worker.removeEventListener('statechange', onStateChange);
+                reject(new Error('De push-service-worker kon niet worden geactiveerd.'));
+            }
+        };
+        worker.addEventListener('statechange', onStateChange);
+        onStateChange();
+    });
+
+    return registration;
+}
+
+function isDevicePushDisabled() {
+    try { return localStorage.getItem(DEVICE_DISABLED_KEY) === '1'; }
+    catch (_) { return false; }
+}
+
 /**
  * Vangt pushberichten op die binnenkomen terwijl deze tab open én actief is
  * (Firebase levert die NIET aan de service worker, maar rechtstreeks aan de pagina).
@@ -79,6 +119,12 @@ export function listenForegroundMessages() {
     });
 }
 
+/**
+ * Vraagt toestemming voor pushmeldingen, registreert de service worker,
+ * en slaat het FCM-token op bij de ingelogde gebruiker in Firestore.
+ * @param {string} uid - uid van de ingelogde gebruiker (users/{uid})
+ * @returns {Promise<boolean>} true als succesvol ingeschakeld
+ */
 export async function enablePushNotifications(uid) {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         alert('Pushmeldingen worden niet ondersteund in deze browser.');
@@ -90,34 +136,13 @@ export async function enablePushNotifications(uid) {
     }
 
     try {
-        // Eventuele oude/verouderde registraties van dit script opruimen — bv. een
-        // restant op scope '/' van vóór de scope-fix. Zonder opkuis kunnen 2 actieve
-        // registraties dezelfde binnenkomende push allebei tonen (dubbele melding).
-        const existing = await navigator.serviceWorker.getRegistrations();
-        for (const reg of existing) {
-            const scriptUrl = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
-            if (scriptUrl.includes('firebase-messaging-sw.js') && !reg.scope.includes(PUSH_SCOPE)) {
-                console.log('[push] Oude service worker-registratie opgeruimd:', reg.scope);
-                await reg.unregister();
-            }
-        }
-
-        // Eigen, aparte scope gebruiken zodat er geen conflict ontstaat met de
-        // bestaande PWA-service worker (pwa.js), die ook op scope '/' draait.
-        // Zonder deze aparte scope kan een push bij de verkeerde worker terechtkomen,
-        // die geen melding toont — Chrome toont dan zelf een generieke fallbacktekst
-        // ("De site is geüpdatet op de achtergrond") in plaats van ons eigen bericht.
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-            scope: PUSH_SCOPE
-        });
-        await navigator.serviceWorker.ready;
-
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
             console.log('Pushmeldingen geweigerd door gebruiker.');
             return false;
         }
 
+        const registration = await getPushWorkerRegistration();
         const messaging = getMessaging(app);
         const token = await getToken(messaging, {
             vapidKey: VAPID_KEY,
@@ -130,12 +155,50 @@ export async function enablePushNotifications(uid) {
         }
 
         await updateDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) });
+        try { localStorage.removeItem(DEVICE_DISABLED_KEY); } catch (_) {}
+        listenForegroundMessages();
         console.log('Pushmeldingen ingeschakeld, token opgeslagen.');
         return true;
 
     } catch (err) {
         console.error('Push setup mislukt:', err);
         alert('Kon pushmeldingen niet inschakelen: ' + err.message);
+        return false;
+    }
+}
+
+/**
+ * Vernieuwt een eerder toegestane pushregistratie zonder opnieuw toestemming
+ * te vragen. Wordt alleen aangeroepen als minstens één meldingscategorie actief is.
+ */
+export async function refreshPushTokenIfEnabled(uid, userData) {
+    const permissions = Array.isArray(userData.permissions) ? userData.permissions : [];
+    const settings = userData.pushSettings || {};
+    const memberOptIn = Array.isArray(settings.liveTeams) && settings.liveTeams.length > 0;
+    let adminOptIn = false;
+    try {
+        adminOptIn = permissions.includes('admin') && localStorage.getItem(ADMIN_ENABLED_KEY) === '1';
+    } catch (_) {}
+
+    if ((!memberOptIn && !adminOptIn) || isDevicePushDisabled() ||
+        getPushPermissionStatus() !== 'granted' ||
+        !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return false;
+    }
+
+    try {
+        const registration = await getPushWorkerRegistration();
+        const token = await getToken(getMessaging(app), {
+            vapidKey: VAPID_KEY,
+            serviceWorkerRegistration: registration
+        });
+        if (!token) throw new Error('Geen FCM-token ontvangen.');
+
+        await updateDoc(doc(db, 'users', uid), { fcmTokens: arrayUnion(token) });
+        listenForegroundMessages();
+        return true;
+    } catch (err) {
+        console.error('Pushregistratie kon niet automatisch worden vernieuwd:', err);
         return false;
     }
 }
@@ -154,24 +217,25 @@ export function getPushPermissionStatus() {
  * (geen browserinstellingen nodig). Verwijdert het token uit Firestore
  * én trekt de lokale FCM-subscriptie in.
  * @param {string} uid
+ * @param {boolean} rememberDeviceOptOut voorkomt automatische herinschrijving
  * @returns {Promise<boolean>}
  */
-export async function disablePushNotifications(uid) {
+export async function disablePushNotifications(uid, rememberDeviceOptOut = true) {
     try {
-        // Zoek de registratie op basis van scope (niet op scriptbestand — getRegistration()
-        // verwacht een pagina-URL die binnen de scope valt, geen bestandsnaam).
+        // Zoek alleen de eigen push-registratie; getToken zonder deze registratie
+        // kan anders onbedoeld een tweede worker op de root-scope aanmaken.
         const registrations = await navigator.serviceWorker.getRegistrations();
-        const registration = registrations.find(r => r.scope.includes(PUSH_SCOPE));
+        const registration = registrations.find(r => r.scope.endsWith(PUSH_SCOPE));
         const messaging = getMessaging(app);
 
         // Huidig token ophalen zodat we exact dát token uit Firestore kunnen verwijderen
         let token = null;
-        try {
+        if (registration) {
             token = await getToken(messaging, {
                 vapidKey: VAPID_KEY,
                 serviceWorkerRegistration: registration
             });
-        } catch (_) { /* kan mislukken, geen probleem — dan slaan we die stap gewoon over */ }
+        }
 
         if (token) {
             await updateDoc(doc(db, 'users', uid), { fcmTokens: arrayRemove(token) });
@@ -179,6 +243,9 @@ export async function disablePushNotifications(uid) {
 
         // Trekt de lokale FCM-registratie in zodat dit toestel geen tokens meer genereert
         await deleteToken(messaging);
+        if (rememberDeviceOptOut) {
+            try { localStorage.setItem(DEVICE_DISABLED_KEY, '1'); } catch (_) {}
+        }
         return true;
 
     } catch (err) {
@@ -188,68 +255,44 @@ export async function disablePushNotifications(uid) {
 }
 
 // ===============================================
-// MELDINGSCATEGORIEËN VOOR LEDEN
+// MELDINGSCATEGORIE VOOR LEDEN
 // Bovenop de aan/uit-schakelaar hierboven (die de browser-
-// toestemming + het FCM-token regelt) kan iedereen apart kiezen:
-//  - 'reminder' (herinnering aanwezig/afwezig) — enkel zinvol voor
-//    de eigen ploeg(en), wordt enkel getoond aan leden van die ploeg.
+// toestemming + het FCM-token regelt) kan iedereen kiezen:
 //  - 'liveTeams' (live wedstrijdmeldingen) — een LIJST van ploegnamen,
 //    los van lidmaatschap: iedereen mag live meldingen van eender
 //    welke ploeg aanzetten, ook een ploeg waar die zelf niet in zit.
-// Opgeslagen als users/{uid}.pushSettings = { reminder, liveTeams }.
+// Opgeslagen als users/{uid}.pushSettings = { liveTeams }.
 // ===============================================
 
 /**
  * Haalt de huidige meldingsvoorkeuren van een gebruiker op.
  * @param {string} uid
- * @returns {Promise<{reminder: boolean, liveTeams: string[]}>}
+ * @returns {Promise<{liveTeams: string[]}>}
  */
 export async function getPushCategories(uid) {
     try {
         const snap = await getDoc(doc(db, 'users', uid));
         const settings = snap.data()?.pushSettings || {};
         return {
-            reminder: !!settings.reminder,
             liveTeams: Array.isArray(settings.liveTeams) ? settings.liveTeams : []
         };
     } catch (err) {
         console.error('Kon pushSettings niet ophalen:', err);
-        return { reminder: false, liveTeams: [] };
+        return { liveTeams: [] };
     }
 }
 
 /**
- * Ruimt het FCM-token op zodra ALLE meldingscategorieën uitstaan
- * (geen herinnering én geen enkele live-ploeg meer), zodat de
- * gebruiker pas opnieuw om browsertoestemming gevraagd wordt als
- * die iets terug aanzet.
+ * Ruimt het FCM-token op zodra alle meldingscategorieën uitstaan,
+ * behalve wanneer deze browser ook expliciet voor adminmeldingen is ingeschakeld.
  */
 async function cleanupDeviceIfAllOff(uid) {
     const current = await getPushCategories(uid);
-    if (!current.reminder && current.liveTeams.length === 0) {
-        await disablePushNotifications(uid);
+    let adminOptIn = false;
+    try { adminOptIn = localStorage.getItem(ADMIN_ENABLED_KEY) === '1'; } catch (_) {}
+    if (current.liveTeams.length === 0 && !adminOptIn) {
+        await disablePushNotifications(uid, false);
     }
-}
-
-/**
- * Schakelt de herinnering aanwezig/afwezig in of uit.
- * @param {string} uid
- * @param {boolean} enabled
- * @returns {Promise<boolean>} true als succesvol doorgevoerd
- */
-export async function setReminderPreference(uid, enabled) {
-    if (enabled) {
-        const ok = await enablePushNotifications(uid);
-        if (!ok) return false;
-    }
-    try {
-        await updateDoc(doc(db, 'users', uid), { 'pushSettings.reminder': enabled });
-    } catch (err) {
-        console.error('Kon reminder-instelling niet bijwerken:', err);
-        return false;
-    }
-    if (!enabled) await cleanupDeviceIfAllOff(uid);
-    return true;
 }
 
 /**
